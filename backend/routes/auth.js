@@ -36,8 +36,20 @@ router.post("/send-otp", async (req, res) => {
     const { email, name } = req.body || {};
     if (!email) return res.status(400).json({ message: "Email is required" });
 
-    const [exists] = await pool.query("SELECT id FROM users WHERE email = ? LIMIT 1", [email]);
-    if (exists.length) return res.status(400).json({ message: "Email already registered" });
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({ message: "Invalid email address" });
+    }
+
+    const [exists] = await pool.query(
+      "SELECT id FROM users WHERE email = ? LIMIT 1",
+      [normalizedEmail]
+    );
+    if (exists.length) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
 
     const otp = Math.floor(100000 + Math.random() * 900000);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
@@ -46,10 +58,15 @@ router.post("/send-otp", async (req, res) => {
       `INSERT INTO otps (email, otp, expires_at)
        VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at)`,
-      [email, otp, expiresAt]
+      [normalizedEmail, otp, expiresAt]
     );
 
-    await sendRegistrationOtpEmail(email, otp, name || "New CopUp User");
+    await sendRegistrationOtpEmail(
+      normalizedEmail,
+      otp,
+      name || "New CopUp User"
+    );
+
     res.json({ message: "OTP sent to your email" });
   } catch (err) {
     console.error("send-otp error:", err);

@@ -7,6 +7,7 @@ const {
   makeReferralLink,
   getRankPreview,
   isDuplicateError,
+  maybeStartCountdown,
 } = require("../services/heist.service");
 
 const router = express.Router();
@@ -17,7 +18,7 @@ const PUBLIC_HEIST_FIELDS = `
   countdown_duration_minutes, countdown_started_at, countdown_ends_at,
   starts_at, ends_at
 `;
-
+// api/heists/available - list of active/pending/started heists
 router.get("/available", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -48,6 +49,32 @@ router.get("/completed", async (req, res) => {
   }
 });
 
+// api/heists/:id - get single heist by id
+router.get("/:id", async (req, res) => {
+  try {
+    const heistId = Number(req.params.id);
+    if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+
+    const [rows] = await pool.query(
+      `SELECT ${PUBLIC_HEIST_FIELDS}
+       FROM heist
+       WHERE id = ?
+       LIMIT 1`,
+      [heistId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Heist not found" });
+    }
+
+    return res.json({ heist: rows[0] });
+  } catch (err) {
+    console.error("get heist by id error:", err);
+    return res.status(500).json({ message: "Error fetching heist" });
+  }
+});
+
+// api/heists/:id/join - join a heist with optional referral code
 router.post("/:id/join", authenticateToken, async (req, res) => {
   const heistId = Number(req.params.id);
   const userId = req.user.userId;
@@ -60,7 +87,7 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
     await conn.beginTransaction();
 
     const [[heist]] = await conn.query(
-      "SELECT id, status FROM heist WHERE id = ? LIMIT 1 FOR UPDATE",
+      "SELECT id, status, ticket_price FROM heist WHERE id = ? LIMIT 1 FOR UPDATE",
       [heistId]
     );
     if (!heist) {
@@ -79,6 +106,19 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
     if (existing.length) {
       await conn.rollback();
       return res.status(400).json({ message: "Already joined" });
+    }
+
+    const [[user]] = await conn.query(
+      "SELECT id, cop_point FROM users WHERE id = ? LIMIT 1 FOR UPDATE",
+      [userId]
+    );
+    if (!user) {
+      await conn.rollback();
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (Number(user.cop_point) < Number(heist.ticket_price)) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Insufficient cop_point" });
     }
 
     let affiliateUserId = null;
@@ -104,6 +144,11 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       [heistId, userId, affiliateUserId, trackedReferralCode]
     );
 
+    await conn.query("UPDATE users SET cop_point = cop_point - ? WHERE id = ?", [
+      heist.ticket_price,
+      userId,
+    ]);
+
     if (affiliateUserId) {
       try {
         await conn.query(
@@ -123,12 +168,16 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       }
     }
 
+    const countdown_started = await maybeStartCountdown(conn, heistId);
+
     await conn.commit();
     return res.status(201).json({
       message: "Joined heist",
       participant_id: result.insertId,
       affiliate_user_id: affiliateUserId,
       referral_code: trackedReferralCode,
+      charged_cop_point: heist.ticket_price,
+      countdown_started,
     });
   } catch (err) {
     if (conn) await conn.rollback();
@@ -177,56 +226,117 @@ router.get("/:id/play", authenticateToken, async (req, res) => {
 });
 
 router.post("/:id/start", authenticateToken, async (req, res) => {
-  try {
-    const heistId = Number(req.params.id);
-    const userId = req.user.userId;
-    if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+  const heistId = Number(req.params.id);
+  const userId = req.user.userId;
+  if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
 
-    const [[heist]] = await pool.query(
-      `SELECT id, status, allow_retry
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [[heist]] = await conn.query(
+      `SELECT id, status, allow_retry, retry_ticket_price, submissions_locked, countdown_ends_at
        FROM heist
        WHERE id = ?
-       LIMIT 1`,
+       LIMIT 1 FOR UPDATE`,
       [heistId]
     );
-    if (!heist) return res.status(404).json({ message: "Heist not found" });
+    if (!heist) {
+      await conn.rollback();
+      return res.status(404).json({ message: "Heist not found" });
+    }
     if (heist.status !== "started") {
+      await conn.rollback();
       return res.status(400).json({ message: "Heist is not playable" });
     }
+    if (Number(heist.submissions_locked)) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Submissions are locked" });
+    }
+    if (heist.countdown_ends_at && new Date(heist.countdown_ends_at).getTime() <= Date.now()) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Heist has ended" });
+    }
 
-    const [[participant]] = await pool.query(
+    const [[participant]] = await conn.query(
       `SELECT id, affiliate_user_id
        FROM heist_participants
        WHERE heist_id = ? AND user_id = ?
        LIMIT 1`,
       [heistId, userId]
     );
-    if (!participant) return res.status(403).json({ message: "Join heist first" });
-
-    if (!Number(heist.allow_retry)) {
-      const [submitted] = await pool.query(
-        `SELECT id
-         FROM heist_submissions
-         WHERE heist_id = ? AND user_id = ? AND status = 'submitted'
-         LIMIT 1`,
-        [heistId, userId]
-      );
-      if (submitted.length) {
-        return res.status(400).json({ message: "Retry is not allowed" });
-      }
+    if (!participant) {
+      await conn.rollback();
+      return res.status(403).json({ message: "Join heist first" });
     }
 
-    const [result] = await pool.query(
+    const [[activeSubmission]] = await conn.query(
+      `SELECT id
+       FROM heist_submissions
+       WHERE heist_id = ? AND user_id = ? AND status = 'started'
+       LIMIT 1 FOR UPDATE`,
+      [heistId, userId]
+    );
+    if (activeSubmission) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Submission already started" });
+    }
+
+    const [[attemptRow]] = await conn.query(
+      `SELECT COUNT(*) AS submitted_attempts
+       FROM heist_submissions
+       WHERE heist_id = ? AND user_id = ? AND status = 'submitted'`,
+      [heistId, userId]
+    );
+
+    const submittedAttempts = Number(attemptRow.submitted_attempts || 0);
+    let chargedCopPoint = 0;
+    if (submittedAttempts > 0) {
+      if (!Number(heist.allow_retry)) {
+        await conn.rollback();
+        return res.status(400).json({ message: "Retry is not allowed" });
+      }
+
+      const [[user]] = await conn.query(
+        "SELECT id, cop_point FROM users WHERE id = ? LIMIT 1 FOR UPDATE",
+        [userId]
+      );
+      if (!user) {
+        await conn.rollback();
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (Number(user.cop_point) < Number(heist.retry_ticket_price)) {
+        await conn.rollback();
+        return res.status(400).json({ message: "Insufficient cop_point" });
+      }
+
+      await conn.query("UPDATE users SET cop_point = cop_point - ? WHERE id = ?", [
+        heist.retry_ticket_price,
+        userId,
+      ]);
+      chargedCopPoint = Number(heist.retry_ticket_price);
+    }
+
+    const [result] = await conn.query(
       `INSERT INTO heist_submissions
         (heist_id, user_id, participant_id, affiliate_user_id, started_at, status)
        VALUES (?, ?, ?, ?, NOW(), 'started')`,
       [heistId, userId, participant.id, participant.affiliate_user_id]
     );
 
-    return res.status(201).json({ submission_id: result.insertId });
+    await conn.commit();
+    return res.status(201).json({
+      submission_id: result.insertId,
+      retry: submittedAttempts > 0,
+      charged_cop_point: chargedCopPoint,
+    });
   } catch (err) {
+    if (conn) await conn.rollback();
     console.error("start heist error:", err);
     return res.status(500).json({ message: "Error starting heist" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -282,12 +392,23 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
     }
 
     const [[heist]] = await conn.query(
-      "SELECT id, submissions_locked FROM heist WHERE id = ? LIMIT 1 FOR UPDATE",
+      `SELECT id, status, submissions_locked, countdown_ends_at
+       FROM heist
+       WHERE id = ?
+       LIMIT 1 FOR UPDATE`,
       [heistId]
     );
     if (!heist || Number(heist.submissions_locked)) {
       await conn.rollback();
       return res.status(400).json({ message: "Submissions are locked" });
+    }
+    if (heist.status !== "started") {
+      await conn.rollback();
+      return res.status(400).json({ message: "Heist is not accepting submissions" });
+    }
+    if (heist.countdown_ends_at && new Date(heist.countdown_ends_at).getTime() <= Date.now()) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Heist has ended" });
     }
 
     const [questions] = await conn.query(

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 17, 2026 at 09:43 AM
+-- Generation Time: Apr 17, 2026 at 11:19 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -238,7 +238,8 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `email`, `username`, `full_name`, `password_hash`, `role`, `is_verified`, `is_blocked`, `referral_code`, `wallet_address`, `game_id`, `cop_point`, `created_at`, `updated_at`) VALUES
-(1, 'admin@admin.com', 'admin', 'Heist Admin', '$2b$12$abcdefghijklmnopqrstuv123456789012345678901234567890', 'admin', 1, 0, 'ADMIN01', 'copADMINWALLET000001', 'ADMIN-GAME-001', 0, '2026-04-17 07:42:52', '2026-04-17 07:43:23');
+(1, 'admin@admin.com', 'admin', 'Heist Admin', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', 'admin', 1, 0, 'ADMIN01', 'copADMINWALLET000001', 'ADMIN-GAME-001', 0, '2026-04-17 07:42:52', '2026-04-17 09:01:57'),
+(2, 'jossycode0@gmail.com', 'jossy01', 'Jossy Code', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', 'user', 1, 0, '3v7zyv', 'coptg67Gv5Ep3Uk29IgEMwH', 'ZSDW-C5PZ-RN8K', 200, '2026-04-17 09:00:03', '2026-04-17 09:05:54');
 
 --
 -- Indexes for dumped tables
@@ -362,7 +363,7 @@ ALTER TABLE `heist`
 -- AUTO_INCREMENT for table `heist_participants`
 --
 ALTER TABLE `heist_participants`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `heist_questions`
@@ -386,7 +387,7 @@ ALTER TABLE `heist_submission_answers`
 -- AUTO_INCREMENT for table `otps`
 --
 ALTER TABLE `otps`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `referrals`
@@ -398,7 +399,7 @@ ALTER TABLE `referrals`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- Constraints for dumped tables

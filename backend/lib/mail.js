@@ -59,26 +59,6 @@ function sendPasswordResetOtpEmail(to, otp) {
   return sendEmail(to, "Your OTP for password reset", html);
 }
 
-/* ---------- NEW: auction started email ---------- */
-function buildAuctionStartedHtml({ auctionName, auctionLink, imageUrl }) {
-  return `
-  <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;border:1px solid #eee;border-radius:8px;padding:20px;">
-    <div style="text-align:center;font-weight:700;font-size:20px;color:#56b2b7;margin-bottom:12px;">CopupBid</div>
-    <h2 style="margin:0 0 10px 0;">Auction is now <span style="color:#22aa55">ACTIVE</span> 🎉</h2>
-    <p style="margin:0 0 12px 0;">The auction <strong>${escapeHtml(auctionName)}</strong> has just started. Place your bids now.</p>
-    ${imageUrl ? `<img src="${imageUrl}" alt="Auction" style="max-width:100%;border-radius:6px;margin:10px 0;" />` : ""}
-    <p style="margin:12px 0;">Open the auction:</p>
-    <p><a href="${auctionLink}" style="display:inline-block;background:#56b2b7;color:#fff;text-decoration:none;border-radius:6px;padding:10px 14px;">View Auction</a></p>
-    <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px; color:#888;">This is an automated message. Please do not reply.</p>
-  </div>`;
-}
-
-function sendAuctionStartedEmail(to, auctionName, auctionLink, imageUrl) {
-  const html = buildAuctionStartedHtml({ auctionName, auctionLink, imageUrl });
-  return sendEmail(to, `Auction started: ${auctionName}`, html);
-}
-
 function sendHeistStartedEmail(to, heistName, heistLink = "https://copupbid.top/heist") {
   const name = escapeHtml(heistName || "Heist");
   const year = new Date().getFullYear();
@@ -199,8 +179,7 @@ function sendCopupTopupFailedEmail(to, { name, amount, currency, txRef, reason }
 module.exports = {
   sendEmail,
   sendRegistrationOtpEmail,
-  sendPasswordResetOtpEmail,
-  sendAuctionStartedEmail,  
+  sendPasswordResetOtpEmail, 
   sendHeistStartedEmail, 
   sendCopupTopupSuccessEmail,
   sendCopupTopupFailedEmail

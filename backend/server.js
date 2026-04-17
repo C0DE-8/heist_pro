@@ -9,8 +9,9 @@ const authRoutes = require("./routes/auth");
 const PaymentRoutes = require("./routes/payment");
 const heistRoutes = require("./routes/heists");
 const adminHeistRoutes = require("./routes/admin.heists");
+const { startHeistCron } = require("./jobs/heistCron");
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 app.use(helmet({
@@ -46,5 +47,21 @@ app.get("/health", async (req, res) => {
 });
 
 
-const PORT = Number(process.env.PORT || 4000);
-app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`));
+const PORT = Number(process.env.PORT || 2000);
+const server = app.listen(PORT, () => {
+  console.log(`API listening on http://localhost:${PORT}`);
+  if (process.env.DISABLE_HEIST_CRON !== "1") {
+    startHeistCron();
+  }
+});
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} is already in use`);
+  } else {
+    console.error("Server error:", err.message);
+  }
+  process.exit(1);
+});
+
+module.exports = app;

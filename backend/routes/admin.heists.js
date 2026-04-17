@@ -1,7 +1,7 @@
 const express = require("express");
 const { pool } = require("../conf/db");
 const { authenticateToken, authenticateAdmin } = require("../middleware/auth");
-const { normalizeAnswer } = require("../services/heist.service");
+const { normalizeAnswer, finalizeHeist } = require("../services/heist.service");
 
 const router = express.Router();
 
@@ -158,6 +158,7 @@ router.patch("/:id/status", async (req, res) => {
              countdown_started_at = COALESCE(countdown_started_at, NOW()),
              countdown_ends_at = COALESCE(
                countdown_ends_at,
+               ends_at,
                DATE_ADD(NOW(), INTERVAL countdown_duration_minutes MINUTE)
              )
          WHERE id = ?`,
@@ -188,65 +189,21 @@ router.post("/:id/finalize", async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const [[heist]] = await conn.query(
-      `SELECT id, prize_cop_points, status
-       FROM heist
-       WHERE id = ?
-       LIMIT 1 FOR UPDATE`,
-      [heistId]
-    );
-    if (!heist) {
+    const result = await finalizeHeist(conn, heistId);
+    if (!result.found) {
       await conn.rollback();
       return res.status(404).json({ message: "Heist not found" });
     }
-    if (heist.status === "completed") {
+    if (result.already_completed) {
       await conn.rollback();
       return res.status(400).json({ message: "Heist already completed" });
     }
 
-    const [[winner]] = await conn.query(
-      `SELECT hs.id AS submission_id, hs.user_id, u.username,
-              hs.correct_count, hs.total_time_seconds, hs.submitted_at
-       FROM heist_submissions hs
-       JOIN users u ON u.id = hs.user_id
-       WHERE hs.heist_id = ? AND hs.status = 'submitted'
-       ORDER BY hs.correct_count DESC, hs.total_time_seconds ASC, hs.submitted_at ASC
-       LIMIT 1`,
-      [heistId]
-    );
-
-    if (!winner) {
-      await conn.query(
-        "UPDATE heist SET status = 'completed', submissions_locked = 1 WHERE id = ?",
-        [heistId]
-      );
-      await conn.commit();
-      return res.json({ message: "Heist finalized", winner: null, awarded_points: 0 });
-    }
-
-    await conn.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
-      heist.prize_cop_points,
-      winner.user_id,
-    ]);
-    await conn.query(
-      `UPDATE heist
-       SET winner_user_id = ?, status = 'completed', submissions_locked = 1
-       WHERE id = ?`,
-      [winner.user_id, heistId]
-    );
-
     await conn.commit();
     return res.json({
       message: "Heist finalized",
-      winner: {
-        user_id: winner.user_id,
-        username: winner.username,
-        submission_id: winner.submission_id,
-        correct_count: winner.correct_count,
-        total_time_seconds: winner.total_time_seconds,
-        submitted_at: winner.submitted_at,
-      },
-      awarded_points: heist.prize_cop_points,
+      winner: result.winner,
+      awarded_points: result.awarded_points,
     });
   } catch (err) {
     if (conn) await conn.rollback();
