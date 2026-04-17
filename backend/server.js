@@ -7,6 +7,8 @@ const path = require("path");
 const { ping } = require("./conf/db");
 const authRoutes = require("./routes/auth");
 const PaymentRoutes = require("./routes/payment");
+const heistRoutes = require("./routes/heists");
+const adminHeistRoutes = require("./routes/admin.heists");
 
 dotenv.config();
 
@@ -30,6 +32,8 @@ app.get("/copupbid", (req, res) => res.json({ message: "CopupBid backend running
 
 app.use("/api/auth", authRoutes);
 app.use("/api/payment", PaymentRoutes);
+app.use("/api/heists", heistRoutes);
+app.use("/api/admin/heists", adminHeistRoutes);
 
 
 app.get("/health", async (req, res) => {
