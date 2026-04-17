@@ -9,6 +9,8 @@ const authRoutes = require("./routes/auth");
 const PaymentRoutes = require("./routes/payment");
 const heistRoutes = require("./routes/heists");
 const adminHeistRoutes = require("./routes/admin.heists");
+const userRoutes = require("./routes/users");
+const adminProfileRoutes = require("./routes/admin.profile");
 const { startHeistCron } = require("./jobs/heistCron");
 
 dotenv.config({ quiet: true });
@@ -31,10 +33,18 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.get("/", (req, res) => res.json({ ok: true, name: "CopupBid backend running 🚀 GOD-DID-ITS-AGAIN" }));
 app.get("/copupbid", (req, res) => res.json({ message: "CopupBid backend running 🚀" }));
 
+app.get("/heists/:id/ref/:code", (req, res) => {
+  const frontendBaseUrl = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+  const base = frontendBaseUrl.replace(/\/+$/g, "");
+  return res.redirect(302, `${base}/heists/${req.params.id}/ref/${req.params.code}`);
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/payment", PaymentRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/heists", heistRoutes);
 app.use("/api/admin/heists", adminHeistRoutes);
+app.use("/api/admin/profile", adminProfileRoutes);
 
 
 app.get("/health", async (req, res) => {

@@ -152,7 +152,7 @@ router.post("/copup/init", authenticateToken, async (req, res) => {
    GET /api/payment/copup/verify
    Flutterwave redirect query:
    ?status=successful|completed&tx_ref=...&transaction_id=...
-   -> verifies, credits bid_points, telegram + email alerts, redirects to frontend /payment-result
+   -> verifies, credits cop_point, telegram + email alerts, redirects to frontend /payment-result
 ============================================================================ */
 router.get("/copup/verify", async (req, res) => {
   const { status, tx_ref, transaction_id } = req.query || {};
@@ -329,7 +329,7 @@ router.get("/copup/verify", async (req, res) => {
         [flwId, amountPaid, currencyPaid, copupCoin, tx_ref]
       );
 
-      await conn.query("UPDATE users SET bid_points = bid_points + ? WHERE id = ?", [
+      await conn.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
         copupCoin,
         userId,
       ]);

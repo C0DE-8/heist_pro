@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 17, 2026 at 11:19 AM
+-- Generation Time: Apr 17, 2026 at 03:31 PM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -20,6 +20,35 @@ SET time_zone = "+00:00";
 --
 -- Database: `heist_pro`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `affiliate_tasks`
+--
+
+CREATE TABLE `affiliate_tasks` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `heist_id` int(11) NOT NULL,
+  `required_joins` int(11) NOT NULL,
+  `reward_cop_points` int(11) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `affiliate_task_progress`
+--
+
+CREATE TABLE `affiliate_task_progress` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `task_id` bigint(20) UNSIGNED NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `current_joins` int(11) NOT NULL DEFAULT 0,
+  `is_completed` tinyint(1) NOT NULL DEFAULT 0,
+  `rewarded_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -67,8 +96,6 @@ CREATE TABLE `heist` (
   `description` text DEFAULT NULL,
   `min_users` int(11) NOT NULL DEFAULT 1,
   `ticket_price` int(11) NOT NULL DEFAULT 0,
-  `retry_ticket_price` int(11) NOT NULL DEFAULT 0,
-  `allow_retry` tinyint(1) NOT NULL DEFAULT 0,
   `total_questions` int(11) NOT NULL DEFAULT 0,
   `prize_cop_points` int(11) NOT NULL DEFAULT 0,
   `status` enum('pending','hold','started','completed','cancelled') NOT NULL DEFAULT 'pending',
@@ -88,8 +115,8 @@ CREATE TABLE `heist` (
 -- Dumping data for table `heist`
 --
 
-INSERT INTO `heist` (`id`, `name`, `description`, `min_users`, `ticket_price`, `retry_ticket_price`, `allow_retry`, `total_questions`, `prize_cop_points`, `status`, `submissions_locked`, `winner_user_id`, `countdown_started_at`, `countdown_duration_minutes`, `countdown_ends_at`, `starts_at`, `ends_at`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 2, 100, 50, 0, 10, 5000, 'pending', 0, NULL, NULL, 10, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52');
+INSERT INTO `heist` (`id`, `name`, `description`, `min_users`, `ticket_price`, `total_questions`, `prize_cop_points`, `status`, `submissions_locked`, `winner_user_id`, `countdown_started_at`, `countdown_duration_minutes`, `countdown_ends_at`, `starts_at`, `ends_at`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 100, 10, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50');
 
 -- --------------------------------------------------------
 
@@ -106,6 +133,13 @@ CREATE TABLE `heist_participants` (
   `joined_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `status` enum('joined','submitted','disqualified','cancelled') NOT NULL DEFAULT 'joined'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `heist_participants`
+--
+
+INSERT INTO `heist_participants` (`id`, `heist_id`, `user_id`, `affiliate_user_id`, `referral_code`, `joined_at`, `status`) VALUES
+(5, 1, 3, NULL, NULL, '2026-04-17 12:57:23', 'submitted');
 
 -- --------------------------------------------------------
 
@@ -164,6 +198,14 @@ CREATE TABLE `heist_submissions` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `heist_submissions`
+--
+
+INSERT INTO `heist_submissions` (`id`, `heist_id`, `user_id`, `participant_id`, `affiliate_user_id`, `started_at`, `submitted_at`, `total_time_seconds`, `correct_count`, `wrong_count`, `unanswered_count`, `score_percent`, `status`, `created_at`, `updated_at`) VALUES
+(1, 1, 3, 5, NULL, '2026-04-17 06:11:10', '2026-04-17 06:12:17', 45, 6, 4, 0, 60.00, 'submitted', '2026-04-17 13:11:10', '2026-04-17 13:12:17'),
+(2, 1, 3, 5, NULL, '2026-04-17 06:24:35', NULL, NULL, 0, 0, 0, 0.00, 'started', '2026-04-17 13:24:35', '2026-04-17 13:24:35');
+
 -- --------------------------------------------------------
 
 --
@@ -182,6 +224,22 @@ CREATE TABLE `heist_submission_answers` (
   `time_spent_seconds` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `heist_submission_answers`
+--
+
+INSERT INTO `heist_submission_answers` (`id`, `submission_id`, `heist_id`, `question_id`, `user_id`, `submitted_answer`, `is_correct`, `answered_at`, `time_spent_seconds`, `created_at`) VALUES
+(1, 1, 1, 1, 3, 'true', 1, '2026-04-17 06:12:17', 9, '2026-04-17 13:12:17'),
+(2, 1, 1, 2, 3, 'true', 0, '2026-04-17 06:12:17', 5, '2026-04-17 13:12:17'),
+(3, 1, 1, 3, 3, 'true', 1, '2026-04-17 06:12:17', 6, '2026-04-17 13:12:17'),
+(4, 1, 1, 4, 3, 'true', 0, '2026-04-17 06:12:17', 7, '2026-04-17 13:12:17'),
+(5, 1, 1, 5, 3, 'false', 0, '2026-04-17 06:12:17', 2, '2026-04-17 13:12:17'),
+(6, 1, 1, 6, 3, 'true', 0, '2026-04-17 06:12:17', 6, '2026-04-17 13:12:17'),
+(7, 1, 1, 7, 3, 'true', 1, '2026-04-17 06:12:17', 7, '2026-04-17 13:12:17'),
+(8, 1, 1, 8, 3, 'false', 1, '2026-04-17 06:12:17', 1, '2026-04-17 13:12:17'),
+(9, 1, 1, 9, 3, 'true', 1, '2026-04-17 06:12:17', 1, '2026-04-17 13:12:17'),
+(10, 1, 1, 10, 3, 'false', 1, '2026-04-17 06:12:17', 1, '2026-04-17 13:12:17');
 
 -- --------------------------------------------------------
 
@@ -209,6 +267,13 @@ CREATE TABLE `referrals` (
   `referred_id` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `referrals`
+--
+
+INSERT INTO `referrals` (`id`, `referrer_id`, `referred_id`, `created_at`) VALUES
+(1, 2, 3, '2026-04-17 10:35:32');
 
 -- --------------------------------------------------------
 
@@ -239,11 +304,29 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `email`, `username`, `full_name`, `password_hash`, `role`, `is_verified`, `is_blocked`, `referral_code`, `wallet_address`, `game_id`, `cop_point`, `created_at`, `updated_at`) VALUES
 (1, 'admin@admin.com', 'admin', 'Heist Admin', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', 'admin', 1, 0, 'ADMIN01', 'copADMINWALLET000001', 'ADMIN-GAME-001', 0, '2026-04-17 07:42:52', '2026-04-17 09:01:57'),
-(2, 'jossycode0@gmail.com', 'jossy01', 'Jossy Code', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', 'user', 1, 0, '3v7zyv', 'coptg67Gv5Ep3Uk29IgEMwH', 'ZSDW-C5PZ-RN8K', 200, '2026-04-17 09:00:03', '2026-04-17 09:05:54');
+(2, 'jossycode0@gmail.com', 'jossy01', 'Jossy Code', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', 'user', 1, 0, 'billions', 'coptg67Gv5Ep3Uk29IgEMwH', 'ZSDW-C5PZ-RN8K', 100, '2026-04-17 09:00:03', '2026-04-17 10:35:03'),
+(3, '8amlight@gmail.com', 'light', 'Samuel Oghenchovwe', '$2b$12$6YpXM2xJkyu27NPcobfEf./UUDW1GAqw0DiBMh1/GlGONCL3.BJ5S', 'user', 1, 0, 'pffzl5', 'copiOKpOlWoG1ofmEz0FBGR', 'VHA5-EGR2-H276', 500, '2026-04-17 10:35:32', '2026-04-17 13:24:35');
 
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `affiliate_tasks`
+--
+ALTER TABLE `affiliate_tasks`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_affiliate_tasks_heist` (`heist_id`),
+  ADD KEY `idx_affiliate_tasks_active` (`heist_id`,`is_active`);
+
+--
+-- Indexes for table `affiliate_task_progress`
+--
+ALTER TABLE `affiliate_task_progress`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_affiliate_task_user` (`task_id`,`user_id`),
+  ADD KEY `idx_affiliate_task_progress_user` (`user_id`),
+  ADD KEY `idx_affiliate_task_progress_completed` (`task_id`,`is_completed`);
 
 --
 -- Indexes for table `affiliate_user_links`
@@ -342,6 +425,18 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `affiliate_tasks`
+--
+ALTER TABLE `affiliate_tasks`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `affiliate_task_progress`
+--
+ALTER TABLE `affiliate_task_progress`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `affiliate_user_links`
 --
 ALTER TABLE `affiliate_user_links`
@@ -363,7 +458,7 @@ ALTER TABLE `heist`
 -- AUTO_INCREMENT for table `heist_participants`
 --
 ALTER TABLE `heist_participants`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `heist_questions`
@@ -375,35 +470,48 @@ ALTER TABLE `heist_questions`
 -- AUTO_INCREMENT for table `heist_submissions`
 --
 ALTER TABLE `heist_submissions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `heist_submission_answers`
 --
 ALTER TABLE `heist_submission_answers`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `otps`
 --
 ALTER TABLE `otps`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `referrals`
 --
 ALTER TABLE `referrals`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `affiliate_tasks`
+--
+ALTER TABLE `affiliate_tasks`
+  ADD CONSTRAINT `fk_affiliate_tasks_heist` FOREIGN KEY (`heist_id`) REFERENCES `heist` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `affiliate_task_progress`
+--
+ALTER TABLE `affiliate_task_progress`
+  ADD CONSTRAINT `fk_affiliate_task_progress_task` FOREIGN KEY (`task_id`) REFERENCES `affiliate_tasks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_affiliate_task_progress_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `affiliate_user_links`

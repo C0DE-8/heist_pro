@@ -8,7 +8,7 @@ function makeReferralCode() {
 }
 
 function getBaseUrl(req) {
-  return process.env.FRONTEND_BASE_URL || `${req.protocol}://${req.get("host")}`;
+  return process.env.FRONTEND_BASE_URL || "http://localhost:5173";
 }
 
 function makeReferralLink(req, heistId, code) {
@@ -140,6 +140,81 @@ async function finalizeHeist(db, heistId) {
   };
 }
 
+async function recordAffiliateTaskProgress(db, heistId, affiliateUserId) {
+  const [[heist]] = await db.query(
+    "SELECT id, status FROM heist WHERE id = ? LIMIT 1 FOR UPDATE",
+    [heistId]
+  );
+  if (!heist || heist.status === "completed" || heist.status === "cancelled") {
+    return [];
+  }
+
+  const [tasks] = await db.query(
+    `SELECT id, required_joins, reward_cop_points
+     FROM affiliate_tasks
+     WHERE heist_id = ? AND is_active = 1
+     ORDER BY required_joins ASC, id ASC`,
+    [heistId]
+  );
+
+  const updates = [];
+  for (const task of tasks) {
+    await db.query(
+      `INSERT INTO affiliate_task_progress
+        (task_id, user_id, current_joins, is_completed, rewarded_at)
+       VALUES (?, ?, 1, 0, NULL)
+       ON DUPLICATE KEY UPDATE
+         current_joins = IF(is_completed = 1, current_joins, current_joins + 1)`,
+      [task.id, affiliateUserId]
+    );
+
+    const [[progress]] = await db.query(
+      `SELECT id, task_id, user_id, current_joins, is_completed, rewarded_at
+       FROM affiliate_task_progress
+       WHERE task_id = ? AND user_id = ?
+       LIMIT 1 FOR UPDATE`,
+      [task.id, affiliateUserId]
+    );
+
+    if (
+      progress &&
+      !Number(progress.is_completed) &&
+      Number(progress.current_joins) >= Number(task.required_joins)
+    ) {
+      await db.query(
+        `UPDATE affiliate_task_progress
+         SET is_completed = 1, rewarded_at = NOW()
+         WHERE id = ? AND is_completed = 0`,
+        [progress.id]
+      );
+      await db.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
+        task.reward_cop_points,
+        affiliateUserId,
+      ]);
+      progress.is_completed = 1;
+      progress.rewarded_at = new Date();
+      progress.reward_cop_points = task.reward_cop_points;
+      updates.push({
+        task_id: task.id,
+        current_joins: progress.current_joins,
+        is_completed: true,
+        rewarded: true,
+        reward_cop_points: task.reward_cop_points,
+      });
+    } else if (progress) {
+      updates.push({
+        task_id: task.id,
+        current_joins: progress.current_joins,
+        is_completed: Boolean(Number(progress.is_completed)),
+        rewarded: false,
+        reward_cop_points: task.reward_cop_points,
+      });
+    }
+  }
+
+  return updates;
+}
+
 module.exports = {
   normalizeAnswer,
   makeReferralCode,
@@ -148,4 +223,5 @@ module.exports = {
   isDuplicateError,
   maybeStartCountdown,
   finalizeHeist,
+  recordAffiliateTaskProgress,
 };

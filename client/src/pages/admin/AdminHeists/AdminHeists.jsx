@@ -1,0 +1,773 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FaPlus,
+  FaRedoAlt,
+  FaSave,
+  FaTrash,
+  FaTrophy,
+  FaUsers,
+} from "react-icons/fa";
+import AdminNavbar from "../../../components/admin/Navbar";
+import Modal from "../../../components/ui/Modal";
+import { ToastProvider, useToast } from "../../../components/ui/Toaster";
+import { api } from "../../../lib/api";
+import styles from "./AdminHeists.module.css";
+
+const EMPTY_HEIST = {
+  name: "",
+  description: "",
+  min_users: "3",
+  ticket_price: "0",
+  prize_cop_points: "0",
+  countdown_duration_minutes: "10",
+  starts_at: "",
+  ends_at: "",
+};
+
+const EMPTY_QUESTION = {
+  question_text: "",
+  correct_answer: "true",
+  sort_order: "1",
+};
+
+const EMPTY_TASK = {
+  required_joins: "1",
+  reward_cop_points: "0",
+  is_active: true,
+};
+
+function formatNum(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString() : "0";
+}
+
+function formatDate(value) {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function AdminHeistsPage() {
+  const toast = useToast();
+
+  const [heists, setHeists] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [progress, setProgress] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [questionsModalOpen, setQuestionsModalOpen] = useState(false);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+
+  const [createForm, setCreateForm] = useState(EMPTY_HEIST);
+  const [questionRows, setQuestionRows] = useState([
+    { ...EMPTY_QUESTION, sort_order: "1" },
+    { ...EMPTY_QUESTION, sort_order: "2" },
+    { ...EMPTY_QUESTION, sort_order: "3" },
+  ]);
+  const [taskForm, setTaskForm] = useState(EMPTY_TASK);
+  const [statusValue, setStatusValue] = useState("pending");
+
+  const selectedHeist = useMemo(
+    () => heists.find((heist) => Number(heist.id) === Number(selectedId)) || null,
+    [heists, selectedId]
+  );
+
+  const totals = useMemo(
+    () => ({
+      all: heists.length,
+      pending: heists.filter((h) => h.status === "pending").length,
+      started: heists.filter((h) => h.status === "started").length,
+      completed: heists.filter((h) => h.status === "completed").length,
+    }),
+    [heists]
+  );
+
+  const loadHeists = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const { data } = await api.get("/admin/heists");
+      const rows = Array.isArray(data?.heists) ? data.heists : [];
+      setHeists(rows);
+      setSelectedId((current) => current || rows[0]?.id || null);
+    } catch (err) {
+      console.error("Load admin heists error:", err);
+      setError(err?.response?.data?.message || "Unable to load heists.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadSelectedDetails = useCallback(async () => {
+    if (!selectedId) {
+      setQuestions([]);
+      setTasks([]);
+      setProgress([]);
+      return;
+    }
+
+    setDetailLoading(true);
+    try {
+      const [questionRes, taskRes, progressRes] = await Promise.all([
+        api.get(`/admin/heists/${selectedId}/questions`),
+        api.get(`/admin/heists/${selectedId}/affiliate-tasks`),
+        api.get(`/admin/heists/${selectedId}/affiliate-tasks/progress`),
+      ]);
+
+      setQuestions(Array.isArray(questionRes.data?.questions) ? questionRes.data.questions : []);
+      setTasks(Array.isArray(taskRes.data?.tasks) ? taskRes.data.tasks : []);
+      setProgress(Array.isArray(progressRes.data?.progress) ? progressRes.data.progress : []);
+    } catch (err) {
+      console.error("Load heist details error:", err);
+      toast.error(err?.response?.data?.message || "Unable to load heist details.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [selectedId, toast]);
+
+  useEffect(() => {
+    loadHeists();
+  }, [loadHeists]);
+
+  useEffect(() => {
+    if (selectedHeist?.status) setStatusValue(selectedHeist.status);
+  }, [selectedHeist?.status]);
+
+  useEffect(() => {
+    loadSelectedDetails();
+  }, [loadSelectedDetails]);
+
+  const updateCreateForm = (event) => {
+    const { name, value } = event.target;
+    setCreateForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const createHeist = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    if (!createForm.name.trim()) {
+      toast.warn("Heist name is required");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const payload = {
+        ...createForm,
+        min_users: Number(createForm.min_users || 1),
+        ticket_price: Number(createForm.ticket_price || 0),
+        prize_cop_points: Number(createForm.prize_cop_points || 0),
+        countdown_duration_minutes: Number(createForm.countdown_duration_minutes || 10),
+        starts_at: createForm.starts_at || null,
+        ends_at: createForm.ends_at || null,
+      };
+
+      const { data } = await api.post("/admin/heists", payload);
+      toast.success("Heist created");
+      setCreateForm(EMPTY_HEIST);
+      setCreateModalOpen(false);
+      await loadHeists();
+      if (data?.heist_id) setSelectedId(data.heist_id);
+    } catch (err) {
+      console.error("Create heist error:", err);
+      toast.error(err?.response?.data?.message || "Unable to create heist.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateQuestion = (index, key, value) => {
+    setQuestionRows((prev) =>
+      prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row))
+    );
+  };
+
+  const addQuestionRow = () => {
+    setQuestionRows((prev) => [
+      ...prev,
+      { ...EMPTY_QUESTION, sort_order: String(prev.length + 1) },
+    ]);
+  };
+
+  const removeQuestionRow = (index) => {
+    setQuestionRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  const addQuestions = async (event) => {
+    event.preventDefault();
+    if (!selectedId || busy) return;
+
+    const payload = questionRows
+      .map((row, index) => ({
+        question_text: row.question_text.trim(),
+        correct_answer: row.correct_answer,
+        sort_order: Number(row.sort_order || index + 1),
+      }))
+      .filter((row) => row.question_text);
+
+    if (!payload.length) {
+      toast.warn("Add at least one question");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await api.post(`/admin/heists/${selectedId}/questions`, { questions: payload });
+      toast.success("Questions added");
+      setQuestionRows([{ ...EMPTY_QUESTION, sort_order: String(questions.length + 1) }]);
+      setQuestionsModalOpen(false);
+      await Promise.all([loadSelectedDetails(), loadHeists()]);
+    } catch (err) {
+      console.error("Add questions error:", err);
+      toast.error(err?.response?.data?.message || "Unable to add questions.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateStatus = async () => {
+    if (!selectedId || busy || !statusValue) return;
+
+    setBusy(true);
+    try {
+      await api.patch(`/admin/heists/${selectedId}/status`, { status: statusValue });
+      toast.success("Status updated");
+      await loadHeists();
+    } catch (err) {
+      console.error("Update heist status error:", err);
+      toast.error(err?.response?.data?.message || "Unable to update status.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const finalizeHeist = async () => {
+    if (!selectedId || busy) return;
+    const ok = window.confirm("Finalize this heist and award the winner?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/admin/heists/${selectedId}/finalize`);
+      toast.success(
+        data?.winner
+          ? `Winner awarded ${formatNum(data.awarded_points)} CP`
+          : "Heist finalized without submitted winner"
+      );
+      await Promise.all([loadHeists(), loadSelectedDetails()]);
+    } catch (err) {
+      console.error("Finalize heist error:", err);
+      toast.error(err?.response?.data?.message || "Unable to finalize heist.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteQuestion = async (question) => {
+    if (!selectedId || !question?.id || busy) return;
+    const ok = window.confirm("Delete this question from the heist?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await api.delete(`/admin/heists/${selectedId}/questions/${question.id}`);
+      toast.success("Question deleted");
+      await Promise.all([loadSelectedDetails(), loadHeists()]);
+    } catch (err) {
+      console.error("Delete question error:", err);
+      toast.error(err?.response?.data?.message || "Unable to delete question.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createTask = async (event) => {
+    event.preventDefault();
+    if (!selectedId || busy) return;
+
+    setBusy(true);
+    try {
+      await api.post(`/admin/heists/${selectedId}/affiliate-tasks`, {
+        required_joins: Number(taskForm.required_joins || 1),
+        reward_cop_points: Number(taskForm.reward_cop_points || 0),
+        is_active: taskForm.is_active,
+      });
+      toast.success("Affiliate task created");
+      setTaskForm(EMPTY_TASK);
+      setTaskModalOpen(false);
+      await loadSelectedDetails();
+    } catch (err) {
+      console.error("Create affiliate task error:", err);
+      toast.error(err?.response?.data?.message || "Unable to create affiliate task.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleTask = async (task) => {
+    if (!selectedId || !task?.id || busy) return;
+
+    setBusy(true);
+    try {
+      await api.patch(`/admin/heists/${selectedId}/affiliate-tasks/${task.id}`, {
+        is_active: !Number(task.is_active),
+      });
+      toast.success("Affiliate task updated");
+      await loadSelectedDetails();
+    } catch (err) {
+      console.error("Update affiliate task error:", err);
+      toast.error(err?.response?.data?.message || "Unable to update affiliate task.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteTask = async (task) => {
+    if (!selectedId || !task?.id || busy) return;
+    const ok = window.confirm("Delete this affiliate task?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await api.delete(`/admin/heists/${selectedId}/affiliate-tasks/${task.id}`);
+      toast.success("Affiliate task deleted");
+      await loadSelectedDetails();
+    } catch (err) {
+      console.error("Delete affiliate task error:", err);
+      toast.error(err?.response?.data?.message || "Unable to delete affiliate task.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.page}>
+      <AdminNavbar />
+      <main className={styles.main}>
+        <section className={styles.hero}>
+          <div>
+            <p className={styles.kicker}>Admin Heists</p>
+            <h1>Heist control room</h1>
+            <p>Create True/False heists, manage questions, start countdowns, finalize winners, and track affiliate tasks.</p>
+          </div>
+          <button type="button" className={styles.refreshBtn} onClick={loadHeists} disabled={loading || busy}>
+            <FaRedoAlt />
+            <span>{loading ? "Loading..." : "Refresh"}</span>
+          </button>
+        </section>
+
+        {error ? (
+          <div className={styles.errorBox}>
+            <span>{error}</span>
+            <button type="button" onClick={loadHeists}>Retry</button>
+          </div>
+        ) : null}
+
+        <section className={styles.statsGrid}>
+          <div>
+            <span>Total</span>
+            <strong>{formatNum(totals.all)}</strong>
+          </div>
+          <div>
+            <span>Pending</span>
+            <strong>{formatNum(totals.pending)}</strong>
+          </div>
+          <div>
+            <span>Started</span>
+            <strong>{formatNum(totals.started)}</strong>
+          </div>
+          <div>
+            <span>Completed</span>
+            <strong>{formatNum(totals.completed)}</strong>
+          </div>
+        </section>
+
+        <section className={styles.workspace}>
+          <section className={styles.mainPanel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Manage</p>
+                <h2>Heists</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => setCreateModalOpen(true)}
+                disabled={busy}
+              >
+                <FaPlus />
+                <span>New heist</span>
+              </button>
+            </div>
+
+            <div className={styles.heistGrid}>
+              {loading ? (
+                <div className={styles.emptyState}>Loading heists...</div>
+              ) : heists.length ? (
+                heists.map((heist) => (
+                  <button
+                    type="button"
+                    key={heist.id}
+                    className={`${styles.heistCard} ${Number(selectedId) === Number(heist.id) ? styles.selectedCard : ""}`}
+                    onClick={() => setSelectedId(heist.id)}
+                  >
+                    <span className={styles.status}>{heist.status}</span>
+                    <strong>{heist.name}</strong>
+                    <small>
+                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} questions
+                    </small>
+                    <span className={styles.cardStats}>
+                      <em>{formatNum(heist.total_participants)} players</em>
+                      <em>{formatNum(heist.total_submissions)} submissions</em>
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className={styles.emptyState}>No heists yet.</div>
+              )}
+            </div>
+          </section>
+        </section>
+
+        {selectedHeist ? (
+          <section className={styles.detailGrid}>
+            <article className={styles.detailPanel}>
+              <div className={styles.panelHead}>
+                <div>
+                  <p className={styles.kicker}>Selected</p>
+                  <h2>{selectedHeist.name}</h2>
+                </div>
+                <FaTrophy />
+              </div>
+
+              <div className={styles.metaGrid}>
+                <div><span>Status</span><strong>{selectedHeist.status}</strong></div>
+                <div><span>Prize</span><strong>{formatNum(selectedHeist.prize_cop_points)} CP</strong></div>
+                <div><span>Questions</span><strong>{formatNum(selectedHeist.total_questions)}</strong></div>
+                <div><span>Created</span><strong>{formatDate(selectedHeist.created_at)}</strong></div>
+              </div>
+
+              <div className={styles.statusBox}>
+                <select value={statusValue} onChange={(event) => setStatusValue(event.target.value)}>
+                  <option value="pending">pending</option>
+                  <option value="hold">hold</option>
+                  <option value="started">started</option>
+                  <option value="completed">completed</option>
+                  <option value="cancelled">cancelled</option>
+                </select>
+                <button type="button" className={styles.softBtn} onClick={updateStatus} disabled={busy}>
+                  Update status
+                </button>
+                <button type="button" className={styles.finalizeBtn} onClick={finalizeHeist} disabled={busy}>
+                  Finalize winner
+                </button>
+              </div>
+            </article>
+
+            <article className={styles.detailPanel}>
+              <div className={styles.panelHead}>
+                <div>
+                  <p className={styles.kicker}>Questions</p>
+                  <h2>True/False questions</h2>
+                </div>
+                <button
+                  type="button"
+                  className={styles.primaryBtn}
+                  onClick={() => setQuestionsModalOpen(true)}
+                  disabled={busy}
+                >
+                  <FaPlus />
+                  <span>Add questions</span>
+                </button>
+              </div>
+
+              <div className={styles.rows}>
+                {detailLoading ? (
+                  <div className={styles.emptyState}>Loading questions...</div>
+                ) : questions.length ? (
+                  questions.map((question) => (
+                    <div className={styles.dataRow} key={question.id}>
+                      <span>
+                        <strong>{question.question_text}</strong>
+                        <small>Sort {question.sort_order} · {question.is_active ? "active" : "inactive"}</small>
+                      </span>
+                      <div className={styles.rowActions}>
+                        <em>{question.correct_answer}</em>
+                        <button type="button" onClick={() => deleteQuestion(question)} disabled={busy}>
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.emptyState}>No questions yet.</div>
+                )}
+              </div>
+            </article>
+
+            <article className={styles.detailPanel}>
+              <div className={styles.panelHead}>
+                <div>
+                  <p className={styles.kicker}>Affiliate</p>
+                  <h2>Reward tasks</h2>
+                </div>
+                <button
+                  type="button"
+                  className={styles.primaryBtn}
+                  onClick={() => setTaskModalOpen(true)}
+                  disabled={busy}
+                >
+                  <FaPlus />
+                  <span>Create task</span>
+                </button>
+              </div>
+
+              <div className={styles.rows}>
+                {tasks.length ? (
+                  tasks.map((task) => (
+                    <div className={styles.dataRow} key={task.id}>
+                      <span>
+                        <strong>{formatNum(task.required_joins)} joins</strong>
+                        <small>{formatNum(task.reward_cop_points)} CP reward</small>
+                      </span>
+                      <div className={styles.rowActions}>
+                        <button type="button" onClick={() => toggleTask(task)}>
+                          {Number(task.is_active) ? "Active" : "Inactive"}
+                        </button>
+                        <button type="button" onClick={() => deleteTask(task)}><FaTrash /></button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.emptyState}>No affiliate tasks yet.</div>
+                )}
+              </div>
+            </article>
+
+            <article className={styles.detailPanel}>
+              <div className={styles.panelHead}>
+                <div>
+                  <p className={styles.kicker}>Progress</p>
+                  <h2>Affiliate progress</h2>
+                </div>
+                <FaUsers />
+              </div>
+
+              <div className={styles.rows}>
+                {progress.length ? (
+                  progress.map((row, index) => (
+                    <div className={styles.dataRow} key={`${row.task_id}-${row.progress_id || index}`}>
+                      <span>
+                        <strong>{row.username || "No progress yet"}</strong>
+                        <small>
+                          {formatNum(row.current_joins)} / {formatNum(row.required_joins)} joins · {formatNum(row.reward_cop_points)} CP
+                        </small>
+                      </span>
+                      <em>{row.is_completed ? "complete" : "open"}</em>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.emptyState}>No progress yet.</div>
+                )}
+              </div>
+            </article>
+          </section>
+        ) : null}
+
+        <Modal
+          open={createModalOpen}
+          title="Create heist"
+          subtitle="Set the entry price, prize, player target, and countdown."
+          size="lg"
+          onClose={() => !busy && setCreateModalOpen(false)}
+          disableClose={busy}
+          footer={
+            <>
+              <button type="button" className={styles.softBtn} onClick={() => setCreateModalOpen(false)} disabled={busy}>
+                Cancel
+              </button>
+              <button type="submit" form="create-heist-form" className={styles.primaryBtn} disabled={busy}>
+                <FaSave />
+                <span>{busy ? "Saving..." : "Create heist"}</span>
+              </button>
+            </>
+          }
+        >
+          <form id="create-heist-form" className={`${styles.form} ${styles.modalForm}`} onSubmit={createHeist}>
+            <label className={styles.field}>
+              <span>Name</span>
+              <input name="name" value={createForm.name} onChange={updateCreateForm} placeholder="Weekend Heist" />
+            </label>
+
+            <label className={styles.field}>
+              <span>Description</span>
+              <textarea
+                name="description"
+                value={createForm.description}
+                onChange={updateCreateForm}
+                placeholder="Fast true/false run for CopUpCoin rewards."
+              />
+            </label>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span>Min users</span>
+                <input type="number" name="min_users" min="1" value={createForm.min_users} onChange={updateCreateForm} />
+              </label>
+              <label className={styles.field}>
+                <span>Ticket CP</span>
+                <input type="number" name="ticket_price" min="0" value={createForm.ticket_price} onChange={updateCreateForm} />
+              </label>
+            </div>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span>Prize CP</span>
+                <input type="number" name="prize_cop_points" min="0" value={createForm.prize_cop_points} onChange={updateCreateForm} />
+              </label>
+              <label className={styles.field}>
+                <span>Countdown minutes</span>
+                <input
+                  type="number"
+                  name="countdown_duration_minutes"
+                  min="1"
+                  value={createForm.countdown_duration_minutes}
+                  onChange={updateCreateForm}
+                />
+              </label>
+            </div>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span>Starts at</span>
+                <input type="datetime-local" name="starts_at" value={createForm.starts_at} onChange={updateCreateForm} />
+              </label>
+              <label className={styles.field}>
+                <span>Ends at</span>
+                <input type="datetime-local" name="ends_at" value={createForm.ends_at} onChange={updateCreateForm} />
+              </label>
+            </div>
+          </form>
+        </Modal>
+
+        <Modal
+          open={questionsModalOpen}
+          title="Add questions"
+          subtitle={selectedHeist ? `Add True/False questions to ${selectedHeist.name}.` : "Select a heist first."}
+          size="xl"
+          onClose={() => !busy && setQuestionsModalOpen(false)}
+          disableClose={busy}
+          footer={
+            <>
+              <button type="button" className={styles.softBtn} onClick={addQuestionRow} disabled={busy}>
+                Add row
+              </button>
+              <button type="button" className={styles.softBtn} onClick={() => setQuestionsModalOpen(false)} disabled={busy}>
+                Cancel
+              </button>
+              <button type="submit" form="add-questions-form" className={styles.primaryBtn} disabled={busy || !selectedHeist}>
+                Save questions
+              </button>
+            </>
+          }
+        >
+          <form id="add-questions-form" className={`${styles.form} ${styles.modalForm}`} onSubmit={addQuestions}>
+            {questionRows.map((row, index) => (
+              <div className={styles.questionRow} key={`question-${index}`}>
+                <input
+                  value={row.question_text}
+                  onChange={(event) => updateQuestion(index, "question_text", event.target.value)}
+                  placeholder={`Question ${index + 1}`}
+                />
+                <select
+                  value={row.correct_answer}
+                  onChange={(event) => updateQuestion(index, "correct_answer", event.target.value)}
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  value={row.sort_order}
+                  onChange={(event) => updateQuestion(index, "sort_order", event.target.value)}
+                />
+                <button type="button" onClick={() => removeQuestionRow(index)} disabled={questionRows.length <= 1 || busy}>
+                  <FaTrash />
+                </button>
+              </div>
+            ))}
+          </form>
+        </Modal>
+
+        <Modal
+          open={taskModalOpen}
+          title="Create affiliate task"
+          subtitle={selectedHeist ? `Reward users for referring joins to ${selectedHeist.name}.` : "Select a heist first."}
+          size="md"
+          onClose={() => !busy && setTaskModalOpen(false)}
+          disableClose={busy}
+          footer={
+            <>
+              <button type="button" className={styles.softBtn} onClick={() => setTaskModalOpen(false)} disabled={busy}>
+                Cancel
+              </button>
+              <button type="submit" form="create-task-form" className={styles.primaryBtn} disabled={busy || !selectedHeist}>
+                Create task
+              </button>
+            </>
+          }
+        >
+          <form id="create-task-form" className={`${styles.taskForm} ${styles.modalForm}`} onSubmit={createTask}>
+            <label className={styles.field}>
+              <span>Required joins</span>
+              <input
+                type="number"
+                min="1"
+                value={taskForm.required_joins}
+                onChange={(event) => setTaskForm((prev) => ({ ...prev, required_joins: event.target.value }))}
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Reward CP</span>
+              <input
+                type="number"
+                min="1"
+                value={taskForm.reward_cop_points}
+                onChange={(event) => setTaskForm((prev) => ({ ...prev, reward_cop_points: event.target.value }))}
+              />
+            </label>
+            <label className={styles.checkField}>
+              <input
+                type="checkbox"
+                checked={taskForm.is_active}
+                onChange={(event) => setTaskForm((prev) => ({ ...prev, is_active: event.target.checked }))}
+              />
+              <span>Active</span>
+            </label>
+          </form>
+        </Modal>
+      </main>
+    </div>
+  );
+}
+
+export default function AdminHeists() {
+  return (
+    <ToastProvider>
+      <AdminHeistsPage />
+    </ToastProvider>
+  );
+}

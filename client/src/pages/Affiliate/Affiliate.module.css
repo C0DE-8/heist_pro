@@ -1,0 +1,413 @@
+.page {
+  min-height: 100vh;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(57, 217, 138, 0.16), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgba(104, 118, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 50% 78%, rgba(255, 214, 103, 0.08), transparent 34%),
+    linear-gradient(180deg, #07090d 0%, #0d1117 48%, #11161f 100%);
+}
+
+.main {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 112px 16px 36px;
+  display: grid;
+  gap: 16px;
+}
+
+.topBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.backBtn,
+.refreshBtn,
+.primaryBtn,
+.softBtn,
+.errorBox button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.refreshBtn {
+  width: 42px;
+  padding: 0;
+}
+
+.refreshBtn:disabled,
+.primaryBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.primaryBtn {
+  border: 0;
+  color: #10131b;
+  background: #ffffff;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+}
+
+.softBtn {
+  color: #ffffff;
+}
+
+.hero,
+.statsGrid > div,
+.heistCard,
+.progressPanel,
+.taskCard,
+.emptyState,
+.errorBox {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045)),
+    rgba(24, 27, 34, 0.7);
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.hero {
+  border-radius: 30px;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.kicker {
+  margin: 0 0 8px;
+  color: #baffc7;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hero h1,
+.sectionHead h2,
+.heistCard h3,
+.taskCard h3 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.hero h1 {
+  max-width: 11ch;
+  font-size: clamp(2.4rem, 7vw, 4.6rem);
+  line-height: 0.94;
+}
+
+.hero p {
+  margin: 12px 0 0;
+  max-width: 64ch;
+  color: rgba(255, 255, 255, 0.66);
+  line-height: 1.55;
+}
+
+.heroBadge {
+  min-height: 52px;
+  border-radius: 999px;
+  padding: 0 16px;
+  color: #dfffe5;
+  background: rgba(186, 255, 199, 0.1);
+  border: 1px solid rgba(186, 255, 199, 0.18);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.errorBox {
+  border-color: rgba(255, 84, 84, 0.18);
+  border-radius: 20px;
+  padding: 16px;
+  color: #ffb8b8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.errorBox button {
+  border: 0;
+  background: #ff6b6b;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.statsGrid > div {
+  min-height: 132px;
+  border-radius: 24px;
+  padding: 16px;
+  display: grid;
+  align-content: space-between;
+}
+
+.statsGrid svg {
+  color: #baffc7;
+  font-size: 1.35rem;
+}
+
+.statsGrid span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.statsGrid strong {
+  color: #ffffff;
+  font-size: clamp(1.45rem, 4vw, 2rem);
+  line-height: 1;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sectionHead h2 {
+  font-size: 1.4rem;
+  line-height: 1.1;
+}
+
+.heistGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.heistCard {
+  border-radius: 28px;
+  padding: 18px;
+  display: grid;
+  gap: 15px;
+}
+
+.cardTop,
+.taskTop,
+.progressText,
+.linkActions,
+.metaLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.status,
+.donePill,
+.openPill {
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.status {
+  color: #cffafe;
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.cardTop strong {
+  color: #dfffe5;
+}
+
+.heistCard h3 {
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.heistCard p,
+.taskCard p {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.64);
+  line-height: 1.45;
+}
+
+.metaLine {
+  align-items: flex-start;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.linkBox {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  gap: 12px;
+  align-items: center;
+}
+
+.shareStack {
+  display: grid;
+  gap: 10px;
+}
+
+.linkBox span {
+  display: block;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.linkBox strong {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.linkBox button {
+  border: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #baffc7;
+  background: rgba(186, 255, 199, 0.12);
+  cursor: pointer;
+}
+
+.progressPanel {
+  border-radius: 28px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.taskCard {
+  border-radius: 22px;
+  padding: 15px;
+  display: grid;
+  gap: 13px;
+}
+
+.taskTop {
+  align-items: flex-start;
+}
+
+.taskCard h3 {
+  font-size: 1rem;
+}
+
+.donePill {
+  color: #dfffe5;
+  background: rgba(186, 255, 199, 0.1);
+}
+
+.openPill {
+  color: #fde68a;
+  background: rgba(250, 204, 21, 0.12);
+}
+
+.progressText {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.progressText strong {
+  color: #ffffff;
+}
+
+.progressTrack {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #baffc7, #78d6ff);
+}
+
+.taskCard small {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.emptyState {
+  grid-column: 1 / -1;
+  border-radius: 20px;
+  padding: 18px;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+@media (max-width: 860px) {
+  .hero,
+  .statsGrid,
+  .progressPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .heroBadge,
+  .backBtn,
+  .refreshBtn {
+    width: fit-content;
+  }
+}
+
+@media (max-width: 560px) {
+  .main {
+    padding: 104px 12px 28px;
+  }
+
+  .hero {
+    padding: 18px;
+  }
+
+  .cardTop,
+  .taskTop,
+  .progressText,
+  .linkActions,
+  .metaLine {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .primaryBtn,
+  .softBtn {
+    width: 100%;
+  }
+
+  .sectionHead {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

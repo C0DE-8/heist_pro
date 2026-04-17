@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>True or False RPG</title>
+  </head>
+  <body>
+
+     <div class="app">
+    <header class="hud">
+      <button class="avatar-btn" id="avatarBtn" type="button" aria-label="Open character panel">
+        <span class="avatar-face" id="hudAvatar">🧙</span>
+        <span class="avatar-meta">
+          <span class="avatar-name" id="hudName">Hero</span>
+          <span class="avatar-sub">View inventory</span>
+        </span>
+      </button>
+
+      <div class="hud-stats">
+        <div class="hud-pill heart">❤️ <strong id="hudHp">100 / 100</strong></div>
+        <div class="hud-pill coin">🪙 <strong id="hudGold">0</strong></div>
+        <div class="hud-pill apple">🍎 <strong id="hudApples">0</strong></div>
+      </div>
+    </header>
+
+    <section class="battle-panel">
+      <div class="scene" id="scene">
+        <div class="stars"></div>
+        <div class="mist"></div>
+        <div class="trees far"></div>
+        <div class="trees mid"></div>
+        <div class="trees near"></div>
+        <div class="path"></div>
+        <div class="ground"></div>
+
+        <div class="enemy-mini">
+          <div class="enemy-mini-track">
+            <div class="enemy-mini-fill" id="enemyMiniFill"></div>
+          </div>
+        </div>
+
+        <div class="scene-corner-name player-corner" id="playerName">Hero</div>
+        <div class="scene-corner-name enemy-corner" id="enemyName">Moss Slime</div>
+
+        <div class="fighter player" id="playerFighter">
+          <div class="sprite" id="playerSprite">🧙</div>
+        </div>
+
+        <div class="fighter enemy" id="enemyFighter">
+          <div class="sprite" id="enemySprite">🟢</div>
+        </div>
+
+        <div class="attack-effect player" id="playerSlash">✨</div>
+        <div class="attack-effect enemy" id="enemySlash">💥</div>
+        <div class="damage-layer" id="damageLayer"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="prompt-head">
+        <div>
+          <h2 class="prompt-title" id="promptTitle">Loading...</h2>
+          <p class="prompt-copy" id="promptCopy">Right answer hits. Wrong answer gets hit.</p>
+        </div>
+      </div>
+
+      <div class="card-grid" id="cardGrid"></div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-inner">
+        <div class="modal-top">
+          <div class="modal-avatar" id="modalAvatar">🧙</div>
+
+          <div>
+            <h3 class="modal-title" id="modalTitle">Hero</h3>
+            <p class="modal-sub">Tap equipped gear to unequip. Tap backpack gear to equip.</p>
+          </div>
+
+          <button class="eat-apple-btn" id="modalAppleBtn" type="button">Eat Apple</button>
+          <button class="close-btn" id="closeModalBtn" type="button">Close</button>
+        </div>
+
+        <div class="modal-stats" id="modalStats"></div>
+
+        <section class="modal-section">
+          <h4 class="section-title">Equipped</h4>
+          <div class="slots-grid" id="equipmentGrid"></div>
+        </section>
+
+        <section class="modal-section">
+          <h4 class="section-title">Backpack</h4>
+          <div class="bag-grid" id="backpackGrid"></div>
+        </section>
+
+        <section class="modal-section">
+          <h4 class="section-title">Blessings</h4>
+          <div class="passive-grid" id="passiveGrid"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+    
+    <script src="./script.js"></script>
+  </body>
+</html>

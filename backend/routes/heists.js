@@ -8,23 +8,106 @@ const {
   getRankPreview,
   isDuplicateError,
   maybeStartCountdown,
+  recordAffiliateTaskProgress,
 } = require("../services/heist.service");
 
 const router = express.Router();
 
 const PUBLIC_HEIST_FIELDS = `
-  id, name, description, min_users, ticket_price, retry_ticket_price,
-  allow_retry, total_questions, prize_cop_points, status,
+  id, name, description, min_users, ticket_price,
+  total_questions, prize_cop_points, status,
   countdown_duration_minutes, countdown_started_at, countdown_ends_at,
   starts_at, ends_at
 `;
-// api/heists/available - list of active/pending/started heists
+
+function countdownHasEnded(heist) {
+  return heist?.countdown_ends_at && new Date(heist.countdown_ends_at).getTime() <= Date.now();
+}
+
+function heistClosedReason(heist) {
+  if (!heist) return "Heist not found";
+  if (heist.status === "completed" || heist.status === "cancelled" || heist.winner_user_id) {
+    return "Heist is closed";
+  }
+  if (countdownHasEnded(heist)) {
+    return "Heist has ended";
+  }
+  return null;
+}
+
+async function createHeistSubmission(conn, { heistId, userId }) {
+  const [[heist]] = await conn.query(
+    `SELECT id, status, countdown_ends_at, winner_user_id
+     FROM heist
+     WHERE id = ?
+     LIMIT 1 FOR UPDATE`,
+    [heistId]
+  );
+  if (!heist) return { status: 404, body: { message: "Heist not found" } };
+
+  const closedReason = heistClosedReason(heist);
+  if (closedReason) return { status: 400, body: { message: closedReason } };
+
+  const [[participant]] = await conn.query(
+    `SELECT id, affiliate_user_id
+     FROM heist_participants
+     WHERE heist_id = ? AND user_id = ? AND status IN ('joined', 'submitted')
+     LIMIT 1 FOR UPDATE`,
+    [heistId, userId]
+  );
+  if (!participant) return { status: 403, body: { message: "Join heist first" } };
+
+  const [[activeSubmission]] = await conn.query(
+    `SELECT id
+     FROM heist_submissions
+     WHERE heist_id = ? AND user_id = ? AND status = 'started'
+     LIMIT 1 FOR UPDATE`,
+    [heistId, userId]
+  );
+  if (activeSubmission) {
+    return {
+      status: 400,
+      body: {
+        message: "Submission already started",
+        submission_id: activeSubmission.id,
+      },
+    };
+  }
+
+  const [[attemptRow]] = await conn.query(
+    `SELECT COUNT(*) AS submitted_attempts
+     FROM heist_submissions
+     WHERE heist_id = ? AND user_id = ? AND status = 'submitted'`,
+    [heistId, userId]
+  );
+
+  const submittedAttempts = Number(attemptRow.submitted_attempts || 0);
+  if (submittedAttempts > 0) {
+    return { status: 400, body: { message: "Already submitted" } };
+  }
+
+  const [result] = await conn.query(
+    `INSERT INTO heist_submissions
+      (heist_id, user_id, participant_id, affiliate_user_id, started_at, status)
+     VALUES (?, ?, ?, ?, NOW(), 'started')`,
+    [heistId, userId, participant.id, participant.affiliate_user_id]
+  );
+
+  return {
+    status: 201,
+    body: {
+      submission_id: result.insertId,
+      submitted_attempts: submittedAttempts,
+    },
+  };
+}
+// api/heists/available - list of pending/hold/started heists
 router.get("/available", async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT ${PUBLIC_HEIST_FIELDS}
        FROM heist
-       WHERE status IN ('active', 'pending', 'started')
+       WHERE status IN ('pending', 'hold', 'started')
        ORDER BY created_at DESC`
     );
     return res.json({ heists: rows });
@@ -87,16 +170,20 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
     await conn.beginTransaction();
 
     const [[heist]] = await conn.query(
-      "SELECT id, status, ticket_price FROM heist WHERE id = ? LIMIT 1 FOR UPDATE",
+      `SELECT id, status, ticket_price, winner_user_id, countdown_ends_at
+       FROM heist
+       WHERE id = ?
+       LIMIT 1 FOR UPDATE`,
       [heistId]
     );
     if (!heist) {
       await conn.rollback();
       return res.status(404).json({ message: "Heist not found" });
     }
-    if (heist.status === "completed" || heist.status === "cancelled") {
+    const closedReason = heistClosedReason(heist);
+    if (closedReason) {
       await conn.rollback();
-      return res.status(400).json({ message: "Heist is not joinable" });
+      return res.status(400).json({ message: closedReason });
     }
 
     const [existing] = await conn.query(
@@ -131,7 +218,11 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
          LIMIT 1`,
         [heistId, referralCode]
       );
-      if (link && link.affiliate_user_id !== userId) {
+      if (link && Number(link.affiliate_user_id) === Number(userId)) {
+        await conn.rollback();
+        return res.status(400).json({ message: "You cannot use your own referral link" });
+      }
+      if (link) {
         affiliateUserId = link.affiliate_user_id;
         trackedReferralCode = link.referral_code;
       }
@@ -149,7 +240,9 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       userId,
     ]);
 
+    let affiliate_task_progress = [];
     if (affiliateUserId) {
+      let referralInserted = false;
       try {
         await conn.query(
           `INSERT INTO affiliate_user_referrals
@@ -157,6 +250,7 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
            VALUES (?, ?, ?, ?)`,
           [affiliateUserId, userId, heistId, trackedReferralCode]
         );
+        referralInserted = true;
         await conn.query(
           `UPDATE affiliate_user_links
            SET total_heist_joins = total_heist_joins + 1
@@ -165,6 +259,10 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
         );
       } catch (err) {
         if (!isDuplicateError(err)) throw err;
+      }
+
+      if (referralInserted) {
+        affiliate_task_progress = await recordAffiliateTaskProgress(conn, heistId, affiliateUserId);
       }
     }
 
@@ -178,6 +276,7 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       referral_code: trackedReferralCode,
       charged_cop_point: heist.ticket_price,
       countdown_started,
+      affiliate_task_progress,
     });
   } catch (err) {
     if (conn) await conn.rollback();
@@ -189,6 +288,7 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
   }
 });
 
+// api/heists/:id/play - get heist details and questions for playing (must be participant)
 router.get("/:id/play", authenticateToken, async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -202,13 +302,16 @@ router.get("/:id/play", authenticateToken, async (req, res) => {
     if (!participant) return res.status(403).json({ message: "Join heist first" });
 
     const [[heist]] = await pool.query(
-      `SELECT ${PUBLIC_HEIST_FIELDS}
+      `SELECT ${PUBLIC_HEIST_FIELDS}, winner_user_id
        FROM heist
        WHERE id = ?
        LIMIT 1`,
       [heistId]
     );
     if (!heist) return res.status(404).json({ message: "Heist not found" });
+    const closedReason = heistClosedReason(heist);
+    if (closedReason) return res.status(400).json({ message: closedReason });
+    const { winner_user_id, ...publicHeist } = heist;
 
     const [questions] = await pool.query(
       `SELECT id, question_text, sort_order
@@ -218,13 +321,14 @@ router.get("/:id/play", authenticateToken, async (req, res) => {
       [heistId]
     );
 
-    return res.json({ heist, questions });
+    return res.json({ heist: publicHeist, questions });
   } catch (err) {
     console.error("play heist error:", err);
     return res.status(500).json({ message: "Error loading heist" });
   }
 });
 
+// api/heists/:id/start - start a heist attempt (create submission)
 router.post("/:id/start", authenticateToken, async (req, res) => {
   const heistId = Number(req.params.id);
   const userId = req.user.userId;
@@ -235,102 +339,13 @@ router.post("/:id/start", authenticateToken, async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    const [[heist]] = await conn.query(
-      `SELECT id, status, allow_retry, retry_ticket_price, submissions_locked, countdown_ends_at
-       FROM heist
-       WHERE id = ?
-       LIMIT 1 FOR UPDATE`,
-      [heistId]
-    );
-    if (!heist) {
+    const result = await createHeistSubmission(conn, { heistId, userId });
+    if (result.status !== 201) {
       await conn.rollback();
-      return res.status(404).json({ message: "Heist not found" });
+      return res.status(result.status).json(result.body);
     }
-    if (heist.status !== "started") {
-      await conn.rollback();
-      return res.status(400).json({ message: "Heist is not playable" });
-    }
-    if (Number(heist.submissions_locked)) {
-      await conn.rollback();
-      return res.status(400).json({ message: "Submissions are locked" });
-    }
-    if (heist.countdown_ends_at && new Date(heist.countdown_ends_at).getTime() <= Date.now()) {
-      await conn.rollback();
-      return res.status(400).json({ message: "Heist has ended" });
-    }
-
-    const [[participant]] = await conn.query(
-      `SELECT id, affiliate_user_id
-       FROM heist_participants
-       WHERE heist_id = ? AND user_id = ?
-       LIMIT 1`,
-      [heistId, userId]
-    );
-    if (!participant) {
-      await conn.rollback();
-      return res.status(403).json({ message: "Join heist first" });
-    }
-
-    const [[activeSubmission]] = await conn.query(
-      `SELECT id
-       FROM heist_submissions
-       WHERE heist_id = ? AND user_id = ? AND status = 'started'
-       LIMIT 1 FOR UPDATE`,
-      [heistId, userId]
-    );
-    if (activeSubmission) {
-      await conn.rollback();
-      return res.status(400).json({ message: "Submission already started" });
-    }
-
-    const [[attemptRow]] = await conn.query(
-      `SELECT COUNT(*) AS submitted_attempts
-       FROM heist_submissions
-       WHERE heist_id = ? AND user_id = ? AND status = 'submitted'`,
-      [heistId, userId]
-    );
-
-    const submittedAttempts = Number(attemptRow.submitted_attempts || 0);
-    let chargedCopPoint = 0;
-    if (submittedAttempts > 0) {
-      if (!Number(heist.allow_retry)) {
-        await conn.rollback();
-        return res.status(400).json({ message: "Retry is not allowed" });
-      }
-
-      const [[user]] = await conn.query(
-        "SELECT id, cop_point FROM users WHERE id = ? LIMIT 1 FOR UPDATE",
-        [userId]
-      );
-      if (!user) {
-        await conn.rollback();
-        return res.status(404).json({ message: "User not found" });
-      }
-      if (Number(user.cop_point) < Number(heist.retry_ticket_price)) {
-        await conn.rollback();
-        return res.status(400).json({ message: "Insufficient cop_point" });
-      }
-
-      await conn.query("UPDATE users SET cop_point = cop_point - ? WHERE id = ?", [
-        heist.retry_ticket_price,
-        userId,
-      ]);
-      chargedCopPoint = Number(heist.retry_ticket_price);
-    }
-
-    const [result] = await conn.query(
-      `INSERT INTO heist_submissions
-        (heist_id, user_id, participant_id, affiliate_user_id, started_at, status)
-       VALUES (?, ?, ?, ?, NOW(), 'started')`,
-      [heistId, userId, participant.id, participant.affiliate_user_id]
-    );
-
     await conn.commit();
-    return res.status(201).json({
-      submission_id: result.insertId,
-      retry: submittedAttempts > 0,
-      charged_cop_point: chargedCopPoint,
-    });
+    return res.status(201).json(result.body);
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("start heist error:", err);
@@ -392,23 +407,20 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
     }
 
     const [[heist]] = await conn.query(
-      `SELECT id, status, submissions_locked, countdown_ends_at
+      `SELECT id, status, countdown_ends_at, winner_user_id
        FROM heist
        WHERE id = ?
        LIMIT 1 FOR UPDATE`,
       [heistId]
     );
-    if (!heist || Number(heist.submissions_locked)) {
+    if (!heist) {
       await conn.rollback();
-      return res.status(400).json({ message: "Submissions are locked" });
+      return res.status(404).json({ message: "Heist not found" });
     }
-    if (heist.status !== "started") {
+    const closedReason = heistClosedReason(heist);
+    if (closedReason) {
       await conn.rollback();
-      return res.status(400).json({ message: "Heist is not accepting submissions" });
-    }
-    if (heist.countdown_ends_at && new Date(heist.countdown_ends_at).getTime() <= Date.now()) {
-      await conn.rollback();
-      return res.status(400).json({ message: "Heist has ended" });
+      return res.status(400).json({ message: closedReason });
     }
 
     const [questions] = await conn.query(
@@ -506,6 +518,7 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
   }
 });
 
+// api/heists/:id/leaderboard - get leaderboard for a heist
 router.get("/:id/leaderboard", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -578,6 +591,7 @@ router.get("/:id/result", authenticateToken, async (req, res) => {
   }
 });
 
+// api/heists/:id/affiliate-link - create or get affiliate link for user and heist
 router.post("/:id/affiliate-link", authenticateToken, async (req, res) => {
   const heistId = Number(req.params.id);
   const userId = req.user.userId;
@@ -606,8 +620,8 @@ router.post("/:id/affiliate-link", authenticateToken, async (req, res) => {
     );
 
     if (existing) {
-      const referralLink = existing.referral_link || makeReferralLink(req, heistId, existing.referral_code);
-      if (!existing.referral_link) {
+      const referralLink = makeReferralLink(req, heistId, existing.referral_code);
+      if (existing.referral_link !== referralLink) {
         await conn.query("UPDATE affiliate_user_links SET referral_link = ? WHERE id = ?", [
           referralLink,
           existing.id,
@@ -637,6 +651,7 @@ router.post("/:id/affiliate-link", authenticateToken, async (req, res) => {
   }
 });
 
+// api/heists/:id/ref/:code - landing endpoint for referral links (no auth required)
 router.get("/:id/ref/:code", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -665,6 +680,9 @@ router.get("/:id/ref/:code", async (req, res) => {
       [heistId, code]
     );
     if (!row) return res.status(404).json({ message: "Referral not found" });
+    if (row.status === "completed" || row.status === "cancelled") {
+      return res.status(400).json({ message: "Heist is not joinable" });
+    }
 
     await pool.query(
       "UPDATE affiliate_user_links SET total_clicks = total_clicks + 1 WHERE id = ?",
