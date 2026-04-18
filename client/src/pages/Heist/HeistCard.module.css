@@ -191,19 +191,29 @@
   -webkit-backdrop-filter: blur(20px);
 }
 
-.prize {
+.moneyStack {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.prize,
+.entryFee {
   min-width: 0;
 }
 
 .prize span,
-.prize strong {
+.prize strong,
+.entryFee span,
+.entryFee strong {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.prize span {
+.prize span,
+.entryFee span {
   color: rgba(255, 255, 255, 0.58);
   font-size: 0.7rem;
   font-weight: 800;
@@ -211,11 +221,17 @@
   letter-spacing: 0.06em;
 }
 
-.prize strong {
+.prize strong,
+.entryFee strong {
   margin-top: 3px;
   color: #ffffff;
   font-size: 1rem;
   font-weight: 950;
+}
+
+.entryFee strong {
+  color: #dfffe5;
+  font-size: 0.9rem;
 }
 
 .button {

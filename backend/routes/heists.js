@@ -116,14 +116,25 @@ router.get("/available", async (req, res) => {
     return res.status(500).json({ message: "Error fetching heists" });
   }
 });
-
+// api/heists/completed - list of completed heists
 router.get("/completed", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, name, prize_cop_points, winner_user_id, status
-       FROM heist
-       WHERE status = 'completed'
-       ORDER BY updated_at DESC`
+      `SELECT
+         h.id,
+         h.name,
+         h.description,
+         h.prize_cop_points,
+         h.winner_user_id,
+         u.username AS winner_username,
+         u.full_name AS winner_full_name,
+         h.status,
+         h.countdown_ends_at,
+         h.updated_at
+       FROM heist h
+       LEFT JOIN users u ON u.id = h.winner_user_id
+       WHERE h.status = 'completed'
+       ORDER BY h.updated_at DESC`
     );
     return res.json({ heists: rows });
   } catch (err) {

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   FaCoins,
   FaFlask,
-  FaHandshake,
   FaRedoAlt,
   FaTrophy,
   FaUsers,
@@ -86,31 +85,23 @@ export default function AdminDashboard() {
         tone: "green",
       },
       {
-        title: "Affiliates",
-        text: "Track referral links, referred joins, affiliate tasks, and completed rewards.",
-        path: "/admin/affiliates",
-        icon: <FaHandshake />,
-        stat: `${formatNum(activityStats.affiliate_referrals)} referrals`,
-        tone: "purple",
-      },
-      {
-        title: "Coins",
-        text: "Manage CopUpCoin rate and coin payment settings used by the wallet top-up flow.",
-        path: "/admin/coins",
+        title: "Transactions",
+        text: "Manage pay-in details, coin rate, payment requests, approvals, and withdrawals.",
+        path: "/admin/transactions",
         icon: <FaCoins />,
         stat: `${formatNum(userStats.total_cop_points)} CP`,
         tone: "gold",
       },
       {
         title: "Payouts",
-        text: "Review withdrawal and payout operations when payout flow is connected.",
-        path: "/admin/payouts",
+        text: "Jump directly into outgoing withdrawal reviews and payout decisions.",
+        path: "/admin/transactions",
         icon: <FaWallet />,
         stat: "Payouts",
         tone: "pink",
       },
     ],
-    [activityStats.affiliate_referrals, heistStats.total_heists, userStats.total_cop_points, userStats.total_users]
+    [heistStats.total_heists, userStats.total_cop_points, userStats.total_users]
   );
 
   return (

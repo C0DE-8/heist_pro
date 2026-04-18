@@ -1,5 +1,45 @@
 /* src/components/UserToolbar/UserToolbar.module.css */
 
+/* Toolbar */
+.toolbarCluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.soundBtn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #dfffe5;
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045)),
+    rgba(23, 25, 31, 0.68);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.soundBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(186, 255, 199, 0.3);
+}
+
+.soundBtnOn {
+  color: #ffffff;
+  border-color: rgba(186, 255, 199, 0.34);
+  background:
+    linear-gradient(180deg, rgba(186, 255, 199, 0.18), rgba(88, 126, 74, 0.24)),
+    rgba(23, 25, 31, 0.7);
+}
+
 /* Trigger */
 .trigger {
   display: inline-flex;
@@ -246,7 +286,7 @@
 /* Logout */
 .drawerBottom {
   margin-top: auto;
-  padding: 18px;
+  padding: 18px 18px calc(32px + env(safe-area-inset-bottom));
 }
 
 .logoutBtn {
@@ -269,6 +309,16 @@
 }
 
 @media (max-width: 520px) {
+  .toolbarCluster {
+    gap: 6px;
+  }
+
+  .soundBtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 14px;
+  }
+
   .trigger {
     gap: 8px;
     padding: 5px 7px;

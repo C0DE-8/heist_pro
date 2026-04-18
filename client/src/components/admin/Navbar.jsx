@@ -13,7 +13,6 @@ import {
   FaFlask,
   FaWallet,
   FaCoins,
-  FaHandshake,
   FaSignOutAlt,
 } from "react-icons/fa";
 
@@ -29,9 +28,8 @@ export default function AdminNavbar({ admin: adminProp }) {
       { to: "/admin-dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
       { to: "/admin/users", label: "Users", icon: <FaUsers /> },
       { to: "/admin/heists", label: "Heists", icon: <FaFlask /> },
-      { to: "/admin/affiliates", label: "Affiliates", icon: <FaHandshake /> },
+      { to: "/admin/transactions", label: "Transactions", icon: <FaWallet /> },
       { to: "/admin/coins", label: "Coins", icon: <FaCoins /> },
-      { to: "/admin/payouts", label: "Payouts", icon: <FaWallet /> },
     ],
     []
   );

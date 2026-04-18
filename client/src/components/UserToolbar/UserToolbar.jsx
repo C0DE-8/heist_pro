@@ -14,12 +14,15 @@ import {
   UserRound,
   Coins,
   Target,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import styles from "./UserToolbar.module.css";
 import { imgUrl } from "../../lib/api";
 import { clearAuthSession, getStoredToken } from "../../lib/auth";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
 import { getUserProfile } from "../../lib/users";
+import { getSoundEnabled, setSoundEnabled } from "../../lib/sound";
 
 export default function UserToolbar() {
   const nav = useNavigate();
@@ -31,6 +34,7 @@ export default function UserToolbar() {
   const [profile, setProfile] = useState(null);
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => getSoundEnabled());
 
   const displayName = profile?.full_name || profile?.username || "User";
   const copPoints = Number(profile?.cop_point || 0);
@@ -58,6 +62,12 @@ export default function UserToolbar() {
 
     nav("/login", { replace: true });
   }, [nav]);
+
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+  };
 
   // ✅ 1) keep token in sync (login/logout in same tab and other tabs)
   useEffect(() => {
@@ -130,27 +140,39 @@ export default function UserToolbar() {
   return (
     <>
       {/* Trigger Button */}
-      <button type="button" className={styles.trigger} onClick={() => setOpen(true)}>
-        <div className={styles.coins}>
-          <div className={styles.coinBadge}>
-            <Coins size={14} />
-            {copPoints.toLocaleString()}
+      <div className={styles.toolbarCluster}>
+        <button
+          type="button"
+          className={`${styles.soundBtn} ${soundOn ? styles.soundBtnOn : ""}`}
+          onClick={toggleSound}
+          aria-label={soundOn ? "Turn background music off" : "Turn background music on"}
+          title={soundOn ? "Sound on" : "Sound off"}
+        >
+          {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+        </button>
+
+        <button type="button" className={styles.trigger} onClick={() => setOpen(true)}>
+          <div className={styles.coins}>
+            <div className={styles.coinBadge}>
+              <Coins size={14} />
+              {copPoints.toLocaleString()}
+            </div>
+
+            <div className={styles.taskBadge}>
+              <Target size={14} />
+              {joinedHeists.toLocaleString()}
+            </div>
           </div>
 
-          <div className={styles.taskBadge}>
-            <Target size={14} />
-            {joinedHeists.toLocaleString()}
+          <div className={styles.avatar}>
+            {profileImageSrc ? (
+              <img src={profileImageSrc} alt="Profile" className={styles.avatarImg} />
+            ) : (
+              <UserRound size={18} />
+            )}
           </div>
-        </div>
-
-        <div className={styles.avatar}>
-          {profileImageSrc ? (
-            <img src={profileImageSrc} alt="Profile" className={styles.avatarImg} />
-          ) : (
-            <UserRound size={18} />
-          )}
-        </div>
-      </button>
+        </button>
+      </div>
 
       {/* Overlay */}
       <div

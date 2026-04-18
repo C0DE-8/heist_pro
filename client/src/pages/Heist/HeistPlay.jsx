@@ -560,6 +560,25 @@ export default function HeistPlay() {
   const isComplete = questions.length > 0 && answeredCount >= questions.length;
   const hasSubmittedAttempt = Boolean(previousResult?.result);
   const entryFee = heist?.ticket_price;
+  const shouldShowQuestion = Boolean(submissionId && !isComplete && !hasSubmittedAttempt && !error);
+  const promptTitle = loading
+    ? "Loading..."
+    : error
+      ? "Heist unavailable"
+      : shouldShowQuestion
+        ? currentQuestion?.question_text || "No active question"
+        : isComplete
+          ? "Ready to submit"
+          : hasSubmittedAttempt
+            ? "Heist completed"
+            : "Start the heist";
+  const promptCopy = shouldShowQuestion
+    ? "Pick true or false."
+    : isComplete
+      ? "Submit your run to lock your leaderboard result."
+      : hasSubmittedAttempt
+        ? "You already submitted this heist. View your result."
+        : "Start the heist to unlock the questions.";
 
   const loadPlay = useCallback(async () => {
     setLoading(true);
@@ -886,20 +905,10 @@ export default function HeistPlay() {
           <div className={styles.promptHead}>
             <div>
               <h2 className={styles.promptTitle}>
-                {loading
-                  ? "Loading..."
-                  : isComplete
-                    ? "Ready to submit"
-                    : currentQuestion?.question_text || "No active question"}
+                {promptTitle}
               </h2>
               <p className={styles.promptCopy}>
-                {submissionId
-                  ? isComplete
-                    ? "Submit your run to lock your leaderboard result."
-                    : "Pick true or false."
-                  : hasSubmittedAttempt
-                    ? "You already submitted this heist. View your result."
-                    : "Start the heist to unlock the cards."}
+                {promptCopy}
               </p>
             </div>
           </div>

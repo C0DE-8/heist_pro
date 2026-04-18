@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import styles from "./Footer.module.css";
 import coinImg from "../../assets/copupcoin.png";
 
@@ -15,9 +16,9 @@ export default function Footer() {
         </div>
 
         <div className={styles.links}>
-          <a href="#">Privacy</a>
-          <a href="#">Terms</a>
-          <a href="#">Support</a>
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/support">Support</Link>
         </div>
       </div>
 

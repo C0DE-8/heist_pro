@@ -11,6 +11,8 @@ const heistRoutes = require("./routes/heists");
 const adminHeistRoutes = require("./routes/admin.heists");
 const userRoutes = require("./routes/users");
 const adminProfileRoutes = require("./routes/admin.profile");
+const transactionRoutes = require("./routes/transactions");
+const adminTransactionRoutes = require("./routes/admin.transactions");
 const { startHeistCron } = require("./jobs/heistCron");
 
 dotenv.config({ quiet: true });
@@ -41,10 +43,12 @@ app.get("/heists/:id/ref/:code", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/payment", PaymentRoutes);
+app.use("/api/transactions", transactionRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/heists", heistRoutes);
 app.use("/api/admin/heists", adminHeistRoutes);
 app.use("/api/admin/profile", adminProfileRoutes);
+app.use("/api/admin/transactions", adminTransactionRoutes);
 
 
 app.get("/health", async (req, res) => {

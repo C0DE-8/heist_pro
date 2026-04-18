@@ -1,444 +1,229 @@
-import React, { useCallback, useMemo, useState } from "react";
-import styles from "./HowItWork.module.css";
-
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  FiCheckCircle,
+  FiCopy,
+  FiCreditCard,
+  FiDownload,
+  FiHelpCircle,
+  FiTarget,
+  FiUsers,
+  FiZap,
+} from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import styles from "./HowItWork.module.css";
 
-import {
-  FiInfo,
-  FiGrid,
-  FiDollarSign,
-  FiTool,
-  FiTarget,
-  FiShoppingBag,
-  FiCheckCircle,
-  FiChevronRight,
-  FiCopy,
-} from "react-icons/fi";
-
-/* ---------------- helpers ---------------- */
-function copyToClipboard(setInfo) {
-  return async (text) => {
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(String(text));
-      setInfo("Copied.");
-      setTimeout(() => setInfo(""), 1200);
-    } catch {
-      // ignore
-    }
-  };
+function Step({ number, title, text }) {
+  return (
+    <div className={styles.step}>
+      <span>{number}</span>
+      <div>
+        <strong>{title}</strong>
+        <p>{text}</p>
+      </div>
+    </div>
+  );
 }
 
 export default function HowItWork() {
-  const [activeTab, setActiveTab] = useState("overview");
-  const [info, setInfo] = useState("");
+  const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
 
-  const onCopy = useMemo(() => copyToClipboard(setInfo), []);
-
-  const tabs = useMemo(
+  const quickFacts = useMemo(
     () => [
-      { id: "overview", label: "Overview", icon: <FiInfo /> },
-      { id: "coins", label: "CopUp Coins", icon: <FiDollarSign /> },
-      { id: "auctions", label: "Auctions", icon: <FiTool /> },
-      { id: "heist", label: "Copup Heist", icon: <FiTarget /> },
-      { id: "shop", label: "Shopping", icon: <FiShoppingBag /> },
-      { id: "why", label: "Why Copupbid?", icon: <FiCheckCircle /> },
+      { label: "Game type", value: "True / False Heists" },
+      { label: "Reward", value: "CopUpCoin balance" },
+      { label: "Ranking", value: "Correct answers, then speed" },
     ],
     []
   );
 
-  const active = useMemo(() => tabs.find((t) => t.id === activeTab) || tabs[0], [tabs, activeTab]);
-
-  const goBack = useCallback(() => {
-    window.location.href = "/";
-  }, []);
+  const copySummary = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        "CopUp Heist: buy coins, join a True/False heist, answer fast, and win CopUpCoin rewards."
+      );
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <div className={styles.page}>
-      {/* background glow like Winner */}
-      <div className={styles.bgGlow} aria-hidden="true">
-        <svg className={styles.bgSvg} xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="glow1" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.30" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-            </radialGradient>
-            <radialGradient id="glow2" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-            </radialGradient>
-            <radialGradient id="glow3" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.14" />
-              <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          <circle cx="20%" cy="30%" r="320" fill="url(#glow1)" className={styles.pulse1} />
-          <circle cx="80%" cy="70%" r="260" fill="url(#glow2)" className={styles.pulse2} />
-          <circle cx="60%" cy="20%" r="210" fill="url(#glow3)" className={styles.pulse3} />
-        </svg>
-      </div>
-
       <Header />
 
-      {/* hero */}
-      <section className={styles.hero}>
-        <div className={styles.container}>
-          <div className={styles.heroCard}>
-            <div className={styles.heroTop}>
-              <div className={styles.heroIcon}>
-                <FiGrid />
-              </div>
-
-              <div className={styles.heroMain}>
-                <div className={styles.heroTitle}>How Copupbid Works</div>
-                <div className={styles.heroSub}>
-                  Bid, play, and shop using <b>CopUp Coins</b> — fast, fun, and reward-based.
-                </div>
-
-                <div className={styles.pills}>
-                  <div className={styles.pill}>
-                    <FiDollarSign />
-                    <span>
-                      1 Coin = <b>₦100</b>
-                    </span>
-                  </div>
-
-                  {info ? (
-                    <div className={styles.pillAlt}>
-                      <FiCheckCircle />
-                      <span>{info}</span>
-                    </div>
-                  ) : (
-                    <div className={styles.pillAlt}>
-                      <FiInfo />
-                      <span>Tabs + step-by-step guide</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className={styles.heroActions}>
-                <button
-                  type="button"
-                  className={styles.btnPrimary}
-                  onClick={() => onCopy("🚀 Copupbid: 1 CopUp Coin = ₦100. Bid, play (Heist), and shop with coins.")}
-                >
-                  <FiCopy style={{ marginRight: 8 }} />
-                  Copy Summary
-                </button>
-
-                <button type="button" className={styles.btnGhost} onClick={goBack}>
-                  Back
-                </button>
-              </div>
-            </div>
-
-            {/* tabs */}
-            <div className={styles.tabsWrap}>
-              {tabs.map((t) => {
-                const isActive = t.id === activeTab;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    className={isActive ? styles.tabActive : styles.tab}
-                    onClick={() => setActiveTab(t.id)}
-                  >
-                    <span className={styles.tabIcon}>{t.icon}</span>
-                    <span className={styles.tabLabel}>{t.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* active tab title */}
-            <div className={styles.selectorRow}>
-              <div className={styles.selectorMid}>
-                <div className={styles.selectorTitle}>{active?.label || "—"}</div>
-                <div className={styles.selectorSub}>
-                  Switch tabs to learn each part clearly — coins, auctions, heist, and shopping.
-                </div>
-              </div>
-              <div className={styles.badgeSoft}>
-                <FiChevronRight style={{ marginRight: 6 }} />
-                Step Guide
-              </div>
-            </div>
+      <main className={styles.main}>
+        <section className={styles.hero}>
+          <div>
+            <p className={styles.kicker}>How To Play</p>
+            <h1>Win CopUpCoin with True/False Heists.</h1>
+            <p>
+              Fund your wallet, join a heist, answer every question, and climb the leaderboard.
+              Winners are ranked by correct answers first, then fastest total time.
+            </p>
           </div>
-        </div>
-      </section>
 
-      {/* body */}
-      <section className={styles.body}>
-        <div className={styles.container}>
-          {/* content card */}
-          <div className={styles.card}>
-            {activeTab === "overview" ? (
-              <>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitle}>🚀 Welcome to Copupbid</div>
-                  <div className={styles.cardSub}>Where fun meets rewards — everything runs on CopUp Coins.</div>
-                </div>
-
-                <div className={styles.steps}>
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>1</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Get CopUp Coins</div>
-                      <div className={styles.stepText}>Create an account, fund your wallet, convert to coins.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>2</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Choose Your Activity</div>
-                      <div className={styles.stepText}>Auctions, Copup Heist (game), or normal shopping.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>3</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Win Rewards / Buy Items</div>
-                      <div className={styles.stepText}>
-                        Win auctions and games, or purchase products directly with coins.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.softNote}>
-                  Tip: If you’re new, open <b>CopUp Coins</b> tab first.
-                </div>
-              </>
-            ) : null}
-
-            {activeTab === "coins" ? (
-              <>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitle}>🪙 Step 1: Get CopUp Coins</div>
-                  <div className={styles.cardSub}>Everything on Copupbid uses CopUp Coins.</div>
-                </div>
-
-                <div className={styles.highlightRow}>
-                  <div className={styles.highlight}>
-                    <div className={styles.highlightLabel}>Rate</div>
-                    <div className={styles.highlightValue}>1 CopUp Coin = ₦100</div>
-                  </div>
-                  <button
-                    type="button"
-                    className={styles.btnGhost}
-                    onClick={() => onCopy("1 CopUp Coin = ₦100")}
-                    title="Copy rate"
-                  >
-                    <FiCopy style={{ marginRight: 8 }} />
-                    Copy Rate
-                  </button>
-                </div>
-
-                <div className={styles.steps}>
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>1</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Create an account</div>
-                      <div className={styles.stepText}>Sign up and verify your profile.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>2</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Fund your wallet</div>
-                      <div className={styles.stepText}>Add money to your wallet securely.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>3</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Convert to CopUp Coins</div>
-                      <div className={styles.stepText}>Convert cash into coins and start using immediately.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>4</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Coins appear in your balance</div>
-                      <div className={styles.stepText}>Your wallet balance updates and you can spend instantly.</div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {activeTab === "auctions" ? (
-              <>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitle}>🔨 How Auctions Work</div>
-                  <div className={styles.cardSub}>Competitive, exciting, and transparent in real-time.</div>
-                </div>
-
-                <div className={styles.steps}>
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>1</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Choose an Auction Tier</div>
-                      <div className={styles.stepText}>
-                        Each tier has an entry cost in coins, a product, and a time limit.
-                        <div className={styles.miniList}>
-                          • Bronze Entry → 1 Coin<br />
-                          • Silver Entry → 5 Coins<br />
-                          • Gold Entry → 10 Coins
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>2</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Place Bids</div>
-                      <div className={styles.stepText}>
-                        Every bid costs coins, slightly increases the timer, and raises the price gradually.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>3</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Win the Auction</div>
-                      <div className={styles.stepText}>
-                        When the timer hits zero, the last bidder wins the item — usually at a massive discount.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.softNote}>
-                  Auctions are fair: everyone sees the countdown and bidding activity live.
-                </div>
-              </>
-            ) : null}
-
-            {activeTab === "heist" ? (
-              <>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitle}>🕵🏽‍♂️ How Copup Heist Works</div>
-                  <div className={styles.cardSub}>Story-based competitive game — not luck, intelligence.</div>
-                </div>
-
-                <div className={styles.steps}>
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>1</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Buy a Ticket</div>
-                      <div className={styles.stepText}>Join the heist using CopUp Coins.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>2</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Read the Story</div>
-                      <div className={styles.stepText}>You get a mystery story with hidden clues inside it.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>3</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Analyze the Clues</div>
-                      <div className={styles.stepText}>
-                        Watch for timestamps, names, objects, and tiny details — everything matters.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>4</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Answer the Final Question</div>
-                      <div className={styles.stepText}>The first correct answer wins the heist.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>5</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Win the Prize</div>
-                      <div className={styles.stepText}>
-                        Prizes can be coins, phones, gadgets, game rewards, or special bonuses — added to balance.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {activeTab === "shop" ? (
-              <>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitle}>🛍 Normal Shopping with CopUp Coins</div>
-                  <div className={styles.cardSub}>Buy products directly using your wallet coin balance.</div>
-                </div>
-
-                <div className={styles.steps}>
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>1</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Browse the Shop</div>
-                      <div className={styles.stepText}>Phones, electronics, accessories, and special deals.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>2</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Pay with CopUp Coins</div>
-                      <div className={styles.stepText}>Checkout instantly using wallet balance — no cash needed.</div>
-                    </div>
-                  </div>
-
-                  <div className={styles.step}>
-                    <div className={styles.stepNo}>3</div>
-                    <div className={styles.stepMain}>
-                      <div className={styles.stepTitle}>Delivery + Tracking</div>
-                      <div className={styles.stepText}>Order confirmed, delivery begins, track your item.</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.softNote}>Shopping is simple and secure.</div>
-              </>
-            ) : null}
-
-            {activeTab === "why" ? (
-              <>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitle}>🎯 Why Use Copupbid?</div>
-                  <div className={styles.cardSub}>More than a marketplace — it’s a reward economy.</div>
-                </div>
-
-                <div className={styles.bullets}>
-                  <div className={styles.bullet}>• Fun & competitive platform</div>
-                  <div className={styles.bullet}>• Real rewards</div>
-                  <div className={styles.bullet}>• Transparent system</div>
-                  <div className={styles.bullet}>• Digital coin economy</div>
-                  <div className={styles.bullet}>• Multiple ways to win</div>
-                </div>
-
-                <div className={styles.softNote}>
-                  Want the fastest start? Get coins → join an auction → try a heist.
-                </div>
-              </>
-            ) : null}
+          <div className={styles.heroActions}>
+            <button type="button" className={styles.primaryBtn} onClick={() => navigate("/heist")}>
+              <FiTarget />
+              <span>Open Heists</span>
+            </button>
+            <button type="button" className={styles.ghostBtn} onClick={copySummary}>
+              <FiCopy />
+              <span>{copied ? "Copied!" : "Copy Summary"}</span>
+            </button>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section className={styles.factGrid}>
+          {quickFacts.map((fact) => (
+            <div className={styles.factCard} key={fact.label}>
+              <span>{fact.label}</span>
+              <strong>{fact.value}</strong>
+            </div>
+          ))}
+        </section>
+
+        <section className={styles.grid}>
+          <article className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Wallet</p>
+                <h2>Get CopUpCoin</h2>
+              </div>
+              <FiCreditCard />
+            </div>
+
+            <div className={styles.steps}>
+              <Step
+                number="1"
+                title="Choose coins"
+                text="Go to Account, enter the number of coins you want, and the system calculates the exact NGN amount."
+              />
+              <Step
+                number="2"
+                title="Transfer exact amount"
+                text="Use the generated pay-in details and copy the amount or account number to avoid transfer mistakes."
+              />
+              <Step
+                number="3"
+                title="Upload receipt"
+                text="Submit your receipt. Once confirmed, your CopUpCoin balance is credited automatically."
+              />
+            </div>
+          </article>
+
+          <article className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Heist</p>
+                <h2>Play the game</h2>
+              </div>
+              <FiZap />
+            </div>
+
+            <div className={styles.steps}>
+              <Step
+                number="1"
+                title="Join a heist"
+                text="Pick an available heist and pay the ticket price from your CopUpCoin balance."
+              />
+              <Step
+                number="2"
+                title="Answer True or False"
+                text="Each question has only two choices. Correct answers matter most, but speed breaks ties."
+              />
+              <Step
+                number="3"
+                title="Submit your run"
+                text="When you finish, submit your answers to lock your score and view the leaderboard."
+              />
+            </div>
+          </article>
+
+          <article className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Leaderboard</p>
+                <h2>How winners rank</h2>
+              </div>
+              <FiCheckCircle />
+            </div>
+
+            <div className={styles.rankBox}>
+              <div>
+                <span>1</span>
+                <strong>Correct answers</strong>
+                <p>More correct answers always rank higher.</p>
+              </div>
+              <div>
+                <span>2</span>
+                <strong>Total time</strong>
+                <p>If correct counts tie, the faster total time wins.</p>
+              </div>
+              <div>
+                <span>3</span>
+                <strong>Submit time</strong>
+                <p>If both are tied, the earlier submission ranks higher.</p>
+              </div>
+            </div>
+          </article>
+
+          <article className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Affiliate</p>
+                <h2>Share and earn</h2>
+              </div>
+              <FiUsers />
+            </div>
+
+            <div className={styles.steps}>
+              <Step
+                number="1"
+                title="Generate your link"
+                text="Open the Affiliate page and generate a link for any available heist."
+              />
+              <Step
+                number="2"
+                title="Bring players"
+                text="When another user joins through your link, it can count toward active affiliate tasks."
+              />
+              <Step
+                number="3"
+                title="Earn task rewards"
+                text="When you complete a task target, the reward is credited to your CopUpCoin balance."
+              />
+            </div>
+          </article>
+        </section>
+
+        <section className={styles.footerPanel}>
+          <FiDownload />
+          <div>
+            <h2>Withdrawals</h2>
+            <p>
+              You can request payouts from the Account page. Withdrawal requests reserve the coins
+              while pending, and rejected requests return the coins to your balance.
+            </p>
+          </div>
+        </section>
+
+        <section className={styles.helpPanel}>
+          <FiHelpCircle />
+          <div>
+            <h2>Need a simple start?</h2>
+            <p>Go to Account, buy coins, then open Heists and join one that is available.</p>
+          </div>
+          <button type="button" className={styles.primaryBtn} onClick={() => navigate("/account")}>
+            <FiCreditCard />
+            <span>Open Account</span>
+          </button>
+        </section>
+      </main>
 
       <Footer />
     </div>

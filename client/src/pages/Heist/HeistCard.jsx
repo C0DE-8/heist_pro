@@ -47,9 +47,15 @@ export default function HeistCard({ heist, onJoin }) {
         </div>
 
         <div className={styles.bottom}>
-          <div className={styles.prize}>
-            <span>Prize</span>
-            <strong>{formatNum(heist?.prize_cop_points)} CP</strong>
+          <div className={styles.moneyStack}>
+            <div className={styles.prize}>
+              <span>Prize</span>
+              <strong>{formatNum(heist?.prize_cop_points)} CP</strong>
+            </div>
+            <div className={styles.entryFee}>
+              <span>Entry fee</span>
+              <strong>{formatNum(heist?.ticket_price)} CP</strong>
+            </div>
           </div>
 
           <button type="button" className={styles.button} onClick={() => onJoin?.(heist)}>

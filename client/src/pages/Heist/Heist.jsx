@@ -26,6 +26,27 @@ function getReferralCode(searchParams) {
   );
 }
 
+function HeistCardSkeleton() {
+  return (
+    <article className={styles.heistSkeleton} aria-hidden="true">
+      <div className={styles.skeletonGlow} />
+      <div className={styles.skeletonTop}>
+        <span />
+        <span />
+      </div>
+      <div className={styles.skeletonMiddle}>
+        <span />
+        <span />
+        <span />
+      </div>
+      <div className={styles.skeletonBottom}>
+        <span />
+        <span />
+      </div>
+    </article>
+  );
+}
+
 export default function Heist() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -122,7 +143,7 @@ export default function Heist() {
 
         <section className={styles.heistList}>
           {loading ? (
-            <div className={styles.emptyState}>Loading heists...</div>
+            [0, 1, 2].map((item) => <HeistCardSkeleton key={item} />)
           ) : available.length ? (
             available.map((heist) => (
               <HeistCard key={heist.id} heist={heist} onJoin={handleJoin} />

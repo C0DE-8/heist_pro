@@ -10,7 +10,20 @@ import {
 import AdminNavbar from "../../../components/admin/Navbar";
 import Modal from "../../../components/ui/Modal";
 import { ToastProvider, useToast } from "../../../components/ui/Toaster";
-import { api } from "../../../lib/api";
+import {
+  addAdminHeistQuestions,
+  createAdminAffiliateTask,
+  createAdminHeist,
+  deleteAdminAffiliateTask,
+  deleteAdminHeistQuestion,
+  finalizeAdminHeist,
+  getAdminAffiliateTaskProgress,
+  getAdminAffiliateTasks,
+  getAdminHeistQuestions,
+  getAdminHeists,
+  updateAdminAffiliateTask,
+  updateAdminHeistStatus,
+} from "../../../lib/adminHeists";
 import styles from "./AdminHeists.module.css";
 
 const EMPTY_HEIST = {
@@ -98,7 +111,7 @@ function AdminHeistsPage() {
     setError("");
 
     try {
-      const { data } = await api.get("/admin/heists");
+      const data = await getAdminHeists();
       const rows = Array.isArray(data?.heists) ? data.heists : [];
       setHeists(rows);
       setSelectedId((current) => current || rows[0]?.id || null);
@@ -120,15 +133,15 @@ function AdminHeistsPage() {
 
     setDetailLoading(true);
     try {
-      const [questionRes, taskRes, progressRes] = await Promise.all([
-        api.get(`/admin/heists/${selectedId}/questions`),
-        api.get(`/admin/heists/${selectedId}/affiliate-tasks`),
-        api.get(`/admin/heists/${selectedId}/affiliate-tasks/progress`),
+      const [questionData, taskData, progressData] = await Promise.all([
+        getAdminHeistQuestions(selectedId),
+        getAdminAffiliateTasks(selectedId),
+        getAdminAffiliateTaskProgress(selectedId),
       ]);
 
-      setQuestions(Array.isArray(questionRes.data?.questions) ? questionRes.data.questions : []);
-      setTasks(Array.isArray(taskRes.data?.tasks) ? taskRes.data.tasks : []);
-      setProgress(Array.isArray(progressRes.data?.progress) ? progressRes.data.progress : []);
+      setQuestions(Array.isArray(questionData?.questions) ? questionData.questions : []);
+      setTasks(Array.isArray(taskData?.tasks) ? taskData.tasks : []);
+      setProgress(Array.isArray(progressData?.progress) ? progressData.progress : []);
     } catch (err) {
       console.error("Load heist details error:", err);
       toast.error(err?.response?.data?.message || "Unable to load heist details.");
@@ -174,7 +187,7 @@ function AdminHeistsPage() {
         ends_at: createForm.ends_at || null,
       };
 
-      const { data } = await api.post("/admin/heists", payload);
+      const data = await createAdminHeist(payload);
       toast.success("Heist created");
       setCreateForm(EMPTY_HEIST);
       setCreateModalOpen(false);
@@ -224,7 +237,7 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await api.post(`/admin/heists/${selectedId}/questions`, { questions: payload });
+      await addAdminHeistQuestions(selectedId, payload);
       toast.success("Questions added");
       setQuestionRows([{ ...EMPTY_QUESTION, sort_order: String(questions.length + 1) }]);
       setQuestionsModalOpen(false);
@@ -242,7 +255,7 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await api.patch(`/admin/heists/${selectedId}/status`, { status: statusValue });
+      await updateAdminHeistStatus(selectedId, statusValue);
       toast.success("Status updated");
       await loadHeists();
     } catch (err) {
@@ -260,7 +273,7 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      const { data } = await api.post(`/admin/heists/${selectedId}/finalize`);
+      const data = await finalizeAdminHeist(selectedId);
       toast.success(
         data?.winner
           ? `Winner awarded ${formatNum(data.awarded_points)} CP`
@@ -282,7 +295,7 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await api.delete(`/admin/heists/${selectedId}/questions/${question.id}`);
+      await deleteAdminHeistQuestion(selectedId, question.id);
       toast.success("Question deleted");
       await Promise.all([loadSelectedDetails(), loadHeists()]);
     } catch (err) {
@@ -299,7 +312,7 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await api.post(`/admin/heists/${selectedId}/affiliate-tasks`, {
+      await createAdminAffiliateTask(selectedId, {
         required_joins: Number(taskForm.required_joins || 1),
         reward_cop_points: Number(taskForm.reward_cop_points || 0),
         is_active: taskForm.is_active,
@@ -321,7 +334,7 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await api.patch(`/admin/heists/${selectedId}/affiliate-tasks/${task.id}`, {
+      await updateAdminAffiliateTask(selectedId, task.id, {
         is_active: !Number(task.is_active),
       });
       toast.success("Affiliate task updated");
@@ -341,7 +354,7 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await api.delete(`/admin/heists/${selectedId}/affiliate-tasks/${task.id}`);
+      await deleteAdminAffiliateTask(selectedId, task.id);
       toast.success("Affiliate task deleted");
       await loadSelectedDetails();
     } catch (err) {

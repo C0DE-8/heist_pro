@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import BackgroundMusic from "./components/BackgroundMusic/BackgroundMusic";
 
 
 // Auth Pages
@@ -10,6 +11,7 @@ import ResetPassword from "./pages/Auth/ResetPassword/ResetPassword";
 
 // Admin
 import AdminDashboard from "./pages/admin/AdminDashboard/AdminDashboard";
+import AdminTransactions from "./pages/admin/AdminTransactions/AdminTransactions";
 
 
 // Protected Routes
@@ -32,6 +34,9 @@ import Trade from "./pages/Trade/Trade";
 import Affiliate from "./pages/Affiliate/Affiliate";
 import Winner from "./pages/Winner/Winner";
 import HowItWork from "./pages/Support/HowItWork";
+import Privacy from "./pages/Support/Privacy";
+import Support from "./pages/Support/Support";
+import Terms from "./pages/Support/Terms";
 import Home from "./pages/Home/Home";
 import Account from "./pages/Account/Account";
 
@@ -39,6 +44,7 @@ import Account from "./pages/Account/Account";
 export default function App() {
   return (
     <Router>
+      <BackgroundMusic />
       <Routes>
         {/* ================= AUTH ROUTES ================= */}
         <Route path="/" element={<Login />} />
@@ -47,6 +53,9 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/heists/:id/ref/:code" element={<ReferralJoinPage />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/support" element={<Support />} />
 
         {/* ================= USER ROUTES (Protected) ================= */}
 
@@ -84,7 +93,7 @@ export default function App() {
         </Route>
 
          <Route element={<UserRoute />}>
-          <Route path="/trade" element={<Trade />} />
+          <Route path="/trade" element={<ComingSoon />} />
         </Route>
 
 
@@ -110,11 +119,23 @@ export default function App() {
           <Route path="/admin/heists" element={<AdminHeists />} />
         </Route>
 
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/transactions" element={<AdminTransactions />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/coins" element={<AdminTransactions />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/payouts" element={<AdminTransactions />} />
+        </Route>
+
        
 
         {/* ================= 404 FALLBACK ================= */}
-        <Route path="*" element={<NotFound />} />
         <Route path="/coming-soon" element={<ComingSoon />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );

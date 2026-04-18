@@ -534,12 +534,12 @@
   position: relative;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: clamp(8px, 2.2vw, 12px);
   align-items: stretch;
 }
 
 .twoCard {
-  grid-template-columns: repeat(2, minmax(0, 240px));
+  grid-template-columns: repeat(2, minmax(0, min(44vw, 240px)));
   justify-content: center;
 }
 
@@ -844,7 +844,7 @@
   }
 
   .twoCard {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, min(44vw, 240px)));
   }
 }
 
@@ -892,9 +892,63 @@
 }
 
 @media (max-width: 420px) {
-  .cardGrid,
-  .twoCard {
+  .cardGrid:not(.twoCard) {
     grid-template-columns: 1fr;
+  }
+
+  .twoCard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .gamePanel {
+    padding: 10px;
+  }
+
+  .playCard {
+    border-radius: 16px;
+    padding: 8px;
+  }
+
+  .cardCorner {
+    left: 8px;
+    top: 8px;
+    font-size: 0.66rem;
+  }
+
+  .bottom {
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .cardGlyph {
+    font-size: 2.45rem;
+  }
+
+  .cardBody {
+    gap: 6px;
+    padding-top: 30px;
+  }
+
+  .cardTag {
+    padding: 5px 8px;
+    font-size: 0.56rem;
+  }
+
+  .cardTitle {
+    font-size: 0.92rem;
+  }
+
+  .cardCopy {
+    font-size: 0.68rem;
+    line-height: 1.25;
+    max-width: 15ch;
+  }
+
+  .cardPrice {
+    padding: 6px 8px;
+    border-radius: 10px;
+    font-size: 0.66rem;
   }
 }
 
