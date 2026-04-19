@@ -8,6 +8,7 @@ import Login from "./pages/Auth/Login/Login";
 import Register from "./pages/Auth/Register/Register";
 import ForgotPassword from "./pages/Auth/ForgotPassword/ForgotPassword";
 import ResetPassword from "./pages/Auth/ResetPassword/ResetPassword";
+import Landing from "./pages/Landing/Landing";
 
 // Admin
 import AdminDashboard from "./pages/admin/AdminDashboard/AdminDashboard";
@@ -47,8 +48,8 @@ export default function App() {
       <BackgroundMusic />
       <Routes>
         {/* ================= AUTH ROUTES ================= */}
-        <Route path="/" element={<Login />} />
-       <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

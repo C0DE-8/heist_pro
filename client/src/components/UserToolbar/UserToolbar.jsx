@@ -35,6 +35,12 @@ export default function UserToolbar() {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [soundOn, setSoundOn] = useState(() => getSoundEnabled());
+  const [hideCoins, setHideCoins] = useState(
+    () => localStorage.getItem("copup_toolbar_hide_coins") === "1"
+  );
+  const [hideTasks, setHideTasks] = useState(
+    () => localStorage.getItem("copup_toolbar_hide_tasks") === "1"
+  );
 
   const displayName = profile?.full_name || profile?.username || "User";
   const copPoints = Number(profile?.cop_point || 0);
@@ -67,6 +73,22 @@ export default function UserToolbar() {
     const next = !soundOn;
     setSoundOn(next);
     setSoundEnabled(next);
+  };
+
+  const toggleCoins = () => {
+    setHideCoins((prev) => {
+      const next = !prev;
+      localStorage.setItem("copup_toolbar_hide_coins", next ? "1" : "0");
+      return next;
+    });
+  };
+
+  const toggleTasks = () => {
+    setHideTasks((prev) => {
+      const next = !prev;
+      localStorage.setItem("copup_toolbar_hide_tasks", next ? "1" : "0");
+      return next;
+    });
   };
 
   // ✅ 1) keep token in sync (login/logout in same tab and other tabs)
@@ -151,27 +173,44 @@ export default function UserToolbar() {
           {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </button>
 
-        <button type="button" className={styles.trigger} onClick={() => setOpen(true)}>
+        <div className={styles.trigger}>
           <div className={styles.coins}>
-            <div className={styles.coinBadge}>
+            <button
+              type="button"
+              className={styles.coinBadge}
+              onClick={toggleCoins}
+              aria-label={hideCoins ? "Show coin balance" : "Hide coin balance"}
+              title={hideCoins ? "Show balance" : "Hide balance"}
+            >
               <Coins size={14} />
-              {copPoints.toLocaleString()}
-            </div>
+              {hideCoins ? "••••" : copPoints.toLocaleString()}
+            </button>
 
-            <div className={styles.taskBadge}>
+            <button
+              type="button"
+              className={styles.taskBadge}
+              onClick={toggleTasks}
+              aria-label={hideTasks ? "Show joined heists" : "Hide joined heists"}
+              title={hideTasks ? "Show heists" : "Hide heists"}
+            >
               <Target size={14} />
-              {joinedHeists.toLocaleString()}
-            </div>
+              {hideTasks ? "••" : joinedHeists.toLocaleString()}
+            </button>
           </div>
 
-          <div className={styles.avatar}>
+          <button
+            type="button"
+            className={styles.avatar}
+            onClick={() => setOpen(true)}
+            aria-label="Open profile menu"
+          >
             {profileImageSrc ? (
               <img src={profileImageSrc} alt="Profile" className={styles.avatarImg} />
             ) : (
               <UserRound size={18} />
             )}
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Overlay */}
@@ -205,9 +244,6 @@ export default function UserToolbar() {
 
           <div className={styles.profileText}>
             <div className={styles.profileName}>{loading ? "Loading..." : displayName}</div>
-            <div className={styles.profileMeta}>
-              {copPoints.toLocaleString()} CP • {joinedHeists.toLocaleString()} heists
-            </div>
 
             <button className={styles.profileLink} onClick={() => go("/profile")}>
               View profile

@@ -52,7 +52,6 @@
   color: #fff;
   border-radius: 18px;
   padding: 6px 10px;
-  cursor: pointer;
   transition: all 0.2s ease;
   box-shadow:
     0 12px 28px rgba(0, 0, 0, 0.18),
@@ -65,10 +64,12 @@
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06)),
     rgba(26, 29, 34, 0.76);
-  transform: translateY(-1px);
 }
 
 .avatar {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
   width: 32px;
   height: 32px;
   border-radius: 999px;
@@ -78,6 +79,10 @@
   border: 1px solid rgba(186, 255, 199, 0.32);
   color: #baffc7;
   overflow: hidden;
+}
+
+.avatar:hover {
+  transform: translateY(-1px);
 }
 
 /* ✅ profile image inside top avatar */
@@ -97,13 +102,20 @@
 
 .coinBadge,
 .taskBadge {
+  border: 1px solid transparent;
+  font: inherit;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-size: 12px;
   font-weight: 900;
   padding: 6px 10px;
   border-radius: 999px;
+  min-width: 58px;
+  color: inherit;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
 }
 
 .coinBadge {
@@ -116,6 +128,12 @@
   background: rgba(255, 255, 255, 0.075);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #baffc7;
+}
+
+.coinBadge:hover,
+.taskBadge:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 /* Overlay */
@@ -230,12 +248,6 @@
 .profileName {
   font-weight: 900;
   font-size: 14px;
-}
-
-.profileMeta {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .profileLink {
