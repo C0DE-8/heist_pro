@@ -66,10 +66,11 @@ async function createHeistSubmission(conn, { heistId, userId }) {
   );
   if (activeSubmission) {
     return {
-      status: 400,
+      status: 200,
       body: {
         message: "Submission already started",
         submission_id: activeSubmission.id,
+        resumed: true,
       },
     };
   }
@@ -351,12 +352,12 @@ router.post("/:id/start", authenticateToken, async (req, res) => {
     await conn.beginTransaction();
 
     const result = await createHeistSubmission(conn, { heistId, userId });
-    if (result.status !== 201) {
+    if (![200, 201].includes(result.status)) {
       await conn.rollback();
       return res.status(result.status).json(result.body);
     }
     await conn.commit();
-    return res.status(201).json(result.body);
+    return res.status(result.status).json(result.body);
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("start heist error:", err);

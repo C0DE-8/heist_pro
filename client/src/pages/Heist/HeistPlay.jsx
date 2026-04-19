@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useToast } from "../../components/Toast/ToastContext";
 import {
+  getHeist,
   getHeistPlay,
   getHeistResult,
+  joinHeist,
   startHeist,
   submitHeistAnswers,
 } from "../../lib/heists";
@@ -30,6 +32,15 @@ function getStoredUserId() {
 
 function getAttemptStorageKey(heistId) {
   return `copup_heist_attempt_${getStoredUserId()}_${heistId}`;
+}
+
+function getReferralCode(searchParams) {
+  return (
+    searchParams.get("referral_code") ||
+    searchParams.get("ref") ||
+    searchParams.get("code") ||
+    ""
+  );
 }
 
 function readStoredAttempt(heistId) {
@@ -529,10 +540,13 @@ function drawBurnSourceCard(canvas, { answer, questionNumber }) {
 export default function HeistPlay() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
+  const referralCode = useMemo(() => getReferralCode(searchParams), [searchParams]);
 
   const [payload, setPayload] = useState(null);
   const [previousResult, setPreviousResult] = useState(null);
+  const [hasJoined, setHasJoined] = useState(true);
   const [submissionId, setSubmissionId] = useState(null);
   const [questionStartedAt, setQuestionStartedAt] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -571,14 +585,18 @@ export default function HeistPlay() {
           ? "Ready to submit"
           : hasSubmittedAttempt
             ? "Heist completed"
-            : "Start the heist";
+            : hasJoined
+              ? "Start the heist"
+              : "Join the heist";
   const promptCopy = shouldShowQuestion
     ? "Pick true or false."
     : isComplete
       ? "Submit your run to lock your leaderboard result."
       : hasSubmittedAttempt
         ? "You already submitted this heist. View your result."
-        : "Start the heist to unlock the questions.";
+        : hasJoined
+          ? "Start the heist to unlock the questions."
+          : "Join the heist, then start your run.";
 
   const loadPlay = useCallback(async () => {
     setLoading(true);
@@ -587,6 +605,7 @@ export default function HeistPlay() {
     try {
       const data = await getHeistPlay(id);
       setPayload(data);
+      setHasJoined(true);
 
       try {
         const resultData = await getHeistResult(id);
@@ -600,7 +619,18 @@ export default function HeistPlay() {
     } catch (err) {
       console.error("Load heist play error:", err);
       const message = err?.response?.data?.message || "Unable to load heist.";
-      if (err?.response?.status === 400 && /closed|ended/i.test(message)) {
+      if (err?.response?.status === 403 && /join heist first/i.test(message)) {
+        try {
+          const data = await getHeist(id);
+          setPayload({ heist: data?.heist || null, questions: [] });
+          setHasJoined(false);
+          setPreviousResult(null);
+          setError("");
+        } catch (heistErr) {
+          console.error("Load public heist error:", heistErr);
+          setError(heistErr?.response?.data?.message || message);
+        }
+      } else if (err?.response?.status === 400 && /closed|ended/i.test(message)) {
         try {
           const resultData = await getHeistResult(id);
           if (resultData?.result) {
@@ -634,6 +664,7 @@ export default function HeistPlay() {
     setSelectedAnswer("");
     setAnimatingSide("");
     setBurningAnswer("");
+    setHasJoined(true);
   }, [id]);
 
   useEffect(() => {
@@ -705,7 +736,26 @@ export default function HeistPlay() {
 
     setSaving(true);
     try {
+      if (!hasJoined) {
+        try {
+          await joinHeist(id, referralCode);
+          setHasJoined(true);
+          toast.success("Joined heist");
+        } catch (joinErr) {
+          const message = joinErr?.response?.data?.message || "Unable to join heist.";
+          if (!/already joined/i.test(message)) {
+            toast.error(message);
+            return;
+          }
+          setHasJoined(true);
+        }
+      }
+
       const data = await startHeist(id);
+      if (!data?.submission_id) {
+        toast.error("Unable to start heist.");
+        return;
+      }
       clearStoredAttempt(id);
       setSubmissionId(data?.submission_id);
       setQuestionStartedAt(Date.now());
@@ -714,9 +764,35 @@ export default function HeistPlay() {
       setSelectedAnswer("");
       setAnimatingSide("");
       setBurningAnswer("");
-      toast.success("Heist started");
+      try {
+        const playData = await getHeistPlay(id);
+        setPayload(playData);
+      } catch (playErr) {
+        console.warn("Refresh heist questions after start failed:", playErr);
+      }
+      toast.success(data?.resumed ? "Heist resumed" : "Heist started");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Unable to start heist.");
+      const submission = err?.response?.data?.submission_id;
+      if (submission) {
+        clearStoredAttempt(id);
+        setSubmissionId(submission);
+        setQuestionStartedAt(Date.now());
+        setCurrentIndex(0);
+        setAnswerList([]);
+        setSelectedAnswer("");
+        setAnimatingSide("");
+        setBurningAnswer("");
+        try {
+          const playData = await getHeistPlay(id);
+          setPayload(playData);
+          setHasJoined(true);
+        } catch (playErr) {
+          console.warn("Refresh heist questions after resume failed:", playErr);
+        }
+        toast.success("Heist resumed");
+      } else {
+        toast.error(err?.response?.data?.message || "Unable to start heist.");
+      }
     } finally {
       setSaving(false);
     }
@@ -919,7 +995,7 @@ export default function HeistPlay() {
                 type="button"
                 className={`${styles.playCard} ${styles.trueCard}`}
                 onClick={begin}
-                disabled={loading || saving || (!hasSubmittedAttempt && !questions.length)}
+                disabled={loading || saving || (!hasSubmittedAttempt && hasJoined && !questions.length)}
                 style={{ "--tilt": "-1.5deg" }}
               >
                 <span className={styles.cardCorner}>{hasSubmittedAttempt ? "DONE" : "GO"}</span>
@@ -936,12 +1012,16 @@ export default function HeistPlay() {
                       ? "Starting..."
                       : hasSubmittedAttempt
                         ? "View Result"
-                        : "Begin Heist"}
+                        : hasJoined
+                          ? "Begin Heist"
+                          : "Join & Begin"}
                   </h4>
                   <p className={styles.cardCopy}>
                     {hasSubmittedAttempt
                       ? "Retries are not available for heists."
-                      : "Create your attempt and start the clock."}
+                      : hasJoined
+                        ? "Create your attempt and start the clock."
+                        : "Pay the ticket, join this heist, and start the clock."}
                   </p>
                   <span className={styles.cardPrice}>
                     {hasSubmittedAttempt ? "Submitted" : `${formatNum(entryFee)} CP ticket`}
