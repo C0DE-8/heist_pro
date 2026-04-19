@@ -31,6 +31,12 @@ function formatMoney(value, currency = "NGN") {
   return `${currency} ${Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0"}`;
 }
 
+function formatAccountType(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function formatDate(value) {
   if (!value) return "Not reviewed";
   const date = new Date(value);
@@ -185,7 +191,7 @@ export default function Account() {
       await navigator.clipboard.writeText(String(user.wallet_address));
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
-    } catch (err) {
+    } catch {
       setCopied(false);
     }
   };
@@ -462,8 +468,19 @@ export default function Account() {
                     <span>Payment account</span>
                     {paymentAccount ? (
                       <React.Fragment>
-                        <strong>{paymentAccount.account_name}</strong>
-                        <small>{paymentAccount.account_type}</small>
+                        <div className={styles.accountDetail}>
+                          <span>Bank name</span>
+                          <strong>{paymentAccount.bank_name || "Bank name not set"}</strong>
+                        </div>
+                        <div className={styles.accountDetail}>
+                          <span>Account name</span>
+                          <strong>{paymentAccount.account_name || "Account name not set"}</strong>
+                        </div>
+                        <div className={styles.accountDetail}>
+                          <span>Account type</span>
+                          <strong>{formatAccountType(paymentAccount.account_type) || "Not set"}</strong>
+                        </div>
+                        <span className={styles.accountNumberLabel}>Account number</span>
                         <div className={styles.copyAccount}>
                           <b>{paymentAccount.account_number}</b>
                           <button type="button" onClick={copyPaymentAccount} title="Copy account number">
@@ -650,6 +667,11 @@ export default function Account() {
                 <div>
                   <strong>{formatNum(item.cop_points)} CP</strong>
                   <span>{formatMoney(item.amount_ngn)} after fee · {formatDate(item.created_at)}</span>
+                  <span className={styles.payoutAccountLine}>
+                    <b>Bank:</b> {item.bank_name || "Not set"} · <b>Name:</b>{" "}
+                    {item.account_name || "Not set"} · <b>No:</b>{" "}
+                    {shortText(item.account_number, 4, 4)}
+                  </span>
                   {item.rejection_reason ? <em>{item.rejection_reason}</em> : null}
                 </div>
                 <span className={`${styles.statusBadge} ${statusClass(item.status)}`}>

@@ -283,7 +283,7 @@
   border-radius: 18px;
   padding: 13px;
   display: grid;
-  gap: 5px;
+  gap: 9px;
 }
 
 .paymentInfo span,
@@ -310,6 +310,36 @@
 
 .paymentInfo em {
   font-style: normal;
+}
+
+.accountDetail {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 10px 11px;
+  background: rgba(255, 255, 255, 0.07);
+  display: grid;
+  gap: 4px;
+}
+
+.accountDetail span,
+.accountNumberLabel {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.accountDetail strong {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.accountNumberLabel {
+  margin-top: 2px;
 }
 
 .amountCopy {
@@ -364,11 +394,12 @@
 }
 
 .copyAccount {
-  margin-top: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(186, 255, 199, 0.26);
   border-radius: 15px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.065);
+  padding: 11px;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(186, 255, 199, 0.16), transparent 34%),
+    rgba(255, 255, 255, 0.085);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -379,7 +410,8 @@
   min-width: 0;
   color: #ffffff;
   overflow-wrap: anywhere;
-  font-size: 17px;
+  font-size: 20px;
+  font-weight: 950;
   letter-spacing: 0;
 }
 
@@ -530,6 +562,16 @@
 .transactionRow em {
   color: #ffb8b8;
   font-style: normal;
+}
+
+.payoutAccountLine {
+  color: rgba(255, 255, 255, 0.76) !important;
+  font-weight: 750;
+}
+
+.payoutAccountLine b {
+  color: #ffffff;
+  font-weight: 950;
 }
 
 .statusBadge {
