@@ -6,7 +6,6 @@ import Footer from "../../components/Footer/Footer";
 import { useToast } from "../../components/Toast/ToastContext";
 import {
   getAvailableHeists,
-  getCompletedHeists,
   joinHeist,
 } from "../../lib/heists";
 import HeistCard from "./HeistCard";
@@ -54,7 +53,6 @@ export default function Heist() {
   const referralCode = useMemo(() => getReferralCode(searchParams), [searchParams]);
 
   const [available, setAvailable] = useState([]);
-  const [completed, setCompleted] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [joiningId, setJoiningId] = useState(null);
@@ -64,13 +62,9 @@ export default function Heist() {
     setError("");
 
     try {
-      const [availableData, completedData] = await Promise.all([
-        getAvailableHeists(),
-        getCompletedHeists(),
-      ]);
+      const availableData = await getAvailableHeists();
 
       setAvailable(Array.isArray(availableData?.heists) ? availableData.heists : []);
-      setCompleted(Array.isArray(completedData?.heists) ? completedData.heists : []);
     } catch (err) {
       console.error("Load heists error:", err);
       setError(err?.response?.data?.message || "Unable to load heists.");
@@ -114,10 +108,6 @@ export default function Heist() {
             <strong>{loading ? "..." : formatNum(available.length)}</strong>
           </div>
           <div>
-            <span>Completed</span>
-            <strong>{loading ? "..." : formatNum(completed.length)}</strong>
-          </div>
-          <div>
             <span>Referral</span>
             <strong>{referralCode ? "Active" : "None"}</strong>
           </div>
@@ -150,33 +140,6 @@ export default function Heist() {
             ))
           ) : (
             <div className={styles.emptyState}>No available heists yet.</div>
-          )}
-        </section>
-
-        <section className={styles.sectionHead}>
-          <div>
-            <h2>Won Heists</h2>
-            <p>Completed heists with winners selected.</p>
-          </div>
-        </section>
-
-        <section className={styles.completedList}>
-          {loading ? (
-            <div className={styles.emptyState}>Loading completed heists...</div>
-          ) : completed.length ? (
-            completed.slice(0, 6).map((heist) => (
-              <button
-                type="button"
-                key={heist.id}
-                className={styles.completedCard}
-                onClick={() => navigate(`/heist/${heist.id}/result`)}
-              >
-                <span>{heist.name}</span>
-                <strong>{formatNum(heist.prize_cop_points)} CP</strong>
-              </button>
-            ))
-          ) : (
-            <div className={styles.emptyState}>No won heists yet.</div>
           )}
         </section>
       </main>

@@ -574,6 +574,7 @@ export default function HeistPlay() {
   const isComplete = questions.length > 0 && answeredCount >= questions.length;
   const hasSubmittedAttempt = Boolean(previousResult?.result);
   const entryFee = heist?.ticket_price;
+  const canStartAttempt = hasJoined && questions.length > 0;
   const shouldShowQuestion = Boolean(submissionId && !isComplete && !hasSubmittedAttempt && !error);
   const promptTitle = loading
     ? "Loading..."
@@ -584,9 +585,11 @@ export default function HeistPlay() {
         : isComplete
           ? "Ready to submit"
           : hasSubmittedAttempt
-            ? "Heist completed"
-            : hasJoined
-              ? "Start the heist"
+          ? "Heist completed"
+          : hasJoined
+              ? questions.length
+                ? "Start the heist"
+                : "Questions unavailable"
               : "Join the heist";
   const promptCopy = shouldShowQuestion
     ? "Pick true or false."
@@ -595,8 +598,10 @@ export default function HeistPlay() {
       : hasSubmittedAttempt
         ? "You already submitted this heist. View your result."
         : hasJoined
-          ? "Start the heist to unlock the questions."
-          : "Join the heist, then start your run.";
+          ? questions.length
+            ? "Questions are loaded. Start the heist to create your attempt and begin the clock."
+            : "You joined this heist, but there are no active questions yet."
+          : "Join the heist first. After joining, the questions load before you can start.";
 
   const loadPlay = useCallback(async () => {
     setLoading(true);
@@ -727,8 +732,8 @@ export default function HeistPlay() {
     if (hasSubmittedAttempt) clearStoredAttempt(id);
   }, [hasSubmittedAttempt, id]);
 
-  const begin = async () => {
-    if (submissionId || saving) return;
+  const joinAndLoadPlay = async () => {
+    if (submissionId || saving || hasJoined) return;
     if (hasSubmittedAttempt) {
       navigate(`/heist/${id}/result`);
       return;
@@ -736,19 +741,53 @@ export default function HeistPlay() {
 
     setSaving(true);
     try {
-      if (!hasJoined) {
+      await joinHeist(id, referralCode);
+      const playData = await getHeistPlay(id);
+      setPayload(playData);
+      setHasJoined(true);
+      toast.success("Joined heist");
+    } catch (err) {
+      const message = err?.response?.data?.message || "Unable to join heist.";
+      if (/already joined/i.test(message)) {
         try {
-          await joinHeist(id, referralCode);
+          const playData = await getHeistPlay(id);
+          setPayload(playData);
           setHasJoined(true);
-          toast.success("Joined heist");
-        } catch (joinErr) {
-          const message = joinErr?.response?.data?.message || "Unable to join heist.";
-          if (!/already joined/i.test(message)) {
-            toast.error(message);
-            return;
-          }
-          setHasJoined(true);
+          toast.info("You already joined this heist.");
+        } catch (playErr) {
+          toast.error(playErr?.response?.data?.message || "Unable to load heist questions.");
         }
+      } else {
+        toast.error(message);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const begin = async () => {
+    if (submissionId || saving || !hasJoined) return;
+    if (hasSubmittedAttempt) {
+      navigate(`/heist/${id}/result`);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let playData = null;
+      try {
+        playData = await getHeistPlay(id);
+        setPayload(playData);
+        setHasJoined(true);
+      } catch (playErr) {
+        toast.error(playErr?.response?.data?.message || "Join this heist before starting.");
+        if (playErr?.response?.status === 403) setHasJoined(false);
+        return;
+      }
+
+      if (!Array.isArray(playData?.questions) || !playData.questions.length) {
+        toast.error("This heist has no active questions yet.");
+        return;
       }
 
       const data = await startHeist(id);
@@ -764,12 +803,6 @@ export default function HeistPlay() {
       setSelectedAnswer("");
       setAnimatingSide("");
       setBurningAnswer("");
-      try {
-        const playData = await getHeistPlay(id);
-        setPayload(playData);
-      } catch (playErr) {
-        console.warn("Refresh heist questions after start failed:", playErr);
-      }
       toast.success(data?.resumed ? "Heist resumed" : "Heist started");
     } catch (err) {
       const submission = err?.response?.data?.submission_id;
@@ -991,43 +1024,67 @@ export default function HeistPlay() {
 
           {!submissionId ? (
             <div className={`${styles.cardGrid} ${styles.twoCard}`}>
-              <button
-                type="button"
-                className={`${styles.playCard} ${styles.trueCard}`}
-                onClick={begin}
-                disabled={loading || saving || (!hasSubmittedAttempt && hasJoined && !questions.length)}
-                style={{ "--tilt": "-1.5deg" }}
-              >
-                <span className={styles.cardCorner}>{hasSubmittedAttempt ? "DONE" : "GO"}</span>
-                <span className={`${styles.cardCorner} ${styles.bottom}`}>
-                  {hasSubmittedAttempt ? "DONE" : "GO"}
-                </span>
-                <span className={styles.cardGlyph}>▶</span>
-                <div className={styles.cardBody}>
-                  <span className={styles.cardTag}>
-                    {hasSubmittedAttempt ? "Result" : "Start"}
-                  </span>
-                  <h4 className={styles.cardTitle}>
-                    {saving
-                      ? "Starting..."
-                      : hasSubmittedAttempt
-                        ? "View Result"
-                        : hasJoined
-                          ? "Begin Heist"
-                          : "Join & Begin"}
-                  </h4>
-                  <p className={styles.cardCopy}>
-                    {hasSubmittedAttempt
-                      ? "Retries are not available for heists."
-                      : hasJoined
-                        ? "Create your attempt and start the clock."
-                        : "Pay the ticket, join this heist, and start the clock."}
-                  </p>
-                  <span className={styles.cardPrice}>
-                    {hasSubmittedAttempt ? "Submitted" : `${formatNum(entryFee)} CP ticket`}
-                  </span>
-                </div>
-              </button>
+              {hasSubmittedAttempt ? (
+                <button
+                  type="button"
+                  className={`${styles.playCard} ${styles.trueCard}`}
+                  onClick={begin}
+                  disabled={loading || saving}
+                  style={{ "--tilt": "-1.5deg" }}
+                >
+                  <span className={styles.cardCorner}>DONE</span>
+                  <span className={`${styles.cardCorner} ${styles.bottom}`}>DONE</span>
+                  <span className={styles.cardGlyph}>▶</span>
+                  <div className={styles.cardBody}>
+                    <span className={styles.cardTag}>Result</span>
+                    <h4 className={styles.cardTitle}>View Result</h4>
+                    <p className={styles.cardCopy}>Retries are not available for heists.</p>
+                    <span className={styles.cardPrice}>Submitted</span>
+                  </div>
+                </button>
+              ) : hasJoined ? (
+                <button
+                  type="button"
+                  className={`${styles.playCard} ${styles.trueCard}`}
+                  onClick={begin}
+                  disabled={loading || saving || !canStartAttempt}
+                  style={{ "--tilt": "-1.5deg" }}
+                >
+                  <span className={styles.cardCorner}>GO</span>
+                  <span className={`${styles.cardCorner} ${styles.bottom}`}>GO</span>
+                  <span className={styles.cardGlyph}>▶</span>
+                  <div className={styles.cardBody}>
+                    <span className={styles.cardTag}>Start</span>
+                    <h4 className={styles.cardTitle}>{saving ? "Starting..." : "Begin Heist"}</h4>
+                    <p className={styles.cardCopy}>
+                      Questions are loaded. Create your attempt and start the clock.
+                    </p>
+                    <span className={styles.cardPrice}>
+                      {questions.length ? `${formatNum(questions.length)} questions ready` : "No active questions"}
+                    </span>
+                  </div>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={`${styles.playCard} ${styles.trueCard}`}
+                  onClick={joinAndLoadPlay}
+                  disabled={loading || saving}
+                  style={{ "--tilt": "-1.5deg" }}
+                >
+                  <span className={styles.cardCorner}>JOIN</span>
+                  <span className={`${styles.cardCorner} ${styles.bottom}`}>JOIN</span>
+                  <span className={styles.cardGlyph}>+</span>
+                  <div className={styles.cardBody}>
+                    <span className={styles.cardTag}>Join</span>
+                    <h4 className={styles.cardTitle}>{saving ? "Joining..." : "Join Heist"}</h4>
+                    <p className={styles.cardCopy}>
+                      Pay the ticket, then load the heist questions before starting.
+                    </p>
+                    <span className={styles.cardPrice}>{formatNum(entryFee)} CP ticket</span>
+                  </div>
+                </button>
+              )}
 
               {hasSubmittedAttempt ? (
                 <button
