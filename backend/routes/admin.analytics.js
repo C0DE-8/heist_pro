@@ -6,24 +6,40 @@ const router = express.Router();
 
 router.use(authenticateToken, authenticateAdmin);
 
-function parseExcludedUserIds(value) {
-  const raw = Array.isArray(value) ? value.join(",") : String(value || "");
-  return [
-    ...new Set(
-      raw
-        .split(",")
-        .map((item) => Number(item.trim()))
-        .filter((item) => Number.isInteger(item) && item > 0)
-    ),
-  ];
-}
-
 function excludedSql(alias, excludedUserIds) {
   if (!excludedUserIds.length) return { sql: "", params: [] };
   return {
     sql: ` AND ${alias}.id NOT IN (${excludedUserIds.map(() => "?").join(", ")})`,
     params: excludedUserIds,
   };
+}
+
+async function getSavedExcludedUserIds() {
+  const [rows] = await pool.query(
+    `SELECT user_id
+     FROM admin_analytics_user_exclusions
+     ORDER BY user_id ASC`
+  );
+  return rows.map((row) => Number(row.user_id)).filter(Boolean);
+}
+
+async function getCoinRate() {
+  const [[rate]] = await pool.query(
+    "SELECT id, unit, price, currency FROM coin_rate WHERE id = 1 LIMIT 1"
+  );
+  if (!rate || Number(rate.unit) <= 0 || Number(rate.price) <= 0) return null;
+  return {
+    id: Number(rate.id),
+    unit: Number(rate.unit),
+    price: Number(rate.price),
+    currency: rate.currency || "NGN",
+  };
+}
+
+function amountFromCoins(copPoints, rate) {
+  if (!rate) return 0;
+  const amount = (Number(copPoints || 0) / Number(rate.unit)) * Number(rate.price);
+  return Number.isFinite(amount) ? Number(amount.toFixed(2)) : 0;
 }
 
 async function getUserCoinAnalysis(excludedUserIds) {
@@ -86,7 +102,7 @@ async function getUserCoinAnalysis(excludedUserIds) {
   };
 }
 
-async function getHeistAnalysis() {
+async function getHeistAnalysis(rate) {
   const [heists] = await pool.query(
     `SELECT
        h.id,
@@ -134,6 +150,7 @@ async function getHeistAnalysis() {
       acc.total_ticket_revenue += revenue;
       acc.total_prize_payouts += payout;
       acc.total_profit_loss += profit;
+      acc.total_profit_loss_value += amountFromCoins(profit, rate);
       return acc;
     },
     {
@@ -146,6 +163,7 @@ async function getHeistAnalysis() {
       total_ticket_revenue: 0,
       total_prize_payouts: 0,
       total_profit_loss: 0,
+      total_profit_loss_value: 0,
     }
   );
 
@@ -160,6 +178,7 @@ async function getHeistAnalysis() {
       ticket_revenue: Number(heist.ticket_revenue || 0),
       prize_payout: Number(heist.prize_payout || 0),
       profit_loss: Number(heist.profit_loss || 0),
+      profit_loss_value: amountFromCoins(heist.profit_loss, rate),
     })),
   };
 }
@@ -201,11 +220,12 @@ async function getTransactionCoinSummary() {
 }
 
 async function getAnalytics(excludedUserIds) {
-  const [coinAnalysis, heistAnalysis, transactions] = await Promise.all([
+  const [coinAnalysis, rate, transactions] = await Promise.all([
     getUserCoinAnalysis(excludedUserIds),
-    getHeistAnalysis(),
+    getCoinRate(),
     getTransactionCoinSummary(),
   ]);
+  const heistAnalysis = await getHeistAnalysis(rate);
 
   const platformHeistBalance =
     heistAnalysis.summary.total_ticket_revenue - heistAnalysis.summary.total_prize_payouts;
@@ -216,6 +236,7 @@ async function getAnalytics(excludedUserIds) {
 
   return {
     generated_at: new Date().toISOString(),
+    coin_rate: rate,
     exclusions: {
       user_ids: excludedUserIds,
       excluded_user_count: coinAnalysis.summary.excluded_users,
@@ -261,7 +282,7 @@ async function getAnalytics(excludedUserIds) {
 
 router.get("/", async (req, res) => {
   try {
-    const excludedUserIds = parseExcludedUserIds(req.query.excluded_user_ids);
+    const excludedUserIds = await getSavedExcludedUserIds();
     const analytics = await getAnalytics(excludedUserIds);
     return res.json(analytics);
   } catch (err) {
@@ -272,7 +293,7 @@ router.get("/", async (req, res) => {
 
 router.get("/users", async (req, res) => {
   try {
-    const excludedUserIds = parseExcludedUserIds(req.query.excluded_user_ids);
+    const excludedUserIds = await getSavedExcludedUserIds();
     const coins = await getUserCoinAnalysis(excludedUserIds);
     return res.json({ coins });
   } catch (err) {
@@ -283,11 +304,62 @@ router.get("/users", async (req, res) => {
 
 router.get("/heists", async (req, res) => {
   try {
-    const heists = await getHeistAnalysis();
+    const rate = await getCoinRate();
+    const heists = await getHeistAnalysis(rate);
+    heists.coin_rate = rate;
     return res.json({ heists });
   } catch (err) {
     console.error("admin heist analytics error:", err);
     return res.status(500).json({ message: "Error fetching heist analytics" });
+  }
+});
+
+router.patch("/users/:id/inclusion", async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const included = req.body?.included;
+    if (included !== true && included !== false) {
+      return res.status(400).json({ message: "included must be true or false" });
+    }
+
+    const [[user]] = await pool.query("SELECT id FROM users WHERE id = ? LIMIT 1", [userId]);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (included) {
+      await pool.query("DELETE FROM admin_analytics_user_exclusions WHERE user_id = ?", [userId]);
+    } else {
+      await pool.query(
+        `INSERT INTO admin_analytics_user_exclusions (user_id, created_by)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE created_by = VALUES(created_by)`,
+        [userId, req.user.userId]
+      );
+    }
+
+    const excludedUserIds = await getSavedExcludedUserIds();
+    const analytics = await getAnalytics(excludedUserIds);
+    return res.json({
+      message: included ? "User included in analytics" : "User excluded from analytics",
+      analytics,
+    });
+  } catch (err) {
+    console.error("admin analytics inclusion error:", err);
+    return res.status(500).json({ message: "Error updating analytics inclusion" });
+  }
+});
+
+router.delete("/exclusions", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM admin_analytics_user_exclusions");
+    const analytics = await getAnalytics([]);
+    return res.json({ message: "All users included in analytics", analytics });
+  } catch (err) {
+    console.error("admin analytics clear exclusions error:", err);
+    return res.status(500).json({ message: "Error clearing analytics exclusions" });
   }
 });
 

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiCopy, FiCreditCard, FiDownload, FiShield } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import { useToast } from "../../components/Toast/ToastContext";
 import { getStoredToken } from "../../lib/auth";
 import {
   getPayinRequests,
@@ -62,6 +63,7 @@ const PAYOUT_FEE_RATE = 0.1;
 
 export default function Account() {
   const navigate = useNavigate();
+  const toast = useToast();
   const location = useLocation();
   const token = useMemo(() => getStoredToken(), []);
   const selectedTab = new URLSearchParams(location.search).get("tab") || "topup";
@@ -237,9 +239,11 @@ export default function Account() {
     try {
       await navigator.clipboard.writeText(String(user.wallet_address));
       setCopied(true);
+      toast.success("Wallet copied");
       setTimeout(() => setCopied(false), 1400);
     } catch {
       setCopied(false);
+      toast.error("Unable to copy wallet address.");
     }
   };
 
@@ -267,9 +271,11 @@ export default function Account() {
     try {
       await navigator.clipboard.writeText(String(paymentAccount.account_number));
       setCopied(true);
+      toast.success("Account number copied");
       setTimeout(() => setCopied(false), 1400);
     } catch {
       setCopied(false);
+      toast.error("Unable to copy account number.");
     }
   };
 
@@ -279,9 +285,11 @@ export default function Account() {
     try {
       await navigator.clipboard.writeText(String(calculatedPayinAmount));
       setCopied(true);
+      toast.success("Amount copied");
       setTimeout(() => setCopied(false), 1400);
     } catch {
       setCopied(false);
+      toast.error("Unable to copy amount.");
     }
   };
 
@@ -291,15 +299,15 @@ export default function Account() {
 
     const coins = Number(coinAmount);
     if (!Number.isInteger(coins) || coins <= 0) {
-      setError("Enter a valid coin amount.");
+      toast.error("Enter a valid coin amount.");
       return;
     }
     if (!paymentAccount) {
-      setError("Payment details are not available yet.");
+      toast.error("Payment details are not available yet.");
       return;
     }
     if (!receiptFile) {
-      setError("Upload your payment receipt.");
+      toast.error("Upload your payment receipt.");
       return;
     }
 
@@ -320,9 +328,10 @@ export default function Account() {
       setPayinStage("success");
       setPayinPage(1);
       await loadPayins();
+      toast.success("Pay-in request submitted.");
     } catch (err) {
       console.error("Pay-in request error:", err);
-      setError(err?.response?.data?.message || "Unable to submit pay-in request.");
+      toast.error(err?.response?.data?.message || "Unable to submit pay-in request.");
     } finally {
       setTransactionLoading(false);
     }
@@ -334,22 +343,22 @@ export default function Account() {
 
     const points = Number(withdrawForm.cop_points);
     if (!Number.isInteger(points) || points <= 0) {
-      setError("Enter a valid CopUpCoin amount.");
+      toast.error("Enter a valid CopUpCoin amount.");
       return;
     }
     if (points > copPoints) {
-      setError("You do not have enough CopUpCoin for this withdrawal.");
+      toast.error("You do not have enough CopUpCoin for this withdrawal.");
       return;
     }
     if (!withdrawForm.account_name || !withdrawForm.account_number || !withdrawForm.account_type) {
-      setError("Add your payout account name, number, and type.");
+      toast.error("Add your payout account name, number, and type.");
       return;
     }
     const selectedBank = banks.find(
       (bank) => bank.name === withdrawForm.bank_name && bank.code === withdrawForm.bank_code
     );
     if (!selectedBank) {
-      setError("Select your bank from the list.");
+      toast.error("Select your bank from the list.");
       return;
     }
     if (
@@ -357,7 +366,7 @@ export default function Account() {
       resolvedAccount.account_number !== withdrawForm.account_number ||
       resolvedAccount.bank_code !== withdrawForm.bank_code
     ) {
-      setError("Verify your account number before requesting withdrawal.");
+      toast.error("Verify your account number before requesting withdrawal.");
       return;
     }
 
@@ -382,9 +391,10 @@ export default function Account() {
       setResolvedAccount(null);
       setPayoutPage(1);
       await Promise.all([loadProfile(), loadPayouts()]);
+      toast.success("Withdrawal request submitted.");
     } catch (err) {
       console.error("Payout request error:", err);
-      setError(err?.response?.data?.message || "Unable to submit payout request.");
+      toast.error(err?.response?.data?.message || "Unable to submit payout request.");
     } finally {
       setTransactionLoading(false);
     }
@@ -393,11 +403,11 @@ export default function Account() {
   const verifyWithdrawAccount = async () => {
     if (resolvingAccount || transactionLoading) return;
     if (!withdrawForm.bank_code) {
-      setError("Select your bank from the list.");
+      toast.error("Select your bank from the list.");
       return;
     }
     if (!/^\d{10}$/.test(withdrawForm.account_number)) {
-      setError("Account number must be 10 digits.");
+      toast.error("Account number must be 10 digits.");
       return;
     }
 
@@ -410,7 +420,7 @@ export default function Account() {
         account_number: withdrawForm.account_number,
       });
       if (!data?.verified) {
-        setError(data?.message || "Unable to verify account.");
+        toast.error(data?.message || "Unable to verify account.");
         return;
       }
       setResolvedAccount(data);
@@ -419,9 +429,10 @@ export default function Account() {
         account_name: data.account_name || prev.account_name,
         account_number: data.account_number || prev.account_number,
       }));
+      toast.success("Account verified.");
     } catch (err) {
       console.error("Resolve account error:", err);
-      setError(err?.response?.data?.message || "Unable to verify account.");
+      toast.error(err?.response?.data?.message || "Unable to verify account.");
     } finally {
       setResolvingAccount(false);
     }

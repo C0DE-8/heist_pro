@@ -11,7 +11,11 @@ import {
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
 import { useToast } from "../../../components/Toast/ToastContext";
-import { getAdminAnalytics } from "../../../lib/adminAnalytics";
+import {
+  clearAdminAnalyticsExclusions,
+  getAdminAnalytics,
+  updateAdminAnalyticsUserInclusion,
+} from "../../../lib/adminAnalytics";
 import styles from "./AdminAnalytics.module.css";
 
 function formatCoins(value) {
@@ -26,6 +30,22 @@ function formatSignedCoins(value) {
   return "0";
 }
 
+function formatMoney(value, currency = "NGN") {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+}
+
+function formatSignedMoney(value, currency = "NGN") {
+  const amount = Number(value || 0);
+  const formatted = formatMoney(Math.abs(amount), currency);
+  if (amount > 0) return `+${formatted}`;
+  if (amount < 0) return `-${formatted}`;
+  return formatMoney(0, currency);
+}
+
 function statusClassName(value) {
   if (value === "completed") return styles.statusCompleted;
   if (value === "cancelled") return styles.statusDanger;
@@ -36,23 +56,23 @@ function statusClassName(value) {
 export default function AdminAnalytics() {
   const toast = useToast();
   const [analytics, setAnalytics] = useState(null);
-  const [excludedUserIds, setExcludedUserIds] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [savingUserId, setSavingUserId] = useState(null);
   const [error, setError] = useState("");
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await getAdminAnalytics({ excludedUserIds });
+      const data = await getAdminAnalytics();
       setAnalytics(data);
     } catch (err) {
       setError(err?.response?.data?.message || "Unable to load analytics.");
     } finally {
       setLoading(false);
     }
-  }, [excludedUserIds]);
+  }, []);
 
   useEffect(() => {
     loadAnalytics();
@@ -63,6 +83,8 @@ export default function AdminAnalytics() {
   const coinSummary = analytics?.coins?.summary || {};
   const heistSummary = analytics?.heists?.summary || {};
   const platform = analytics?.platform || {};
+  const coinRate = analytics?.coin_rate || {};
+  const excludedUserIds = analytics?.exclusions?.user_ids || [];
 
   const filteredUsers = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -74,17 +96,32 @@ export default function AdminAnalytics() {
     });
   }, [search, users]);
 
-  const toggleUser = (userId) => {
-    setExcludedUserIds((prev) => {
-      if (prev.includes(userId)) return prev.filter((id) => id !== userId);
-      return [...prev, userId];
-    });
+  const toggleUser = async (userId) => {
+    const currentlyIncluded = !excludedUserIds.includes(userId);
+    setSavingUserId(userId);
+    try {
+      const data = await updateAdminAnalyticsUserInclusion(userId, !currentlyIncluded);
+      setAnalytics(data?.analytics || null);
+      toast.success(!currentlyIncluded ? "User included in analytics" : "User excluded from analytics");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to update analytics inclusion.");
+    } finally {
+      setSavingUserId(null);
+    }
   };
 
-  const includeAll = () => {
+  const includeAll = async () => {
     if (!excludedUserIds.length) return;
-    setExcludedUserIds([]);
-    toast.info("All users included in coin calculation");
+    setSavingUserId("all");
+    try {
+      const data = await clearAdminAnalyticsExclusions();
+      setAnalytics(data?.analytics || null);
+      toast.info("All users included in coin calculation");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to include all users.");
+    } finally {
+      setSavingUserId(null);
+    }
   };
 
   return (
@@ -144,7 +181,12 @@ export default function AdminAnalytics() {
                 <p className={styles.kicker}>System Coins</p>
                 <h2>User Balances</h2>
               </div>
-              <button type="button" className={styles.smallBtn} onClick={includeAll}>
+              <button
+                type="button"
+                className={styles.smallBtn}
+                onClick={includeAll}
+                disabled={!excludedUserIds.length || savingUserId === "all"}
+              >
                 Include All
               </button>
             </div>
@@ -165,7 +207,7 @@ export default function AdminAnalytics() {
               />
             </label>
 
-            <div className={styles.tableWrap}>
+            <div className={`${styles.tableWrap} ${styles.userTableWrap}`}>
               <table className={styles.table}>
                 <thead>
                   <tr>
@@ -190,9 +232,16 @@ export default function AdminAnalytics() {
                               <input
                                 type="checkbox"
                                 checked={included}
+                                disabled={savingUserId === Number(user.id)}
                                 onChange={() => toggleUser(Number(user.id))}
                               />
-                              <span>{included ? "Included" : "Excluded"}</span>
+                              <span>
+                                {savingUserId === Number(user.id)
+                                  ? "Saving..."
+                                  : included
+                                    ? "Included"
+                                    : "Excluded"}
+                              </span>
                             </label>
                           </td>
                           <td>
@@ -280,6 +329,10 @@ export default function AdminAnalytics() {
               <span>Profit/Loss</span>
               <strong>{formatSignedCoins(heistSummary.total_profit_loss)}</strong>
             </div>
+            <div>
+              <span>Profit/Loss value</span>
+              <strong>{formatSignedMoney(heistSummary.total_profit_loss_value, coinRate.currency)}</strong>
+            </div>
           </div>
 
           <div className={styles.tableWrap}>
@@ -293,12 +346,13 @@ export default function AdminAnalytics() {
                   <th>Revenue</th>
                   <th>Prize</th>
                   <th>Profit/Loss</th>
+                  <th>Value</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7">Loading heists...</td>
+                    <td colSpan="8">Loading heists...</td>
                   </tr>
                 ) : heists.length ? (
                   heists.map((heist) => (
@@ -327,11 +381,14 @@ export default function AdminAnalytics() {
                       <td className={Number(heist.profit_loss) < 0 ? styles.negative : styles.positive}>
                         {formatSignedCoins(heist.profit_loss)}
                       </td>
+                      <td className={Number(heist.profit_loss_value) < 0 ? styles.negative : styles.positive}>
+                        {formatSignedMoney(heist.profit_loss_value, coinRate.currency)}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7">No heists found.</td>
+                    <td colSpan="8">No heists found.</td>
                   </tr>
                 )}
               </tbody>
