@@ -13,6 +13,8 @@ const userRoutes = require("./routes/users");
 const tradeRoutes = require("./routes/trade");
 const flutterwaveRoutes = require("./routes/flutterwave");
 const adminProfileRoutes = require("./routes/admin.profile");
+const adminUsersRoutes = require("./routes/admin.users");
+const adminAnalyticsRoutes = require("./routes/admin.analytics");
 const transactionRoutes = require("./routes/transactions");
 const adminTransactionRoutes = require("./routes/admin.transactions");
 const { startHeistCron } = require("./jobs/heistCron");
@@ -52,6 +54,8 @@ app.use("/api/flutterwave", flutterwaveRoutes);
 app.use("/api/heists", heistRoutes);
 app.use("/api/admin/heists", adminHeistRoutes);
 app.use("/api/admin/profile", adminProfileRoutes);
+app.use("/api/admin/users", adminUsersRoutes);
+app.use("/api/admin/analytics", adminAnalyticsRoutes);
 app.use("/api/admin/transactions", adminTransactionRoutes);
 
 

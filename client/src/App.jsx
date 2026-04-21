@@ -14,6 +14,8 @@ import Landing from "./pages/Landing/Landing";
 import AdminDashboard from "./pages/admin/AdminDashboard/AdminDashboard";
 import AdminTransactions from "./pages/admin/AdminTransactions/AdminTransactions";
 import AdminProfile from "./pages/admin/AdminProfile/AdminProfile";
+import AdminUsers from "./pages/admin/AdminUsers/AdminUsers";
+import AdminAnalytics from "./pages/admin/AdminAnalytics/AdminAnalytics";
 
 
 // Protected Routes
@@ -118,6 +120,14 @@ export default function App() {
 
         <Route element={<AdminRoute />}>
           <Route path="/admin/profile" element={<AdminProfile />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/users" element={<AdminUsers />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
         </Route>
 
 
