@@ -19,6 +19,7 @@ router.post("/", async (req, res) => {
       min_users,
       ticket_price,
       prize_cop_points,
+      questions_per_session,
       countdown_duration_minutes,
       starts_at,
       ends_at,
@@ -29,14 +30,16 @@ router.post("/", async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO heist
         (name, description, min_users, ticket_price,
-         prize_cop_points, countdown_duration_minutes, starts_at, ends_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         prize_cop_points, questions_per_session, countdown_duration_minutes,
+         starts_at, ends_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         description || null,
         Number(min_users || 1),
         Number(ticket_price || 0),
         Number(prize_cop_points || 0),
+        Math.max(0, Number(questions_per_session || 0)),
         Number(countdown_duration_minutes || 10),
         starts_at || null,
         ends_at || null,
@@ -60,6 +63,7 @@ router.get("/", async (req, res) => {
          h.status,
          h.prize_cop_points,
          h.total_questions,
+         h.questions_per_session,
          h.created_at,
          COUNT(DISTINCT hp.id) AS total_participants,
          COUNT(DISTINCT hs.id) AS total_submissions
@@ -73,6 +77,47 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error("admin heists list error:", err);
     return res.status(500).json({ message: "Error fetching heists" });
+  }
+});
+
+router.patch("/:id", async (req, res) => {
+  try {
+    const heistId = Number(req.params.id);
+    if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+
+    const updates = [];
+    const params = [];
+
+    if (req.body?.questions_per_session !== undefined) {
+      const questionsPerSession = Number(req.body.questions_per_session);
+      if (!Number.isInteger(questionsPerSession) || questionsPerSession < 0) {
+        return res.status(400).json({ message: "questions_per_session must be 0 or greater" });
+      }
+      updates.push("questions_per_session = ?");
+      params.push(questionsPerSession);
+    }
+
+    if (!updates.length) return res.status(400).json({ message: "No updates provided" });
+
+    params.push(heistId);
+    const [result] = await pool.query(
+      `UPDATE heist SET ${updates.join(", ")} WHERE id = ?`,
+      params
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Heist not found" });
+
+    const [[heist]] = await pool.query(
+      `SELECT id, total_questions, questions_per_session
+       FROM heist
+       WHERE id = ?
+       LIMIT 1`,
+      [heistId]
+    );
+
+    return res.json({ message: "Heist updated", heist });
+  } catch (err) {
+    console.error("admin update heist error:", err);
+    return res.status(500).json({ message: "Error updating heist" });
   }
 });
 

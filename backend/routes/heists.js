@@ -15,7 +15,7 @@ const router = express.Router();
 
 const PUBLIC_HEIST_FIELDS = `
   id, name, description, min_users, ticket_price,
-  total_questions, prize_cop_points, status,
+  total_questions, questions_per_session, prize_cop_points, status,
   countdown_duration_minutes, countdown_started_at, countdown_ends_at,
   starts_at, ends_at
 `;
@@ -35,9 +35,85 @@ function heistClosedReason(heist) {
   return null;
 }
 
+function getQuestionSessionSize(heist, activeQuestionCount) {
+  const configured = Number(heist?.questions_per_session || 0);
+  if (!Number.isInteger(configured) || configured <= 0) return activeQuestionCount;
+  return Math.min(configured, activeQuestionCount);
+}
+
+async function getAssignedQuestions(conn, submissionId, { includeAnswers = false } = {}) {
+  const fields = includeAnswers
+    ? "q.id, q.question_text, q.correct_answer, q.sort_order, hsq.position"
+    : "q.id, q.question_text, q.sort_order, hsq.position";
+  const [rows] = await conn.query(
+    `SELECT ${fields}
+     FROM heist_submission_questions hsq
+     JOIN heist_questions q ON q.id = hsq.question_id
+     WHERE hsq.submission_id = ?
+     ORDER BY hsq.position ASC`,
+    [submissionId]
+  );
+  return rows;
+}
+
+async function assignRandomQuestions(conn, { submissionId, heistId, userId, heist }) {
+  const [existing] = await conn.query(
+    `SELECT id
+     FROM heist_submission_questions
+     WHERE submission_id = ?
+     LIMIT 1`,
+    [submissionId]
+  );
+  if (existing.length) return getAssignedQuestions(conn, submissionId);
+
+  const [[countRow]] = await conn.query(
+    `SELECT COUNT(*) AS total
+     FROM heist_questions
+     WHERE heist_id = ? AND is_active = 1`,
+    [heistId]
+  );
+  const activeQuestionCount = Number(countRow?.total || 0);
+  const sessionSize = getQuestionSessionSize(heist, activeQuestionCount);
+  if (!sessionSize) {
+    return { error: { status: 400, body: { message: "No active questions" } } };
+  }
+
+  const [selectedQuestions] = await conn.query(
+    `SELECT id, question_text, sort_order
+     FROM heist_questions
+     WHERE heist_id = ? AND is_active = 1
+     ORDER BY RAND()
+     LIMIT ?`,
+    [heistId, sessionSize]
+  );
+  if (selectedQuestions.length < sessionSize) {
+    return { error: { status: 400, body: { message: "Not enough active questions" } } };
+  }
+
+  await conn.query(
+    `INSERT INTO heist_submission_questions
+      (submission_id, heist_id, question_id, user_id, position)
+     VALUES ?`,
+    [
+      selectedQuestions.map((question, index) => [
+        submissionId,
+        heistId,
+        question.id,
+        userId,
+        index + 1,
+      ]),
+    ]
+  );
+
+  return selectedQuestions.map((question, index) => ({
+    ...question,
+    position: index + 1,
+  }));
+}
+
 async function createHeistSubmission(conn, { heistId, userId }) {
   const [[heist]] = await conn.query(
-    `SELECT id, status, countdown_ends_at, winner_user_id
+    `SELECT id, status, countdown_ends_at, winner_user_id, questions_per_session
      FROM heist
      WHERE id = ?
      LIMIT 1 FOR UPDATE`,
@@ -65,12 +141,20 @@ async function createHeistSubmission(conn, { heistId, userId }) {
     [heistId, userId]
   );
   if (activeSubmission) {
+    const assignedQuestions = await assignRandomQuestions(conn, {
+      submissionId: activeSubmission.id,
+      heistId,
+      userId,
+      heist,
+    });
+    if (assignedQuestions.error) return assignedQuestions.error;
     return {
       status: 200,
       body: {
         message: "Submission already started",
         submission_id: activeSubmission.id,
         resumed: true,
+        questions: assignedQuestions,
       },
     };
   }
@@ -93,12 +177,20 @@ async function createHeistSubmission(conn, { heistId, userId }) {
      VALUES (?, ?, ?, ?, NOW(), 'started')`,
     [heistId, userId, participant.id, participant.affiliate_user_id]
   );
+  const assignedQuestions = await assignRandomQuestions(conn, {
+    submissionId: result.insertId,
+    heistId,
+    userId,
+    heist,
+  });
+  if (assignedQuestions.error) return assignedQuestions.error;
 
   return {
     status: 201,
     body: {
       submission_id: result.insertId,
       submitted_attempts: submittedAttempts,
+      questions: assignedQuestions,
     },
   };
 }
@@ -325,15 +417,23 @@ router.get("/:id/play", authenticateToken, async (req, res) => {
     if (closedReason) return res.status(400).json({ message: closedReason });
     const { winner_user_id, ...publicHeist } = heist;
 
-    const [questions] = await pool.query(
-      `SELECT id, question_text, sort_order
-       FROM heist_questions
-       WHERE heist_id = ? AND is_active = 1
-       ORDER BY sort_order ASC, id ASC`,
-      [heistId]
+    const [[activeSubmission]] = await pool.query(
+      `SELECT id
+       FROM heist_submissions
+       WHERE heist_id = ? AND user_id = ? AND status = 'started'
+       ORDER BY started_at DESC
+       LIMIT 1`,
+      [heistId, userId]
     );
 
-    return res.json({ heist: publicHeist, questions });
+    let questions = [];
+    let submissionId = null;
+    if (activeSubmission) {
+      submissionId = activeSubmission.id;
+      questions = await getAssignedQuestions(pool, activeSubmission.id);
+    }
+
+    return res.json({ heist: publicHeist, questions, submission_id: submissionId });
   } catch (err) {
     console.error("play heist error:", err);
     return res.status(500).json({ message: "Error loading heist" });
@@ -419,7 +519,7 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
     }
 
     const [[heist]] = await conn.query(
-      `SELECT id, status, countdown_ends_at, winner_user_id
+      `SELECT id, status, countdown_ends_at, winner_user_id, questions_per_session
        FROM heist
        WHERE id = ?
        LIMIT 1 FOR UPDATE`,
@@ -435,13 +535,20 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: closedReason });
     }
 
-    const [questions] = await conn.query(
-      `SELECT id, correct_answer
-       FROM heist_questions
-       WHERE heist_id = ? AND is_active = 1
-       ORDER BY sort_order ASC, id ASC`,
-      [heistId]
-    );
+    let questions = await getAssignedQuestions(conn, submissionId, { includeAnswers: true });
+    if (!questions.length) {
+      const assignedQuestions = await assignRandomQuestions(conn, {
+        submissionId,
+        heistId,
+        userId,
+        heist,
+      });
+      if (assignedQuestions.error) {
+        await conn.rollback();
+        return res.status(assignedQuestions.error.status).json(assignedQuestions.error.body);
+      }
+      questions = await getAssignedQuestions(conn, submissionId, { includeAnswers: true });
+    }
     if (!questions.length) {
       await conn.rollback();
       return res.status(400).json({ message: "No active questions" });

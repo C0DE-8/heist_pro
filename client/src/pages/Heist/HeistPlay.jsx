@@ -574,7 +574,13 @@ export default function HeistPlay() {
   const isComplete = questions.length > 0 && answeredCount >= questions.length;
   const hasSubmittedAttempt = Boolean(previousResult?.result);
   const entryFee = heist?.ticket_price;
-  const canStartAttempt = hasJoined && questions.length > 0;
+  const sessionQuestionTarget = Number(heist?.questions_per_session || 0);
+  const questionPoolCount = Number(heist?.total_questions || 0);
+  const expectedQuestionCount =
+    sessionQuestionTarget > 0
+      ? Math.min(sessionQuestionTarget, questionPoolCount)
+      : questionPoolCount;
+  const canStartAttempt = hasJoined && questionPoolCount > 0;
   const shouldShowQuestion = Boolean(submissionId && !isComplete && !hasSubmittedAttempt && !error);
   const promptTitle = loading
     ? "Loading..."
@@ -587,9 +593,9 @@ export default function HeistPlay() {
           : hasSubmittedAttempt
           ? "Heist completed"
           : hasJoined
-              ? questions.length
+              ? questionPoolCount
                 ? "Start the heist"
-                : "Questions unavailable"
+                : "Question pool unavailable"
               : "Join the heist";
   const promptCopy = shouldShowQuestion
     ? "Pick true or false."
@@ -598,10 +604,10 @@ export default function HeistPlay() {
       : hasSubmittedAttempt
         ? "You already submitted this heist. View your result."
         : hasJoined
-          ? questions.length
-            ? "Questions are loaded. Start the heist to create your attempt and begin the clock."
+          ? questionPoolCount
+            ? `Start to receive ${formatNum(expectedQuestionCount)} random question${expectedQuestionCount === 1 ? "" : "s"} from the pool.`
             : "You joined this heist, but there are no active questions yet."
-          : "Join the heist first. After joining, the questions load before you can start.";
+          : "Join the heist first. Your question set is assigned when you start.";
 
   const loadPlay = useCallback(async () => {
     setLoading(true);
@@ -611,6 +617,10 @@ export default function HeistPlay() {
       const data = await getHeistPlay(id);
       setPayload(data);
       setHasJoined(true);
+      if (data?.submission_id && Array.isArray(data?.questions) && data.questions.length) {
+        setSubmissionId(data.submission_id);
+        setQuestionStartedAt((current) => current || Date.now());
+      }
 
       try {
         const resultData = await getHeistResult(id);
@@ -785,7 +795,8 @@ export default function HeistPlay() {
         return;
       }
 
-      if (!Array.isArray(playData?.questions) || !playData.questions.length) {
+      const poolCount = Number(playData?.heist?.total_questions || 0);
+      if (!poolCount) {
         toast.error("This heist has no active questions yet.");
         return;
       }
@@ -803,6 +814,12 @@ export default function HeistPlay() {
       setSelectedAnswer("");
       setAnimatingSide("");
       setBurningAnswer("");
+      if (Array.isArray(data?.questions)) {
+        setPayload((prev) => ({
+          heist: playData?.heist || prev?.heist || null,
+          questions: data.questions,
+        }));
+      }
       toast.success(data?.resumed ? "Heist resumed" : "Heist started");
     } catch (err) {
       const submission = err?.response?.data?.submission_id;
@@ -1057,10 +1074,12 @@ export default function HeistPlay() {
                     <span className={styles.cardTag}>Start</span>
                     <h4 className={styles.cardTitle}>{saving ? "Starting..." : "Begin Heist"}</h4>
                     <p className={styles.cardCopy}>
-                      Questions are loaded. Create your attempt and start the clock.
+                      Your random question set is assigned when the attempt starts.
                     </p>
                     <span className={styles.cardPrice}>
-                      {questions.length ? `${formatNum(questions.length)} questions ready` : "No active questions"}
+                      {expectedQuestionCount
+                        ? `${formatNum(expectedQuestionCount)} question${expectedQuestionCount === 1 ? "" : "s"} this run`
+                        : "No active questions"}
                     </span>
                   </div>
                 </button>

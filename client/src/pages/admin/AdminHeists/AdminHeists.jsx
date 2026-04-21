@@ -21,6 +21,7 @@ import {
   getAdminAffiliateTasks,
   getAdminHeistQuestions,
   getAdminHeists,
+  updateAdminHeist,
   updateAdminAffiliateTask,
   updateAdminHeistStatus,
 } from "../../../lib/adminHeists";
@@ -32,6 +33,7 @@ const EMPTY_HEIST = {
   min_users: "3",
   ticket_price: "0",
   prize_cop_points: "0",
+  questions_per_session: "0",
   countdown_duration_minutes: "10",
   starts_at: "",
   ends_at: "",
@@ -90,6 +92,7 @@ function AdminHeistsPage() {
   ]);
   const [taskForm, setTaskForm] = useState(EMPTY_TASK);
   const [statusValue, setStatusValue] = useState("pending");
+  const [sessionQuestionCount, setSessionQuestionCount] = useState("0");
 
   const selectedHeist = useMemo(
     () => heists.find((heist) => Number(heist.id) === Number(selectedId)) || null,
@@ -159,6 +162,12 @@ function AdminHeistsPage() {
   }, [selectedHeist?.status]);
 
   useEffect(() => {
+    if (selectedHeist) {
+      setSessionQuestionCount(String(selectedHeist.questions_per_session || 0));
+    }
+  }, [selectedHeist]);
+
+  useEffect(() => {
     loadSelectedDetails();
   }, [loadSelectedDetails]);
 
@@ -182,6 +191,7 @@ function AdminHeistsPage() {
         min_users: Number(createForm.min_users || 1),
         ticket_price: Number(createForm.ticket_price || 0),
         prize_cop_points: Number(createForm.prize_cop_points || 0),
+        questions_per_session: Number(createForm.questions_per_session || 0),
         countdown_duration_minutes: Number(createForm.countdown_duration_minutes || 10),
         starts_at: createForm.starts_at || null,
         ends_at: createForm.ends_at || null,
@@ -261,6 +271,27 @@ function AdminHeistsPage() {
     } catch (err) {
       console.error("Update heist status error:", err);
       toast.error(err?.response?.data?.message || "Unable to update status.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveSessionQuestionCount = async () => {
+    if (!selectedId || busy) return;
+    const count = Number(sessionQuestionCount);
+    if (!Number.isInteger(count) || count < 0) {
+      toast.warn("Questions per session must be 0 or greater");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await updateAdminHeist(selectedId, { questions_per_session: count });
+      toast.success("Question session count updated");
+      await loadHeists();
+    } catch (err) {
+      console.error("Update question session count error:", err);
+      toast.error(err?.response?.data?.message || "Unable to update question session count.");
     } finally {
       setBusy(false);
     }
@@ -439,7 +470,10 @@ function AdminHeistsPage() {
                     <span className={styles.status}>{heist.status}</span>
                     <strong>{heist.name}</strong>
                     <small>
-                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} questions
+                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} pool ·{" "}
+                      {Number(heist.questions_per_session) > 0
+                        ? `${formatNum(heist.questions_per_session)} per session`
+                        : "all per session"}
                     </small>
                     <span className={styles.cardStats}>
                       <em>{formatNum(heist.total_participants)} players</em>
@@ -468,11 +502,31 @@ function AdminHeistsPage() {
               <div className={styles.metaGrid}>
                 <div><span>Status</span><strong>{selectedHeist.status}</strong></div>
                 <div><span>Prize</span><strong>{formatNum(selectedHeist.prize_cop_points)} CP</strong></div>
-                <div><span>Questions</span><strong>{formatNum(selectedHeist.total_questions)}</strong></div>
+                <div><span>Question pool</span><strong>{formatNum(selectedHeist.total_questions)}</strong></div>
+                <div>
+                  <span>Per session</span>
+                  <strong>
+                    {Number(selectedHeist.questions_per_session) > 0
+                      ? formatNum(selectedHeist.questions_per_session)
+                      : "All"}
+                  </strong>
+                </div>
                 <div><span>Created</span><strong>{formatDate(selectedHeist.created_at)}</strong></div>
               </div>
 
               <div className={styles.statusBox}>
+                <input
+                  type="number"
+                  min="0"
+                  max={questions.length || undefined}
+                  value={sessionQuestionCount}
+                  onChange={(event) => setSessionQuestionCount(event.target.value)}
+                  aria-label="Questions per session"
+                  title="Questions per session. Use 0 to serve all active questions."
+                />
+                <button type="button" className={styles.softBtn} onClick={saveSessionQuestionCount} disabled={busy}>
+                  Save question count
+                </button>
                 <select value={statusValue} onChange={(event) => setStatusValue(event.target.value)}>
                   <option value="pending">pending</option>
                   <option value="hold">hold</option>
@@ -493,7 +547,7 @@ function AdminHeistsPage() {
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Questions</p>
-                  <h2>True/False questions</h2>
+                  <h2>Question pool</h2>
                 </div>
                 <button
                   type="button"
@@ -650,6 +704,20 @@ function AdminHeistsPage() {
                 <span>Prize CP</span>
                 <input type="number" name="prize_cop_points" min="0" value={createForm.prize_cop_points} onChange={updateCreateForm} />
               </label>
+              <label className={styles.field}>
+                <span>Questions per session</span>
+                <input
+                  type="number"
+                  name="questions_per_session"
+                  min="0"
+                  value={createForm.questions_per_session}
+                  onChange={updateCreateForm}
+                  placeholder="0 means all questions"
+                />
+              </label>
+            </div>
+
+            <div className={styles.twoCol}>
               <label className={styles.field}>
                 <span>Countdown minutes</span>
                 <input

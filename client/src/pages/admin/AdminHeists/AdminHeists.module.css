@@ -222,6 +222,7 @@
 .field textarea,
 .questionRow input,
 .questionRow select,
+.statusBox input,
 .statusBox select,
 .taskForm input {
   width: 100%;
@@ -246,6 +247,7 @@
 .field textarea:focus,
 .questionRow input:focus,
 .questionRow select:focus,
+.statusBox input:focus,
 .statusBox select:focus,
 .taskForm input:focus {
   border-color: rgba(159, 255, 231, 0.38);
@@ -350,7 +352,7 @@
 
 .statusBox {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(120px, 0.55fr) auto minmax(140px, 1fr) auto auto;
   gap: 10px;
   align-items: center;
 }
