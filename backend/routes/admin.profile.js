@@ -1,4 +1,5 @@
 const express = require("express");
+const bcrypt = require("bcryptjs");
 const { pool } = require("../conf/db");
 const { authenticateToken, authenticateAdmin } = require("../middleware/auth");
 
@@ -162,6 +163,47 @@ router.patch("/", async (req, res) => {
   } catch (err) {
     console.error("admin profile update error:", err);
     return res.status(500).json({ message: "Error updating admin profile" });
+  }
+});
+
+router.patch("/password", async (req, res) => {
+  try {
+    const adminId = req.user.userId;
+    const currentPassword = String(req.body?.current_password || "");
+    const newPassword = String(req.body?.new_password || "");
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "current_password and new_password are required" });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: "New password must be at least 8 characters" });
+    }
+    if (newPassword === currentPassword) {
+      return res.status(400).json({ message: "New password must be different" });
+    }
+
+    const [[admin]] = await pool.query(
+      `SELECT id, password_hash
+       FROM users
+       WHERE id = ? AND role = 'admin'
+       LIMIT 1`,
+      [adminId]
+    );
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
+
+    const validPassword = await bcrypt.compare(currentPassword, admin.password_hash);
+    if (!validPassword) return res.status(401).json({ message: "Invalid current password" });
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query("UPDATE users SET password_hash = ? WHERE id = ? AND role = 'admin'", [
+      passwordHash,
+      adminId,
+    ]);
+
+    return res.json({ message: "Admin password updated" });
+  } catch (err) {
+    console.error("admin password update error:", err);
+    return res.status(500).json({ message: "Error updating admin password" });
   }
 });
 

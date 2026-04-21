@@ -5,7 +5,13 @@ import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import LoginRequiredModal from "../../components/LoginRequiredModal/LoginRequiredModal";
 import SkeletonGrid from "../../components/SkeletonGrid/SkeletonGrid";
-import { api } from "../../lib/api";
+import { getUserProfile } from "../../lib/users";
+import {
+  getTradePinStatus,
+  getTradeTransfers,
+  sendCopPoints,
+  updateTradePin,
+} from "../../lib/trade";
 
 import {
   FiSend,
@@ -24,10 +30,6 @@ import {
 /* ---------------- helpers ---------------- */
 function getAuthToken() {
   return localStorage.getItem("token") || localStorage.getItem("accessToken");
-}
-function buildUsersUrl(path) {
-  const clean = String(path || "").replace(/^\/+/, "");
-  return `users/${clean}`;
 }
 function explainAxiosError(e) {
   if (e?.response) {
@@ -58,8 +60,7 @@ export default function Trade() {
   const isProd =
     (typeof import.meta !== "undefined" &&
       import.meta.env &&
-      import.meta.env.MODE === "production") ||
-    process.env.NODE_ENV === "production";
+      import.meta.env.MODE === "production");
 
   // login required modal
   const [loginModalOpen, setLoginModalOpen] = useState(false);
@@ -79,9 +80,10 @@ export default function Trade() {
 
   // profile
   const [profile, setProfile] = useState(null);
+  const [pinStatus, setPinStatus] = useState(null);
   const myWallet = profile?.wallet_address || "";
   const myUsername = profile?.username || "—";
-  const myBidPoints = safeNum(profile?.bid_points, 0);
+  const myCopPoints = safeNum(profile?.cop_point, 0);
 
   // tabs
   const [tab, setTab] = useState("send"); // send | history
@@ -90,9 +92,17 @@ export default function Trade() {
   const [recipientWallet, setRecipientWallet] = useState("");
   const [amount, setAmount] = useState("");
   const [pin, setPin] = useState("");
+  const [note, setNote] = useState("");
   const [sendLoading, setSendLoading] = useState(false);
   const [sendError, setSendError] = useState("");
   const [sendOk, setSendOk] = useState("");
+
+  // pin form
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const [pinOk, setPinOk] = useState("");
 
   // transactions
   const [txLoading, setTxLoading] = useState(true);
@@ -107,10 +117,18 @@ export default function Trade() {
       openLoginModal("Login required", "Please login to use Trade.");
       return null;
     }
-    const { data } = await api.get(buildUsersUrl("profile"));
-    setProfile(data || null);
-    return data || null;
+    const data = await getUserProfile();
+    setProfile(data?.user || null);
+    return data?.user || null;
   }, [openLoginModal]);
+
+  const fetchPinStatus = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) return null;
+    const status = await getTradePinStatus();
+    setPinStatus(status || null);
+    return status || null;
+  }, []);
 
   const fetchTransactions = useCallback(async () => {
     const token = getAuthToken();
@@ -118,8 +136,8 @@ export default function Trade() {
     setTxLoading(true);
     setTxError("");
     try {
-      const { data } = await api.get(buildUsersUrl("transactions"));
-      const arr = Array.isArray(data) ? data : [];
+      const data = await getTradeTransfers({ limit: 50 });
+      const arr = Array.isArray(data?.transfers) ? data.transfers : [];
       setTransactions(arr);
       return arr;
     } catch (e) {
@@ -137,14 +155,13 @@ export default function Trade() {
     setSendError("");
     setSendOk("");
     try {
-      await fetchProfile();
-      await fetchTransactions();
+      await Promise.all([fetchProfile(), fetchPinStatus(), fetchTransactions()]);
     } catch (e) {
       setError(explainAxiosError(e));
     } finally {
       setLoading(false);
     }
-  }, [fetchProfile, fetchTransactions]);
+  }, [fetchPinStatus, fetchProfile, fetchTransactions]);
 
   useEffect(() => {
     init();
@@ -162,9 +179,10 @@ export default function Trade() {
     if (!amt) return false;
     if (!String(pin || "").trim()) return false;
     if (myWallet && recipientWallet.trim() === myWallet.trim()) return false;
-    if (amt > myBidPoints) return false;
+    if (amt > myCopPoints) return false;
+    if (pinStatus?.must_change_pin) return false;
     return true;
-  }, [recipientWallet, amount, pin, myWallet, myBidPoints]);
+  }, [recipientWallet, amount, pin, myWallet, myCopPoints, pinStatus?.must_change_pin]);
 
   const txCount = transactions.length;
 
@@ -193,7 +211,7 @@ export default function Trade() {
 
     const amt = parseIntSafe(amount);
     if (!recipientWallet.trim() || !pin.trim()) {
-      setSendError("recipientWallet and pin are required");
+      setSendError("Recipient wallet and PIN are required");
       return;
     }
     if (!amt) {
@@ -204,7 +222,11 @@ export default function Trade() {
       setSendError("You cannot send points to yourself");
       return;
     }
-    if (amt > myBidPoints) {
+    if (pinStatus?.must_change_pin) {
+      setSendError("Change your default trade PIN before sending.");
+      return;
+    }
+    if (amt > myCopPoints) {
       setSendError("Insufficient copup coin");
       return;
     }
@@ -212,17 +234,19 @@ export default function Trade() {
     setSendLoading(true);
     try {
       const payload = {
-        recipientWallet: recipientWallet.trim(),
-        amount: amt,
+        wallet_address: recipientWallet.trim(),
+        cop_points: amt,
         pin: pin.trim(),
+        note: note.trim(),
       };
 
-      const { data } = await api.post(buildUsersUrl("send-bid-points"), payload);
+      const data = await sendCopPoints(payload);
 
       setSendOk(data?.message || "copup coin sent successfully.");
       setRecipientWallet("");
       setAmount("");
       setPin("");
+      setNote("");
 
       // refresh profile + tx
       await Promise.all([fetchProfile(), fetchTransactions()]);
@@ -238,16 +262,44 @@ export default function Trade() {
     amount,
     pin,
     myWallet,
-    myBidPoints,
+    myCopPoints,
+    note,
+    pinStatus?.must_change_pin,
     openLoginModal,
     fetchProfile,
     fetchTransactions,
   ]);
 
+  const onChangePin = useCallback(async () => {
+    setPinError("");
+    setPinOk("");
+    if (!/^\d{4}$/.test(currentPin) || !/^\d{4}$/.test(newPin)) {
+      setPinError("PIN must be exactly 4 numbers.");
+      return;
+    }
+
+    setPinLoading(true);
+    try {
+      const result = await updateTradePin({
+        current_pin: currentPin,
+        new_pin: newPin,
+      });
+      setPinOk(result?.message || "Trade PIN updated.");
+      setCurrentPin("");
+      setNewPin("");
+      await fetchPinStatus();
+    } catch (e) {
+      setPinError(e?.response?.data?.message || e?.message || "Unable to update trade PIN.");
+    } finally {
+      setPinLoading(false);
+    }
+  }, [currentPin, fetchPinStatus, newPin]);
+
   const clearForm = useCallback(() => {
     setRecipientWallet("");
     setAmount("");
     setPin("");
+    setNote("");
     setSendError("");
     setSendOk("");
   }, []);
@@ -296,7 +348,7 @@ export default function Trade() {
                   <div className={styles.pill}>
                     <FiUser />
                     <span>
-                      {myUsername} • <b>{myBidPoints}</b> points
+                      {myUsername} • <b>{myCopPoints}</b> CP
                     </span>
                   </div>
 
@@ -427,7 +479,7 @@ export default function Trade() {
                       inputMode="numeric"
                     />
                     <div className={styles.hint}>
-                      Available: <b>{myBidPoints}</b> points
+                      Available: <b>{myCopPoints}</b> CP
                     </div>
                   </label>
 
@@ -442,11 +494,24 @@ export default function Trade() {
                       placeholder="Your PIN"
                       inputMode="numeric"
                     />
-                    {profile?.has_pin === 0 ? (
+                    {pinStatus?.must_change_pin ? (
                       <div className={styles.warn}>
-                        You don’t have a PIN set on your account.
+                        Change the default trade PIN before sending.
                       </div>
                     ) : null}
+                  </label>
+
+                  <label className={styles.field}>
+                    <span className={styles.label}>
+                      <FiList /> Note
+                    </span>
+                    <input
+                      className={styles.input}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Optional transfer note"
+                      maxLength={255}
+                    />
                   </label>
 
                   {sendError ? <div className={styles.alertErr}>{sendError}</div> : null}
@@ -470,12 +535,59 @@ export default function Trade() {
                   </div>
 
                   <div className={styles.softNote}>
-                    This transfer is logged in <code>transactions</code>. No fee is charged.
+                    This transfer is logged in your trade history. No fee is charged.
                   </div>
                 </div>
               </div>
 
               <div className={styles.sideCard}>
+                <div className={styles.sideTitle}>Trade PIN</div>
+                <div className={styles.cardSub}>
+                  Default PIN is 0000. Change it before sending CP.
+                </div>
+                <div className={styles.form}>
+                  <label className={styles.field}>
+                    <span className={styles.label}>
+                      <FiLock /> Current PIN
+                    </span>
+                    <input
+                      className={styles.input}
+                      value={currentPin}
+                      onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder={pinStatus?.must_change_pin ? "0000" : "Current PIN"}
+                      inputMode="numeric"
+                      maxLength={4}
+                    />
+                  </label>
+
+                  <label className={styles.field}>
+                    <span className={styles.label}>
+                      <FiLock /> New PIN
+                    </span>
+                    <input
+                      className={styles.input}
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="4 numbers"
+                      inputMode="numeric"
+                      maxLength={4}
+                    />
+                  </label>
+
+                  {pinError ? <div className={styles.alertErr}>{pinError}</div> : null}
+                  {pinOk ? <div className={styles.alertOk}>{pinOk}</div> : null}
+
+                  <button
+                    type="button"
+                    className={styles.btnPrimary}
+                    onClick={onChangePin}
+                    disabled={pinLoading}
+                  >
+                    <FiLock style={{ marginRight: 8 }} />
+                    {pinLoading ? "Updating..." : "Update PIN"}
+                  </button>
+                </div>
+
                 <div className={styles.sideTitle}>Safety tips</div>
                 <ul className={styles.sideList}>
                   <li>Double-check the wallet address before sending.</li>
@@ -506,7 +618,7 @@ export default function Trade() {
               ) : (
                 <div className={styles.txList}>
                   {transactions.map((t) => {
-                    const isOut = String(t.sender || "") === String(myUsername || "");
+                    const isOut = t.direction === "sent";
                     return (
                       <div className={styles.txRow} key={t.id}>
                         <div className={isOut ? styles.txIconOut : styles.txIconIn}>
@@ -517,14 +629,14 @@ export default function Trade() {
                           <div className={styles.txTop}>
                             <div className={styles.txTitle}>
                               {isOut ? "Sent" : "Received"}{" "}
-                              <b>{safeNum(t.amount, 0)}</b> points
+                              <b>{safeNum(t.cop_points, 0)}</b> CP
                             </div>
                             <div className={styles.txTime}>
-                              {t.timestamp_local || t.timestamp}
+                              {t.created_at ? new Date(t.created_at).toLocaleString() : ""}
                             </div>
                           </div>
                           <div className={styles.txSub}>
-                            From <b>{t.sender}</b> → To <b>{t.recipient}</b>
+                            From <b>{t.sender_username}</b> → To <b>{t.recipient_username}</b>
                           </div>
                         </div>
 

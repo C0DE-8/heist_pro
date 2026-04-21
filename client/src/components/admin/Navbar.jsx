@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import styles from "./Navbar.module.css";
 import { getAdminProfile } from "../../lib/admin";
 import { clearAuthSession } from "../../lib/auth";
@@ -13,15 +13,16 @@ import {
   FaFlask,
   FaWallet,
   FaCoins,
+  FaUserCog,
   FaSignOutAlt,
 } from "react-icons/fa";
 
 export default function AdminNavbar({ admin: adminProp }) {
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const [admin, setAdmin] = useState(adminProp || null);
+  const [loadedAdmin, setLoadedAdmin] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const admin = adminProp || loadedAdmin;
 
   const navItems = useMemo(
     () => [
@@ -30,25 +31,18 @@ export default function AdminNavbar({ admin: adminProp }) {
       { to: "/admin/heists", label: "Heists", icon: <FaFlask /> },
       { to: "/admin/transactions", label: "Transactions", icon: <FaWallet /> },
       { to: "/admin/coins", label: "Coins", icon: <FaCoins /> },
+      { to: "/admin/profile", label: "Profile", icon: <FaUserCog /> },
     ],
     []
   );
 
-  // Close menu on route change (fixes “header preview” issue on mobile)
   useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (adminProp) {
-      setAdmin(adminProp);
-      return;
-    }
+    if (adminProp) return undefined;
 
     let mounted = true;
     getAdminProfile()
       .then((data) => {
-        if (mounted) setAdmin(data?.admin || null);
+        if (mounted) setLoadedAdmin(data?.admin || null);
       })
       .catch(() => {});
     return () => {
@@ -136,6 +130,7 @@ export default function AdminNavbar({ admin: adminProp }) {
                 key={i.to}
                 to={i.to}
                 end={i.to === "/admin-dashboard"}
+                onClick={() => setMenuOpen(false)}
                 className={({ isActive }) =>
                   isActive ? styles.mobileLinkActive : styles.mobileLink
                 }

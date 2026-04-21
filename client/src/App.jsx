@@ -13,6 +13,7 @@ import Landing from "./pages/Landing/Landing";
 // Admin
 import AdminDashboard from "./pages/admin/AdminDashboard/AdminDashboard";
 import AdminTransactions from "./pages/admin/AdminTransactions/AdminTransactions";
+import AdminProfile from "./pages/admin/AdminProfile/AdminProfile";
 
 
 // Protected Routes
@@ -94,7 +95,7 @@ export default function App() {
         </Route>
 
          <Route element={<UserRoute />}>
-          <Route path="/trade" element={<ComingSoon />} />
+          <Route path="/trade" element={<Trade />} />
         </Route>
 
 
@@ -113,6 +114,10 @@ export default function App() {
         {/* ================= ADMIN ROUTES (Protected) ================= */}
         <Route element={<AdminRoute />}>
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/profile" element={<AdminProfile />} />
         </Route>
 
 

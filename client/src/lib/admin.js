@@ -13,3 +13,11 @@ export async function updateAdminProfile(payload) {
   });
   return data;
 }
+
+export async function updateAdminPassword(payload) {
+  const { data } = await api.patch("/admin/profile/password", {
+    current_password: payload?.current_password,
+    new_password: payload?.new_password,
+  });
+  return data;
+}
