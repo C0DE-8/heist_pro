@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../conf/db");
 const { authenticateToken, authenticateAdmin } = require("../middleware/auth");
+const { notifyAdmins } = require("../services/telegram");
 
 const router = express.Router();
 
@@ -26,6 +27,23 @@ async function getCoinRate(conn = pool) {
     "SELECT id, unit, price, currency FROM coin_rate WHERE id = 1 LIMIT 1"
   );
   return rate || null;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function formatAmount(value, currency = "NGN") {
+  const n = Number(value);
+  const amount = Number.isFinite(n) ? n.toLocaleString() : "0";
+  return `${amount} ${currency}`;
+}
+
+function displayUser(row) {
+  return escapeHtml(row?.full_name || row?.username || row?.email || `User #${row?.user_id}`);
 }
 
 router.get("/settings", async (req, res) => {
@@ -118,6 +136,7 @@ router.put("/coin-rate", async (req, res) => {
   }
 });
 
+// api/admin/transactions/payins
 router.get("/payins", async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status).toLowerCase() : null;
@@ -160,9 +179,11 @@ router.patch("/payins/:id/review", async (req, res) => {
     await conn.beginTransaction();
 
     const [[request]] = await conn.query(
-      `SELECT id, user_id, coin_amount, status
-       FROM manual_payin_requests
-       WHERE id = ?
+      `SELECT p.id, p.user_id, p.amount_ngn, p.coin_amount, p.status,
+              u.full_name, u.username, u.email
+       FROM manual_payin_requests p
+       JOIN users u ON u.id = p.user_id
+       WHERE p.id = ?
        LIMIT 1 FOR UPDATE`,
       [requestId]
     );
@@ -196,6 +217,16 @@ router.patch("/payins/:id/review", async (req, res) => {
     );
 
     await conn.commit();
+    notifyAdmins(
+      `<b>Manual Pay-in ${status === "approved" ? "Approved" : "Rejected"}</b>\n\n` +
+        `<b>Request ID:</b> <code>${request.id}</code>\n` +
+        `<b>User:</b> ${displayUser(request)}\n` +
+        `<b>Amount:</b> ${formatAmount(request.amount_ngn)}\n` +
+        `<b>Credit:</b> ${Number(request.coin_amount).toLocaleString()} CP\n` +
+        `<b>Reviewed by Admin ID:</b> <code>${req.user.userId}</code>\n` +
+        `<b>Status:</b> ${escapeHtml(status)}`
+    ).catch((err) => console.error("telegram pay-in review notify error:", err.message));
+
     return res.json({
       message: status === "approved" ? "Pay-in approved" : "Pay-in rejected",
       credited_cop_point: status === "approved" ? request.coin_amount : 0,
@@ -209,6 +240,7 @@ router.patch("/payins/:id/review", async (req, res) => {
   }
 });
 
+// api/admin/transactions/payouts
 router.get("/payouts", async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status).toLowerCase() : null;
@@ -251,9 +283,12 @@ router.patch("/payouts/:id/review", async (req, res) => {
     await conn.beginTransaction();
 
     const [[request]] = await conn.query(
-      `SELECT id, user_id, cop_points, status
-       FROM payout_requests
-       WHERE id = ?
+      `SELECT p.id, p.user_id, p.cop_points, p.amount_ngn, p.status,
+              p.account_name, p.account_number, p.account_type, p.bank_name,
+              u.full_name, u.username, u.email
+       FROM payout_requests p
+       JOIN users u ON u.id = p.user_id
+       WHERE p.id = ?
        LIMIT 1 FOR UPDATE`,
       [requestId]
     );
@@ -287,6 +322,17 @@ router.patch("/payouts/:id/review", async (req, res) => {
     );
 
     await conn.commit();
+    notifyAdmins(
+      `<b>Payout ${status === "approved" ? "Approved" : "Rejected"}</b>\n\n` +
+        `<b>Request ID:</b> <code>${request.id}</code>\n` +
+        `<b>User:</b> ${displayUser(request)}\n` +
+        `<b>Requested:</b> ${Number(request.cop_points).toLocaleString()} CP\n` +
+        `<b>Amount:</b> ${formatAmount(request.amount_ngn)}\n` +
+        `<b>Account:</b> ${escapeHtml(request.account_name)} / <code>${escapeHtml(request.account_number)}</code>\n` +
+        `<b>Reviewed by Admin ID:</b> <code>${req.user.userId}</code>\n` +
+        `<b>Status:</b> ${escapeHtml(status)}`
+    ).catch((err) => console.error("telegram payout review notify error:", err.message));
+
     return res.json({
       message: status === "approved" ? "Payout approved" : "Payout rejected",
       refunded_cop_point: status === "rejected" ? request.cop_points : 0,

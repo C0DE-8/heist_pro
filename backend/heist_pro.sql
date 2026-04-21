@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 17, 2026 at 10:50 PM
+-- Generation Time: Apr 21, 2026 at 01:20 PM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -139,6 +139,33 @@ INSERT INTO `coin_rate` (`id`, `unit`, `price`, `currency`, `created_at`, `updat
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `cop_point_transfers`
+--
+
+CREATE TABLE `cop_point_transfers` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `sender_user_id` int(11) NOT NULL,
+  `recipient_user_id` int(11) NOT NULL,
+  `recipient_wallet_address` varchar(100) NOT NULL,
+  `cop_points` int(11) NOT NULL,
+  `sender_balance_before` int(11) NOT NULL,
+  `sender_balance_after` int(11) NOT NULL,
+  `recipient_balance_before` int(11) NOT NULL,
+  `recipient_balance_after` int(11) NOT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `cop_point_transfers`
+--
+
+INSERT INTO `cop_point_transfers` (`id`, `sender_user_id`, `recipient_user_id`, `recipient_wallet_address`, `cop_points`, `sender_balance_before`, `sender_balance_after`, `recipient_balance_before`, `recipient_balance_after`, `note`, `created_at`) VALUES
+(1, 3, 4, 'coplwnYe2DDW5NynK6NxJB3', 20, 721, 701, 178, 198, 'test of the top up', '2026-04-21 11:18:46');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `heist`
 --
 
@@ -169,7 +196,8 @@ CREATE TABLE `heist` (
 
 INSERT INTO `heist` (`id`, `name`, `description`, `min_users`, `ticket_price`, `total_questions`, `prize_cop_points`, `status`, `submissions_locked`, `winner_user_id`, `countdown_started_at`, `countdown_duration_minutes`, `countdown_ends_at`, `starts_at`, `ends_at`, `created_by`, `created_at`, `updated_at`) VALUES
 (1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 100, 10, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50'),
-(2, 'weekend heist', 'for the road as we go ', 3, 20, 3, 100, 'pending', 0, NULL, NULL, 10, NULL, NULL, NULL, 1, '2026-04-17 17:49:02', '2026-04-17 17:51:11');
+(2, 'weekend heist', 'for the road as we go ', 3, 20, 3, 100, 'pending', 0, NULL, NULL, 10, NULL, NULL, NULL, 1, '2026-04-17 17:49:02', '2026-04-17 17:51:11'),
+(3, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 100, 10, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50');
 
 -- --------------------------------------------------------
 
@@ -192,10 +220,9 @@ CREATE TABLE `heist_participants` (
 --
 
 INSERT INTO `heist_participants` (`id`, `heist_id`, `user_id`, `affiliate_user_id`, `referral_code`, `joined_at`, `status`) VALUES
-(5, 1, 3, NULL, NULL, '2026-04-17 12:57:23', 'submitted'),
-(6, 1, 2, NULL, NULL, '2026-04-17 13:44:21', 'submitted'),
-(7, 2, 3, NULL, NULL, '2026-04-17 18:28:17', 'joined'),
-(8, 2, 4, 3, 'HRMTFDLTH', '2026-04-17 18:44:29', 'submitted');
+(8, 2, 4, 3, 'HRMTFDLTH', '2026-04-17 18:44:29', 'submitted'),
+(15, 2, 3, NULL, NULL, '2026-04-21 10:31:18', 'submitted'),
+(16, 1, 3, NULL, NULL, '2026-04-21 10:31:43', 'joined');
 
 -- --------------------------------------------------------
 
@@ -231,7 +258,8 @@ INSERT INTO `heist_questions` (`id`, `heist_id`, `question_text`, `correct_answe
 (10, 1, 'Light travels slower than sound.', 'false', 10, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
 (11, 2, 'mix yellow and red can give you blue', 'false', 1, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
 (12, 2, 'a bed has 4 years', 'false', 2, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
-(13, 2, 'the sky is blue', 'true', 3, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11');
+(13, 2, 'the sky is blue', 'true', 3, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
+(14, 3, 'the sky is blue', 'true', 1, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11');
 
 -- --------------------------------------------------------
 
@@ -262,10 +290,8 @@ CREATE TABLE `heist_submissions` (
 --
 
 INSERT INTO `heist_submissions` (`id`, `heist_id`, `user_id`, `participant_id`, `affiliate_user_id`, `started_at`, `submitted_at`, `total_time_seconds`, `correct_count`, `wrong_count`, `unanswered_count`, `score_percent`, `status`, `created_at`, `updated_at`) VALUES
-(3, 1, 3, 5, NULL, '2026-04-17 06:38:57', '2026-04-17 06:40:02', 37, 4, 6, 0, 40.00, 'submitted', '2026-04-17 13:38:57', '2026-04-17 13:40:02'),
-(4, 1, 2, 6, NULL, '2026-04-17 06:44:37', '2026-04-17 06:45:00', 10, 3, 7, 0, 30.00, 'submitted', '2026-04-17 13:44:37', '2026-04-17 13:45:00'),
-(5, 2, 3, 7, NULL, '2026-04-17 11:28:26', NULL, NULL, 0, 0, 0, 0.00, 'started', '2026-04-17 18:28:26', '2026-04-17 18:28:26'),
-(6, 2, 4, 8, 3, '2026-04-17 11:54:25', '2026-04-17 11:54:41', 9, 3, 0, 0, 100.00, 'submitted', '2026-04-17 18:54:25', '2026-04-17 18:54:41');
+(9, 2, 3, 15, NULL, '2026-04-21 03:31:23', '2026-04-21 03:31:34', 4, 1, 2, 0, 33.33, 'submitted', '2026-04-21 10:31:23', '2026-04-21 10:31:34'),
+(10, 1, 3, 16, NULL, '2026-04-21 03:33:38', NULL, NULL, 0, 0, 0, 0.00, 'started', '2026-04-21 10:33:38', '2026-04-21 10:33:38');
 
 -- --------------------------------------------------------
 
@@ -291,29 +317,9 @@ CREATE TABLE `heist_submission_answers` (
 --
 
 INSERT INTO `heist_submission_answers` (`id`, `submission_id`, `heist_id`, `question_id`, `user_id`, `submitted_answer`, `is_correct`, `answered_at`, `time_spent_seconds`, `created_at`) VALUES
-(11, 3, 1, 1, 3, 'true', 1, '2026-04-17 06:40:02', 2, '2026-04-17 13:40:02'),
-(12, 3, 1, 2, 3, 'true', 0, '2026-04-17 06:40:02', 4, '2026-04-17 13:40:02'),
-(13, 3, 1, 3, 3, 'false', 0, '2026-04-17 06:40:02', 1, '2026-04-17 13:40:02'),
-(14, 3, 1, 4, 3, 'true', 0, '2026-04-17 06:40:02', 2, '2026-04-17 13:40:02'),
-(15, 3, 1, 5, 3, 'false', 0, '2026-04-17 06:40:02', 1, '2026-04-17 13:40:02'),
-(16, 3, 1, 6, 3, 'false', 1, '2026-04-17 06:40:02', 1, '2026-04-17 13:40:02'),
-(17, 3, 1, 7, 3, 'false', 0, '2026-04-17 06:40:02', 1, '2026-04-17 13:40:02'),
-(18, 3, 1, 8, 3, 'true', 0, '2026-04-17 06:40:02', 1, '2026-04-17 13:40:02'),
-(19, 3, 1, 9, 3, 'true', 1, '2026-04-17 06:40:02', 22, '2026-04-17 13:40:02'),
-(20, 3, 1, 10, 3, 'false', 1, '2026-04-17 06:40:02', 2, '2026-04-17 13:40:02'),
-(21, 4, 1, 1, 2, 'true', 1, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(22, 4, 1, 2, 2, 'true', 0, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(23, 4, 1, 3, 2, 'false', 0, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(24, 4, 1, 4, 2, 'false', 1, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(25, 4, 1, 5, 2, 'false', 0, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(26, 4, 1, 6, 2, 'false', 1, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(27, 4, 1, 7, 2, 'false', 0, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(28, 4, 1, 8, 2, 'true', 0, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(29, 4, 1, 9, 2, 'false', 0, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(30, 4, 1, 10, 2, 'true', 0, '2026-04-17 06:45:00', 1, '2026-04-17 13:45:00'),
-(31, 6, 2, 11, 4, 'false', 1, '2026-04-17 11:54:41', 1, '2026-04-17 18:54:41'),
-(32, 6, 2, 12, 4, 'false', 1, '2026-04-17 11:54:41', 5, '2026-04-17 18:54:41'),
-(33, 6, 2, 13, 4, 'true', 1, '2026-04-17 11:54:41', 3, '2026-04-17 18:54:41');
+(39, 9, 2, 11, 3, 'false', 1, '2026-04-21 03:31:34', 2, '2026-04-21 10:31:34'),
+(40, 9, 2, 12, 3, 'true', 0, '2026-04-21 03:31:34', 1, '2026-04-21 10:31:34'),
+(41, 9, 2, 13, 3, 'false', 0, '2026-04-21 03:31:34', 1, '2026-04-21 10:31:34');
 
 -- --------------------------------------------------------
 
@@ -455,6 +461,8 @@ CREATE TABLE `users` (
   `username` varchar(100) NOT NULL,
   `full_name` varchar(150) DEFAULT NULL,
   `password_hash` varchar(255) NOT NULL,
+  `trade_pin_hash` varchar(255) DEFAULT NULL,
+  `trade_pin_changed` tinyint(1) NOT NULL DEFAULT 0,
   `role` enum('user','admin') NOT NULL DEFAULT 'user',
   `is_verified` tinyint(1) NOT NULL DEFAULT 0,
   `is_blocked` tinyint(1) NOT NULL DEFAULT 0,
@@ -470,11 +478,11 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `email`, `username`, `full_name`, `password_hash`, `role`, `is_verified`, `is_blocked`, `referral_code`, `wallet_address`, `game_id`, `cop_point`, `created_at`, `updated_at`) VALUES
-(1, 'admin@admin.com', 'admin', 'Heist Admin', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', 'admin', 1, 0, 'ADMIN01', 'copADMINWALLET000001', 'ADMIN-GAME-001', 0, '2026-04-17 07:42:52', '2026-04-17 09:01:57'),
-(2, 'jossycode0@gmail.com', 'jossy01', 'Jossy Code', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', 'user', 1, 0, 'billions', 'coptg67Gv5Ep3Uk29IgEMwH', 'ZSDW-C5PZ-RN8K', 900, '2026-04-17 09:00:03', '2026-04-17 13:44:21'),
-(3, '8amlight@gmail.com', 'light', 'Samuel Oghenchovwe', '$2b$12$6YpXM2xJkyu27NPcobfEf./UUDW1GAqw0DiBMh1/GlGONCL3.BJ5S', 'user', 1, 0, 'light', 'copiOKpOlWoG1ofmEz0FBGR', 'VHA5-EGR2-H276', 481, '2026-04-17 10:35:32', '2026-04-17 18:44:29'),
-(4, '8amjoker@gmail.com', 'joker', '8amjoker', '$2b$12$/McCefomtmThjCWl5NvsMONTsHUsVa69SuL.MO0tJPMe5Cu.soVR6', 'user', 1, 0, '72vfko', 'coplwnYe2DDW5NynK6NxJB3', 'P6ZX-Q765-8BZ8', 178, '2026-04-17 18:42:25', '2026-04-17 20:05:22');
+INSERT INTO `users` (`id`, `email`, `username`, `full_name`, `password_hash`, `trade_pin_hash`, `trade_pin_changed`, `role`, `is_verified`, `is_blocked`, `referral_code`, `wallet_address`, `game_id`, `cop_point`, `created_at`, `updated_at`) VALUES
+(1, 'admin@admin.com', 'admin', 'Heist Admin', '$2b$12$lplYyGYca0nFRf7i8LELPOsEYI41bKEYndz3csoOc4aDyL0FJMCve', NULL, 0, 'admin', 1, 0, 'ADMIN01', 'copADMINWALLET000001', 'ADMIN-GAME-001', 0, '2026-04-17 07:42:52', '2026-04-21 11:03:28'),
+(2, 'jossycode0@gmail.com', 'jossy01', 'Jossy Code', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', NULL, 0, 'user', 1, 0, 'billions', 'coptg67Gv5Ep3Uk29IgEMwH', 'ZSDW-C5PZ-RN8K', 900, '2026-04-17 09:00:03', '2026-04-17 13:44:21'),
+(3, '8amlight@gmail.com', 'light', 'Samuel Oghenchovwe', '$2b$12$6YpXM2xJkyu27NPcobfEf./UUDW1GAqw0DiBMh1/GlGONCL3.BJ5S', '$2b$12$4DPjwsX3yThq3Xl0znpMK.lU6rJG9N9ey52cnBMlDqY.R3LppMlX.', 1, 'user', 1, 0, 'light', 'copiOKpOlWoG1ofmEz0FBGR', 'VHA5-EGR2-H276', 701, '2026-04-17 10:35:32', '2026-04-21 11:18:46'),
+(4, '8amjoker@gmail.com', 'joker', '8amjoker', '$2b$12$/McCefomtmThjCWl5NvsMONTsHUsVa69SuL.MO0tJPMe5Cu.soVR6', NULL, 0, 'user', 1, 0, '72vfko', 'coplwnYe2DDW5NynK6NxJB3', 'P6ZX-Q765-8BZ8', 198, '2026-04-17 18:42:25', '2026-04-21 11:18:46');
 
 --
 -- Indexes for dumped tables
@@ -520,6 +528,15 @@ ALTER TABLE `affiliate_user_referrals`
 --
 ALTER TABLE `coin_rate`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `cop_point_transfers`
+--
+ALTER TABLE `cop_point_transfers`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_transfers_sender` (`sender_user_id`,`created_at`),
+  ADD KEY `idx_transfers_recipient` (`recipient_user_id`,`created_at`),
+  ADD KEY `idx_transfers_wallet` (`recipient_wallet_address`);
 
 --
 -- Indexes for table `heist`
@@ -656,34 +673,40 @@ ALTER TABLE `coin_rate`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
+-- AUTO_INCREMENT for table `cop_point_transfers`
+--
+ALTER TABLE `cop_point_transfers`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT for table `heist`
 --
 ALTER TABLE `heist`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `heist_participants`
 --
 ALTER TABLE `heist_participants`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `heist_questions`
 --
 ALTER TABLE `heist_questions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `heist_submissions`
 --
 ALTER TABLE `heist_submissions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `heist_submission_answers`
 --
 ALTER TABLE `heist_submission_answers`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
 
 --
 -- AUTO_INCREMENT for table `manual_payin_requests`
@@ -752,6 +775,13 @@ ALTER TABLE `affiliate_user_referrals`
   ADD CONSTRAINT `fk_affiliate_user_referrals_affiliate` FOREIGN KEY (`affiliate_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_affiliate_user_referrals_heist` FOREIGN KEY (`heist_id`) REFERENCES `heist` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_affiliate_user_referrals_referred` FOREIGN KEY (`referred_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `cop_point_transfers`
+--
+ALTER TABLE `cop_point_transfers`
+  ADD CONSTRAINT `fk_transfers_recipient` FOREIGN KEY (`recipient_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_transfers_sender` FOREIGN KEY (`sender_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `heist`

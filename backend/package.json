@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon --quiet server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:telegram": "node scripts/test-telegram.js"
   },
   "keywords": [],
   "author": "",

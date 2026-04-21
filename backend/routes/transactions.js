@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../conf/db");
 const { authenticateToken } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
+const { notifyAdmins } = require("../services/telegram");
 
 const router = express.Router();
 const PAYOUT_FEE_RATE = 0.1;
@@ -68,6 +69,23 @@ function uploadReceipt(req, res, next) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function formatAmount(value, currency = "NGN") {
+  const n = Number(value);
+  const amount = Number.isFinite(n) ? n.toLocaleString() : "0";
+  return `${amount} ${currency}`;
+}
+
+function displayUser(user, fallbackId) {
+  return escapeHtml(user?.full_name || user?.username || user?.email || `User #${fallbackId}`);
+}
+
 router.get("/payment-info", async (req, res) => {
   try {
     const [[paymentAccount]] = await pool.query(
@@ -97,6 +115,7 @@ router.get("/payment-info", async (req, res) => {
 
 router.use(authenticateToken);
 
+// api/transactions/payins
 router.post("/payins", uploadReceipt, async (req, res) => {
   const userId = req.user.userId;
   const requestedCoins = toPositiveInteger(Number(req.body?.coin_amount));
@@ -144,6 +163,20 @@ router.post("/payins", uploadReceipt, async (req, res) => {
       ]
     );
 
+    const [[user]] = await pool.query(
+      "SELECT full_name, username, email FROM users WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    notifyAdmins(
+      `<b>New Manual Pay-in Request</b>\n\n` +
+        `<b>Request ID:</b> <code>${result.insertId}</code>\n` +
+        `<b>User:</b> ${displayUser(user, userId)}\n` +
+        `<b>Amount:</b> ${formatAmount(amountNgn, rate.currency || "NGN")}\n` +
+        `<b>Credit:</b> ${Number(coinAmount).toLocaleString()} CP\n` +
+        `<b>Reference:</b> ${proofReference ? `<code>${escapeHtml(proofReference)}</code>` : "None"}\n` +
+        `<b>Status:</b> pending`
+    ).catch((err) => console.error("telegram pay-in notify error:", err.message));
+
     return res.status(201).json({
       message: "Pay-in request submitted",
       request: {
@@ -159,6 +192,7 @@ router.post("/payins", uploadReceipt, async (req, res) => {
   }
 });
 
+// api/transactions/payins
 router.get("/payins", async (req, res) => {
   try {
     const pagination = getPagination(req.query);
@@ -188,6 +222,7 @@ router.get("/payins", async (req, res) => {
   }
 });
 
+// api/transactions/payouts
 router.post("/payouts", async (req, res) => {
   const userId = req.user.userId;
   const copPoints = toPositiveInteger(Number(req.body?.cop_points));
@@ -253,6 +288,22 @@ router.post("/payouts", async (req, res) => {
     );
 
     await conn.commit();
+
+    const [[notifyUser]] = await pool.query(
+      "SELECT full_name, username, email FROM users WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    notifyAdmins(
+      `<b>New Payout Request</b>\n\n` +
+        `<b>Request ID:</b> <code>${result.insertId}</code>\n` +
+        `<b>User:</b> ${displayUser(notifyUser, userId)}\n` +
+        `<b>Requested:</b> ${Number(copPoints).toLocaleString()} CP\n` +
+        `<b>Estimated Payout:</b> ${formatAmount(amountNgn, rate.currency || "NGN")}\n` +
+        `<b>Account:</b> ${escapeHtml(accountName)} / <code>${escapeHtml(accountNumber)}</code>\n` +
+        `<b>Bank:</b> ${escapeHtml(bankName || accountType)}\n` +
+        `<b>Status:</b> pending`
+    ).catch((err) => console.error("telegram payout notify error:", err.message));
+
     return res.status(201).json({
       message: "Payout request submitted",
       request: {
@@ -271,6 +322,7 @@ router.post("/payouts", async (req, res) => {
   }
 });
 
+// api/transactions/payouts
 router.get("/payouts", async (req, res) => {
   try {
     const pagination = getPagination(req.query);
@@ -301,6 +353,7 @@ router.get("/payouts", async (req, res) => {
   }
 });
 
+// api/transactions/mine
 router.get("/mine", async (req, res) => {
   try {
     const [payins] = await pool.query(

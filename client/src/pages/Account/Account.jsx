@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiCopy, FiCreditCard, FiDownload, FiShield } from "react-icons/fi";
 import Header from "../../components/Header/Header";
@@ -58,6 +58,43 @@ function statusClass(status) {
 
 const HISTORY_LIMIT = 5;
 const PAYOUT_FEE_RATE = 0.1;
+const NIGERIAN_BANKS = [
+  "Access Bank",
+  "ALAT by Wema",
+  "Citibank Nigeria",
+  "Coronation Merchant Bank",
+  "Ecobank Nigeria",
+  "Fidelity Bank",
+  "First Bank of Nigeria",
+  "First City Monument Bank",
+  "Globus Bank",
+  "Greenwich Merchant Bank",
+  "Guaranty Trust Bank",
+  "Heritage Bank",
+  "Jaiz Bank",
+  "Keystone Bank",
+  "Kuda Microfinance Bank",
+  "Lotus Bank",
+  "Moniepoint Microfinance Bank",
+  "Opay",
+  "Optimus Bank",
+  "PalmPay",
+  "Parallex Bank",
+  "Polaris Bank",
+  "PremiumTrust Bank",
+  "Providus Bank",
+  "Rand Merchant Bank",
+  "Stanbic IBTC Bank",
+  "Standard Chartered Bank",
+  "Sterling Bank",
+  "SunTrust Bank",
+  "Titan Trust Bank",
+  "Union Bank of Nigeria",
+  "United Bank for Africa",
+  "Unity Bank",
+  "Wema Bank",
+  "Zenith Bank",
+];
 
 export default function Account() {
   const navigate = useNavigate();
@@ -92,8 +129,11 @@ export default function Account() {
     bank_name: "",
     note: "",
   });
+  const [bankSearch, setBankSearch] = useState("");
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const bankSelectRef = useRef(null);
 
   const user = profileData?.user || null;
   const copPoints = Number(user?.cop_point || 0);
@@ -118,6 +158,11 @@ export default function Account() {
     }
     return Number((((points / unit) * price) * (1 - PAYOUT_FEE_RATE)).toFixed(2));
   }, [coinRate, withdrawForm.cop_points]);
+  const filteredBanks = useMemo(() => {
+    const query = bankSearch.trim().toLowerCase();
+    if (!query) return NIGERIAN_BANKS;
+    return NIGERIAN_BANKS.filter((bank) => bank.toLowerCase().includes(query));
+  }, [bankSearch]);
 
   const loadProfile = useCallback(async () => {
     if (!token) {
@@ -183,6 +228,17 @@ export default function Account() {
   useEffect(() => {
     loadPayouts();
   }, [loadPayouts]);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!bankSelectRef.current?.contains(event.target)) {
+        setBankDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
 
   const copyWallet = async () => {
     if (!user?.wallet_address) return;
@@ -298,6 +354,10 @@ export default function Account() {
       setError("Add your payout account name, number, and type.");
       return;
     }
+    if (!NIGERIAN_BANKS.includes(withdrawForm.bank_name)) {
+      setError("Select your bank from the list.");
+      return;
+    }
 
     setTransactionLoading(true);
     setError("");
@@ -315,6 +375,7 @@ export default function Account() {
         bank_name: "",
         note: "",
       });
+      setBankSearch("");
       setPayoutPage(1);
       await Promise.all([loadProfile(), loadPayouts()]);
     } catch (err) {
@@ -601,17 +662,73 @@ export default function Account() {
                   />
                 </label>
 
-                <label className={styles.amountField}>
-                  <span>Bank name optional</span>
-                  <input
-                    value={withdrawForm.bank_name}
-                    onChange={(event) =>
-                      setWithdrawForm((prev) => ({ ...prev, bank_name: event.target.value }))
-                    }
-                    placeholder="Bank name"
-                    disabled={transactionLoading}
-                  />
-                </label>
+                <div className={styles.amountField} ref={bankSelectRef}>
+                  <span>Bank name</span>
+                  <div className={styles.bankSelect}>
+                    <input
+                      value={bankSearch}
+                      onChange={(event) => {
+                        setBankSearch(event.target.value);
+                        setBankDropdownOpen(true);
+                        setWithdrawForm((prev) => ({ ...prev, bank_name: "" }));
+                      }}
+                      onFocus={() => setBankDropdownOpen(true)}
+                      placeholder="Search Nigerian banks"
+                      disabled={transactionLoading}
+                      role="combobox"
+                      aria-expanded={bankDropdownOpen}
+                      aria-controls="bank-options"
+                      aria-autocomplete="list"
+                      autoComplete="off"
+                      required
+                    />
+                    {bankSearch && !transactionLoading ? (
+                      <button
+                        type="button"
+                        className={styles.clearBankBtn}
+                        onClick={() => {
+                          setBankSearch("");
+                          setBankDropdownOpen(true);
+                          setWithdrawForm((prev) => ({ ...prev, bank_name: "" }));
+                        }}
+                        aria-label="Clear selected bank"
+                      >
+                        x
+                      </button>
+                    ) : null}
+                  </div>
+                  {bankDropdownOpen && !transactionLoading ? (
+                    <div className={styles.bankOptions} id="bank-options" role="listbox">
+                      {filteredBanks.length ? (
+                        filteredBanks.map((bank) => (
+                          <button
+                            type="button"
+                            key={bank}
+                            className={
+                              withdrawForm.bank_name === bank
+                                ? styles.bankOptionSelected
+                                : styles.bankOption
+                            }
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              setWithdrawForm((prev) => ({ ...prev, bank_name: bank }));
+                              setBankSearch(bank);
+                              setBankDropdownOpen(false);
+                              setError("");
+                            }}
+                            role="option"
+                            aria-selected={withdrawForm.bank_name === bank}
+                          >
+                            {bank}
+                          </button>
+                        ))
+                      ) : (
+                        <div className={styles.noBankResult}>No matching bank in list.</div>
+                      )}
+                    </div>
+                  ) : null}
+                  <small>Select a bank from the list. Typed text is not submitted.</small>
+                </div>
 
                 <label className={styles.amountField}>
                   <span>Note optional</span>
