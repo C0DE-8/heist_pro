@@ -254,6 +254,7 @@ router.get("/payouts", async (req, res) => {
     const [rows] = await pool.query(
       `SELECT p.id, p.user_id, u.username, u.email, p.cop_points, p.amount_ngn,
               p.status, p.account_name, p.account_number, p.account_type, p.bank_name,
+              p.bank_code,
               p.user_note, p.admin_note, p.rejection_reason, p.reviewed_at, p.created_at
        FROM payout_requests p
        JOIN users u ON u.id = p.user_id
@@ -284,7 +285,7 @@ router.patch("/payouts/:id/review", async (req, res) => {
 
     const [[request]] = await conn.query(
       `SELECT p.id, p.user_id, p.cop_points, p.amount_ngn, p.status,
-              p.account_name, p.account_number, p.account_type, p.bank_name,
+              p.account_name, p.account_number, p.account_type, p.bank_name, p.bank_code,
               u.full_name, u.username, u.email
        FROM payout_requests p
        JOIN users u ON u.id = p.user_id

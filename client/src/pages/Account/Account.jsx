@@ -11,6 +11,7 @@ import {
   submitPayinRequest,
   submitPayoutRequest,
 } from "../../lib/transactions";
+import { getFlutterwaveBanks, resolveFlutterwaveAccount } from "../../lib/flutterwave";
 import { getUserProfile } from "../../lib/users";
 import styles from "./Account.module.css";
 
@@ -58,43 +59,6 @@ function statusClass(status) {
 
 const HISTORY_LIMIT = 5;
 const PAYOUT_FEE_RATE = 0.1;
-const NIGERIAN_BANKS = [
-  "Access Bank",
-  "ALAT by Wema",
-  "Citibank Nigeria",
-  "Coronation Merchant Bank",
-  "Ecobank Nigeria",
-  "Fidelity Bank",
-  "First Bank of Nigeria",
-  "First City Monument Bank",
-  "Globus Bank",
-  "Greenwich Merchant Bank",
-  "Guaranty Trust Bank",
-  "Heritage Bank",
-  "Jaiz Bank",
-  "Keystone Bank",
-  "Kuda Microfinance Bank",
-  "Lotus Bank",
-  "Moniepoint Microfinance Bank",
-  "Opay",
-  "Optimus Bank",
-  "PalmPay",
-  "Parallex Bank",
-  "Polaris Bank",
-  "PremiumTrust Bank",
-  "Providus Bank",
-  "Rand Merchant Bank",
-  "Stanbic IBTC Bank",
-  "Standard Chartered Bank",
-  "Sterling Bank",
-  "SunTrust Bank",
-  "Titan Trust Bank",
-  "Union Bank of Nigeria",
-  "United Bank for Africa",
-  "Unity Bank",
-  "Wema Bank",
-  "Zenith Bank",
-];
 
 export default function Account() {
   const navigate = useNavigate();
@@ -127,10 +91,15 @@ export default function Account() {
     account_number: "",
     account_type: "bank_transfer",
     bank_name: "",
+    bank_code: "",
     note: "",
   });
+  const [banks, setBanks] = useState([]);
   const [bankSearch, setBankSearch] = useState("");
   const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [resolvingAccount, setResolvingAccount] = useState(false);
+  const [resolvedAccount, setResolvedAccount] = useState(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const bankSelectRef = useRef(null);
@@ -160,9 +129,9 @@ export default function Account() {
   }, [coinRate, withdrawForm.cop_points]);
   const filteredBanks = useMemo(() => {
     const query = bankSearch.trim().toLowerCase();
-    if (!query) return NIGERIAN_BANKS;
-    return NIGERIAN_BANKS.filter((bank) => bank.toLowerCase().includes(query));
-  }, [bankSearch]);
+    if (!query) return banks;
+    return banks.filter((bank) => bank.name.toLowerCase().includes(query));
+  }, [bankSearch, banks]);
 
   const loadProfile = useCallback(async () => {
     if (!token) {
@@ -228,6 +197,28 @@ export default function Account() {
   useEffect(() => {
     loadPayouts();
   }, [loadPayouts]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let mounted = true;
+    setBankLoading(true);
+    getFlutterwaveBanks()
+      .then((data) => {
+        if (mounted) setBanks(Array.isArray(data?.banks) ? data.banks : []);
+      })
+      .catch((err) => {
+        console.error("Flutterwave banks error:", err);
+        if (mounted) setError(err?.response?.data?.message || "Unable to load banks.");
+      })
+      .finally(() => {
+        if (mounted) setBankLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -354,8 +345,19 @@ export default function Account() {
       setError("Add your payout account name, number, and type.");
       return;
     }
-    if (!NIGERIAN_BANKS.includes(withdrawForm.bank_name)) {
+    const selectedBank = banks.find(
+      (bank) => bank.name === withdrawForm.bank_name && bank.code === withdrawForm.bank_code
+    );
+    if (!selectedBank) {
       setError("Select your bank from the list.");
+      return;
+    }
+    if (
+      !resolvedAccount ||
+      resolvedAccount.account_number !== withdrawForm.account_number ||
+      resolvedAccount.bank_code !== withdrawForm.bank_code
+    ) {
+      setError("Verify your account number before requesting withdrawal.");
       return;
     }
 
@@ -373,9 +375,11 @@ export default function Account() {
         account_number: "",
         account_type: "bank_transfer",
         bank_name: "",
+        bank_code: "",
         note: "",
       });
       setBankSearch("");
+      setResolvedAccount(null);
       setPayoutPage(1);
       await Promise.all([loadProfile(), loadPayouts()]);
     } catch (err) {
@@ -383,6 +387,43 @@ export default function Account() {
       setError(err?.response?.data?.message || "Unable to submit payout request.");
     } finally {
       setTransactionLoading(false);
+    }
+  };
+
+  const verifyWithdrawAccount = async () => {
+    if (resolvingAccount || transactionLoading) return;
+    if (!withdrawForm.bank_code) {
+      setError("Select your bank from the list.");
+      return;
+    }
+    if (!/^\d{10}$/.test(withdrawForm.account_number)) {
+      setError("Account number must be 10 digits.");
+      return;
+    }
+
+    setResolvingAccount(true);
+    setError("");
+    setResolvedAccount(null);
+    try {
+      const data = await resolveFlutterwaveAccount({
+        account_bank: withdrawForm.bank_code,
+        account_number: withdrawForm.account_number,
+      });
+      if (!data?.verified) {
+        setError(data?.message || "Unable to verify account.");
+        return;
+      }
+      setResolvedAccount(data);
+      setWithdrawForm((prev) => ({
+        ...prev,
+        account_name: data.account_name || prev.account_name,
+        account_number: data.account_number || prev.account_number,
+      }));
+    } catch (err) {
+      console.error("Resolve account error:", err);
+      setError(err?.response?.data?.message || "Unable to verify account.");
+    } finally {
+      setResolvingAccount(false);
     }
   };
 
@@ -630,11 +671,9 @@ export default function Account() {
                   <span>Account name</span>
                   <input
                     value={withdrawForm.account_name}
-                    onChange={(event) =>
-                      setWithdrawForm((prev) => ({ ...prev, account_name: event.target.value }))
-                    }
-                    placeholder="Your account name"
-                    disabled={transactionLoading}
+                    readOnly
+                    placeholder="Verify account to fill name"
+                    disabled={transactionLoading || resolvingAccount}
                   />
                 </label>
 
@@ -642,10 +681,14 @@ export default function Account() {
                   <span>Account number</span>
                   <input
                     value={withdrawForm.account_number}
-                    onChange={(event) =>
-                      setWithdrawForm((prev) => ({ ...prev, account_number: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      const accountNumber = event.target.value.replace(/\D/g, "").slice(0, 10);
+                      setWithdrawForm((prev) => ({ ...prev, account_number: accountNumber }));
+                      setResolvedAccount(null);
+                    }}
                     placeholder="Account number"
+                    inputMode="numeric"
+                    maxLength={10}
                     disabled={transactionLoading}
                   />
                 </label>
@@ -670,11 +713,12 @@ export default function Account() {
                       onChange={(event) => {
                         setBankSearch(event.target.value);
                         setBankDropdownOpen(true);
-                        setWithdrawForm((prev) => ({ ...prev, bank_name: "" }));
+                        setWithdrawForm((prev) => ({ ...prev, bank_name: "", bank_code: "" }));
+                        setResolvedAccount(null);
                       }}
                       onFocus={() => setBankDropdownOpen(true)}
-                      placeholder="Search Nigerian banks"
-                      disabled={transactionLoading}
+                      placeholder={bankLoading ? "Loading banks..." : "Search Nigerian banks"}
+                      disabled={transactionLoading || bankLoading}
                       role="combobox"
                       aria-expanded={bankDropdownOpen}
                       aria-controls="bank-options"
@@ -689,7 +733,8 @@ export default function Account() {
                         onClick={() => {
                           setBankSearch("");
                           setBankDropdownOpen(true);
-                          setWithdrawForm((prev) => ({ ...prev, bank_name: "" }));
+                          setWithdrawForm((prev) => ({ ...prev, bank_name: "", bank_code: "" }));
+                          setResolvedAccount(null);
                         }}
                         aria-label="Clear selected bank"
                       >
@@ -703,23 +748,28 @@ export default function Account() {
                         filteredBanks.map((bank) => (
                           <button
                             type="button"
-                            key={bank}
+                            key={`${bank.code}-${bank.name}`}
                             className={
-                              withdrawForm.bank_name === bank
+                              withdrawForm.bank_code === bank.code
                                 ? styles.bankOptionSelected
                                 : styles.bankOption
                             }
                             onMouseDown={(event) => {
                               event.preventDefault();
-                              setWithdrawForm((prev) => ({ ...prev, bank_name: bank }));
-                              setBankSearch(bank);
+                              setWithdrawForm((prev) => ({
+                                ...prev,
+                                bank_name: bank.name,
+                                bank_code: bank.code,
+                              }));
+                              setBankSearch(bank.name);
                               setBankDropdownOpen(false);
+                              setResolvedAccount(null);
                               setError("");
                             }}
                             role="option"
-                            aria-selected={withdrawForm.bank_name === bank}
+                            aria-selected={withdrawForm.bank_code === bank.code}
                           >
-                            {bank}
+                            {bank.name}
                           </button>
                         ))
                       ) : (
@@ -728,6 +778,30 @@ export default function Account() {
                     </div>
                   ) : null}
                   <small>Select a bank from the list. Typed text is not submitted.</small>
+                </div>
+
+                <div className={styles.resolveBox}>
+                  {resolvedAccount ? (
+                    <div>
+                      <span>Verified account name</span>
+                      <strong>{resolvedAccount.account_name}</strong>
+                    </div>
+                  ) : (
+                    <span>Verify account name before submitting.</span>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.verifyBtn}
+                    onClick={verifyWithdrawAccount}
+                    disabled={
+                      transactionLoading ||
+                      resolvingAccount ||
+                      !withdrawForm.bank_code ||
+                      !/^\d{10}$/.test(withdrawForm.account_number)
+                    }
+                  >
+                    {resolvingAccount ? "Verifying..." : "Verify account"}
+                  </button>
                 </div>
 
                 <label className={styles.amountField}>

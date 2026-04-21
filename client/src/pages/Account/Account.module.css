@@ -343,6 +343,48 @@
   font-weight: 850;
 }
 
+.resolveBox {
+  border: 1px solid rgba(186, 255, 199, 0.16);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(186, 255, 199, 0.08);
+  display: grid;
+  gap: 10px;
+}
+
+.resolveBox div {
+  display: grid;
+  gap: 4px;
+}
+
+.resolveBox span {
+  color: rgba(223, 255, 229, 0.72);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.resolveBox strong {
+  color: #ffffff;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.verifyBtn {
+  border: none;
+  min-height: 42px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #10131b;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.verifyBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .paymentInfo,
 .rateBox,
 .historyPanel {

@@ -230,6 +230,7 @@ router.post("/payouts", async (req, res) => {
   const accountNumber = String(req.body?.account_number || "").trim();
   const accountType = String(req.body?.account_type || "").trim();
   const bankName = req.body?.bank_name ? String(req.body.bank_name).trim() : null;
+  const bankCode = req.body?.bank_code ? String(req.body.bank_code).trim() : null;
   const userNote = req.body?.note || req.body?.user_note || null;
 
   if (!copPoints) return res.status(400).json({ message: "cop_points must be greater than 0" });
@@ -271,8 +272,8 @@ router.post("/payouts", async (req, res) => {
     const [result] = await conn.query(
       `INSERT INTO payout_requests
         (user_id, cop_points, amount_ngn, coin_rate_unit, coin_rate_price,
-         account_name, account_number, account_type, bank_name, user_note, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+         account_name, account_number, account_type, bank_name, bank_code, user_note, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         userId,
         copPoints,
@@ -283,6 +284,7 @@ router.post("/payouts", async (req, res) => {
         accountNumber,
         accountType,
         bankName,
+        bankCode,
         userNote,
       ]
     );
@@ -310,6 +312,8 @@ router.post("/payouts", async (req, res) => {
         id: result.insertId,
         cop_points: copPoints,
         amount_ngn: amountNgn,
+        bank_name: bankName,
+        bank_code: bankCode,
         status: "pending",
       },
     });
@@ -335,7 +339,7 @@ router.get("/payouts", async (req, res) => {
     const total = Number(countRow?.total || 0);
     const [rows] = await pool.query(
       `SELECT id, cop_points, amount_ngn, status, account_name, account_number,
-              account_type, bank_name, user_note, admin_note, rejection_reason,
+              account_type, bank_name, bank_code, user_note, admin_note, rejection_reason,
               reviewed_at, created_at
        FROM payout_requests
        WHERE user_id = ?
@@ -365,7 +369,7 @@ router.get("/mine", async (req, res) => {
       [req.user.userId]
     );
     const [payouts] = await pool.query(
-      `SELECT id, cop_points, amount_ngn, status, rejection_reason, reviewed_at, created_at
+      `SELECT id, cop_points, amount_ngn, status, bank_name, bank_code, rejection_reason, reviewed_at, created_at
        FROM payout_requests
        WHERE user_id = ?
        ORDER BY created_at DESC
