@@ -11,17 +11,19 @@ import AdminNavbar from "../../../components/admin/Navbar";
 import Modal from "../../../components/ui/Modal";
 import { ToastProvider, useToast } from "../../../components/ui/Toaster";
 import {
-  addAdminHeistQuestions,
+  addAdminQuestionBankQuestions,
+  assignAdminHeistQuestions,
   createAdminAffiliateTask,
   createAdminHeist,
   deleteAdminAffiliateTask,
   deleteAdminHeistQuestion,
+  deleteAdminQuestionBankQuestion,
   finalizeAdminHeist,
   getAdminAffiliateTaskProgress,
   getAdminAffiliateTasks,
   getAdminHeistQuestions,
   getAdminHeists,
-  updateAdminHeist,
+  getAdminQuestionBank,
   updateAdminAffiliateTask,
   updateAdminHeistStatus,
 } from "../../../lib/adminHeists";
@@ -74,6 +76,8 @@ function AdminHeistsPage() {
   const [heists, setHeists] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [questionBank, setQuestionBank] = useState([]);
+  const [questionBankSummary, setQuestionBankSummary] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [progress, setProgress] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +130,17 @@ function AdminHeistsPage() {
     }
   }, []);
 
+  const loadQuestionBank = useCallback(async () => {
+    try {
+      const data = await getAdminQuestionBank();
+      setQuestionBank(Array.isArray(data?.questions) ? data.questions : []);
+      setQuestionBankSummary(data?.summary || null);
+    } catch (err) {
+      console.error("Load question bank error:", err);
+      toast.error(err?.response?.data?.message || "Unable to load question bank.");
+    }
+  }, [toast]);
+
   const loadSelectedDetails = useCallback(async () => {
     if (!selectedId) {
       setQuestions([]);
@@ -155,7 +170,8 @@ function AdminHeistsPage() {
 
   useEffect(() => {
     loadHeists();
-  }, [loadHeists]);
+    loadQuestionBank();
+  }, [loadHeists, loadQuestionBank]);
 
   useEffect(() => {
     if (selectedHeist?.status) setStatusValue(selectedHeist.status);
@@ -192,6 +208,7 @@ function AdminHeistsPage() {
         ticket_price: Number(createForm.ticket_price || 0),
         prize_cop_points: Number(createForm.prize_cop_points || 0),
         questions_per_session: Number(createForm.questions_per_session || 0),
+        question_count: Number(createForm.questions_per_session || 0),
         countdown_duration_minutes: Number(createForm.countdown_duration_minutes || 10),
         starts_at: createForm.starts_at || null,
         ends_at: createForm.ends_at || null,
@@ -201,7 +218,7 @@ function AdminHeistsPage() {
       toast.success("Heist created");
       setCreateForm(EMPTY_HEIST);
       setCreateModalOpen(false);
-      await loadHeists();
+      await Promise.all([loadHeists(), loadQuestionBank()]);
       if (data?.heist_id) setSelectedId(data.heist_id);
     } catch (err) {
       console.error("Create heist error:", err);
@@ -230,7 +247,7 @@ function AdminHeistsPage() {
 
   const addQuestions = async (event) => {
     event.preventDefault();
-    if (!selectedId || busy) return;
+    if (busy) return;
 
     const payload = questionRows
       .map((row, index) => ({
@@ -247,11 +264,11 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await addAdminHeistQuestions(selectedId, payload);
-      toast.success("Questions added");
+      await addAdminQuestionBankQuestions(payload);
+      toast.success("Questions added to bank");
       setQuestionRows([{ ...EMPTY_QUESTION, sort_order: String(questions.length + 1) }]);
       setQuestionsModalOpen(false);
-      await Promise.all([loadSelectedDetails(), loadHeists()]);
+      await loadQuestionBank();
     } catch (err) {
       console.error("Add questions error:", err);
       toast.error(err?.response?.data?.message || "Unable to add questions.");
@@ -286,9 +303,9 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      await updateAdminHeist(selectedId, { questions_per_session: count });
-      toast.success("Question session count updated");
-      await loadHeists();
+      await assignAdminHeistQuestions(selectedId, count);
+      toast.success("Question bank assigned");
+      await Promise.all([loadHeists(), loadSelectedDetails(), loadQuestionBank()]);
     } catch (err) {
       console.error("Update question session count error:", err);
       toast.error(err?.response?.data?.message || "Unable to update question session count.");
@@ -336,6 +353,26 @@ function AdminHeistsPage() {
       setBusy(false);
     }
   };
+
+  const deleteBankQuestion = async (question) => {
+    if (!question?.id || busy) return;
+    const ok = window.confirm("Delete this unused bank question?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await deleteAdminQuestionBankQuestion(question.id);
+      toast.success("Bank question deleted");
+      await loadQuestionBank();
+    } catch (err) {
+      console.error("Delete bank question error:", err);
+      toast.error(err?.response?.data?.message || "Unable to delete bank question.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unusedBankCount = Number(questionBankSummary?.unused || 0);
 
   const createTask = async (event) => {
     event.preventDefault();
@@ -404,7 +441,7 @@ function AdminHeistsPage() {
           <div>
             <p className={styles.kicker}>Admin Heists</p>
             <h1>Heist control room</h1>
-            <p>Create True/False heists, manage questions, start countdowns, finalize winners, and track affiliate tasks.</p>
+            <p>Create True/False heists, assign unused bank questions, start countdowns, finalize winners, and track affiliate tasks.</p>
           </div>
           <button type="button" className={styles.refreshBtn} onClick={loadHeists} disabled={loading || busy}>
             <FaRedoAlt />
@@ -435,6 +472,10 @@ function AdminHeistsPage() {
           <div>
             <span>Completed</span>
             <strong>{formatNum(totals.completed)}</strong>
+          </div>
+          <div>
+            <span>Unused bank</span>
+            <strong>{formatNum(unusedBankCount)}</strong>
           </div>
         </section>
 
@@ -470,10 +511,7 @@ function AdminHeistsPage() {
                     <span className={styles.status}>{heist.status}</span>
                     <strong>{heist.name}</strong>
                     <small>
-                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} pool ·{" "}
-                      {Number(heist.questions_per_session) > 0
-                        ? `${formatNum(heist.questions_per_session)} per session`
-                        : "all per session"}
+                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
                     </small>
                     <span className={styles.cardStats}>
                       <em>{formatNum(heist.total_participants)} players</em>
@@ -502,9 +540,9 @@ function AdminHeistsPage() {
               <div className={styles.metaGrid}>
                 <div><span>Status</span><strong>{selectedHeist.status}</strong></div>
                 <div><span>Prize</span><strong>{formatNum(selectedHeist.prize_cop_points)} CP</strong></div>
-                <div><span>Question pool</span><strong>{formatNum(selectedHeist.total_questions)}</strong></div>
+                <div><span>Assigned questions</span><strong>{formatNum(selectedHeist.total_questions)}</strong></div>
                 <div>
-                  <span>Per session</span>
+                  <span>Question target</span>
                   <strong>
                     {Number(selectedHeist.questions_per_session) > 0
                       ? formatNum(selectedHeist.questions_per_session)
@@ -518,14 +556,14 @@ function AdminHeistsPage() {
                 <input
                   type="number"
                   min="0"
-                  max={questions.length || undefined}
+                  max={questions.length + unusedBankCount || undefined}
                   value={sessionQuestionCount}
                   onChange={(event) => setSessionQuestionCount(event.target.value)}
                   aria-label="Questions per session"
-                  title="Questions per session. Use 0 to serve all active questions."
+                  title="Assign unused bank questions to this heist."
                 />
                 <button type="button" className={styles.softBtn} onClick={saveSessionQuestionCount} disabled={busy}>
-                  Save question count
+                  Assign questions
                 </button>
                 <select value={statusValue} onChange={(event) => setStatusValue(event.target.value)}>
                   <option value="pending">pending</option>
@@ -547,7 +585,7 @@ function AdminHeistsPage() {
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Questions</p>
-                  <h2>Question pool</h2>
+                  <h2>Assigned question set</h2>
                 </div>
                 <button
                   type="button"
@@ -556,7 +594,7 @@ function AdminHeistsPage() {
                   disabled={busy}
                 >
                   <FaPlus />
-                  <span>Add questions</span>
+                  <span>Add bank questions</span>
                 </button>
               </div>
 
@@ -568,7 +606,7 @@ function AdminHeistsPage() {
                     <div className={styles.dataRow} key={question.id}>
                       <span>
                         <strong>{question.question_text}</strong>
-                        <small>Sort {question.sort_order} · {question.is_active ? "active" : "inactive"}</small>
+                        <small>Order is shuffled per player · {question.is_active ? "active" : "inactive"}</small>
                       </span>
                       <div className={styles.rowActions}>
                         <em>{question.correct_answer}</em>
@@ -580,6 +618,56 @@ function AdminHeistsPage() {
                   ))
                 ) : (
                   <div className={styles.emptyState}>No questions yet.</div>
+                )}
+              </div>
+            </article>
+
+            <article className={styles.detailPanel}>
+              <div className={styles.panelHead}>
+                <div>
+                  <p className={styles.kicker}>Bank</p>
+                  <h2>Question bank</h2>
+                </div>
+                <button
+                  type="button"
+                  className={styles.softBtn}
+                  onClick={loadQuestionBank}
+                  disabled={busy}
+                >
+                  Refresh bank
+                </button>
+              </div>
+
+              <div className={styles.metaGrid}>
+                <div><span>Total</span><strong>{formatNum(questionBankSummary?.total)}</strong></div>
+                <div><span>Unused</span><strong>{formatNum(questionBankSummary?.unused)}</strong></div>
+                <div><span>Assigned</span><strong>{formatNum(questionBankSummary?.assigned)}</strong></div>
+              </div>
+
+              <div className={styles.rows}>
+                {questionBank.length ? (
+                  questionBank.slice(0, 12).map((question) => (
+                    <div className={styles.dataRow} key={question.id}>
+                      <span>
+                        <strong>{question.question_text}</strong>
+                        <small>
+                          {question.usage_status === "unused"
+                            ? "unused"
+                            : `assigned to ${question.heist_name || "heist"}`}
+                        </small>
+                      </span>
+                      <div className={styles.rowActions}>
+                        <em>{question.correct_answer}</em>
+                        {question.usage_status === "unused" ? (
+                          <button type="button" onClick={() => deleteBankQuestion(question)} disabled={busy}>
+                            <FaTrash />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.emptyState}>No bank questions yet.</div>
                 )}
               </div>
             </article>
@@ -745,8 +833,8 @@ function AdminHeistsPage() {
 
         <Modal
           open={questionsModalOpen}
-          title="Add questions"
-          subtitle={selectedHeist ? `Add True/False questions to ${selectedHeist.name}.` : "Select a heist first."}
+          title="Add bank questions"
+          subtitle="Add True/False questions to the reusable bank. Assigning a heist will consume unused bank questions."
           size="xl"
           onClose={() => !busy && setQuestionsModalOpen(false)}
           disableClose={busy}
@@ -758,8 +846,8 @@ function AdminHeistsPage() {
               <button type="button" className={styles.softBtn} onClick={() => setQuestionsModalOpen(false)} disabled={busy}>
                 Cancel
               </button>
-              <button type="submit" form="add-questions-form" className={styles.primaryBtn} disabled={busy || !selectedHeist}>
-                Save questions
+              <button type="submit" form="add-questions-form" className={styles.primaryBtn} disabled={busy}>
+                Save to bank
               </button>
             </>
           }

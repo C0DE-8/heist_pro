@@ -11,7 +11,87 @@ function boolToTinyInt(value) {
   return value === true || value === 1 || value === "1" || value === "true" ? 1 : 0;
 }
 
+async function getAssignedQuestionCount(conn, heistId) {
+  const [[countRow]] = await conn.query(
+    "SELECT COUNT(*) AS total FROM heist_questions WHERE heist_id = ? AND is_active = 1",
+    [heistId]
+  );
+  return Number(countRow?.total || 0);
+}
+
+async function syncHeistQuestionCount(conn, heistId) {
+  const total = await getAssignedQuestionCount(conn, heistId);
+  await conn.query("UPDATE heist SET total_questions = ? WHERE id = ?", [total, heistId]);
+  return total;
+}
+
+async function assignQuestionBankToHeist(conn, { heistId, questionCount, adminId }) {
+  const desiredCount = Number(questionCount || 0);
+  if (!Number.isInteger(desiredCount) || desiredCount < 0) {
+    return { status: 400, body: { message: "Question count must be 0 or greater" } };
+  }
+  if (desiredCount === 0) {
+    const total = await syncHeistQuestionCount(conn, heistId);
+    return { status: 200, body: { message: "No questions assigned", total_questions: total } };
+  }
+
+  const currentCount = await getAssignedQuestionCount(conn, heistId);
+  if (currentCount > desiredCount) {
+    return {
+      status: 400,
+      body: {
+        message: `This heist already has ${currentCount} assigned questions. Assigned bank questions are not returned to unused automatically.`,
+      },
+    };
+  }
+
+  const needed = desiredCount - currentCount;
+  if (needed <= 0) {
+    await conn.query("UPDATE heist SET questions_per_session = ? WHERE id = ?", [
+      desiredCount,
+      heistId,
+    ]);
+    return { status: 200, body: { message: "Question count already assigned", total_questions: currentCount } };
+  }
+
+  const [[availableRow]] = await conn.query(
+    "SELECT COUNT(*) AS total FROM heist_questions WHERE heist_id IS NULL AND is_active = 1"
+  );
+  if (Number(availableRow?.total || 0) < needed) {
+    return {
+      status: 400,
+      body: {
+        message: `Not enough unused bank questions. Needed ${needed}, available ${Number(availableRow?.total || 0)}.`,
+      },
+    };
+  }
+
+  const [questions] = await conn.query(
+    `SELECT id
+     FROM heist_questions
+     WHERE heist_id IS NULL AND is_active = 1
+     ORDER BY RAND()
+     LIMIT ? FOR UPDATE`,
+    [needed]
+  );
+  if (questions.length < needed) {
+    return { status: 400, body: { message: "Not enough unused bank questions" } };
+  }
+
+  await conn.query(
+    `UPDATE heist_questions
+     SET heist_id = ?, assigned_at = NOW(), assigned_by = ?
+     WHERE id IN (${questions.map(() => "?").join(", ")})`,
+    [heistId, adminId, ...questions.map((question) => question.id)]
+  );
+
+  const total = await syncHeistQuestionCount(conn, heistId);
+  await conn.query("UPDATE heist SET questions_per_session = ? WHERE id = ?", [total, heistId]);
+  return { status: 200, body: { message: "Questions assigned", total_questions: total } };
+}
+
 router.post("/", async (req, res) => {
+  let conn;
   try {
     const {
       name,
@@ -20,6 +100,7 @@ router.post("/", async (req, res) => {
       ticket_price,
       prize_cop_points,
       questions_per_session,
+      question_count,
       countdown_duration_minutes,
       starts_at,
       ends_at,
@@ -27,7 +108,15 @@ router.post("/", async (req, res) => {
 
     if (!name) return res.status(400).json({ message: "Name is required" });
 
-    const [result] = await pool.query(
+    const countToUse = Number(question_count ?? questions_per_session ?? 0);
+    if (!Number.isInteger(countToUse) || countToUse < 0) {
+      return res.status(400).json({ message: "Question count must be 0 or greater" });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [result] = await conn.query(
       `INSERT INTO heist
         (name, description, min_users, ticket_price,
          prize_cop_points, questions_per_session, countdown_duration_minutes,
@@ -39,7 +128,7 @@ router.post("/", async (req, res) => {
         Number(min_users || 1),
         Number(ticket_price || 0),
         Number(prize_cop_points || 0),
-        Math.max(0, Number(questions_per_session || 0)),
+        countToUse,
         Number(countdown_duration_minutes || 10),
         starts_at || null,
         ends_at || null,
@@ -47,10 +136,26 @@ router.post("/", async (req, res) => {
       ]
     );
 
+    if (countToUse > 0) {
+      const assignment = await assignQuestionBankToHeist(conn, {
+        heistId: result.insertId,
+        questionCount: countToUse,
+        adminId: req.user.userId,
+      });
+      if (assignment.status >= 400) {
+        await conn.rollback();
+        return res.status(assignment.status).json(assignment.body);
+      }
+    }
+
+    await conn.commit();
     return res.status(201).json({ message: "Heist created", heist_id: result.insertId });
   } catch (err) {
+    if (conn) await conn.rollback();
     console.error("admin create heist error:", err);
     return res.status(500).json({ message: "Error creating heist" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -118,6 +223,198 @@ router.patch("/:id", async (req, res) => {
   } catch (err) {
     console.error("admin update heist error:", err);
     return res.status(500).json({ message: "Error updating heist" });
+  }
+});
+
+router.get("/question-bank", async (req, res) => {
+  try {
+    const status = String(req.query.status || "all").toLowerCase();
+    const where = [];
+    if (status === "unused" || status === "available") where.push("q.heist_id IS NULL");
+    if (status === "assigned" || status === "used") where.push("q.heist_id IS NOT NULL");
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    const [questions] = await pool.query(
+      `SELECT
+         q.id,
+         q.heist_id,
+         h.name AS heist_name,
+         q.question_text,
+         q.correct_answer,
+         q.sort_order,
+         q.is_active,
+         q.assigned_at,
+         q.created_at,
+         CASE WHEN q.heist_id IS NULL THEN 'unused' ELSE 'assigned' END AS usage_status
+       FROM heist_questions q
+       LEFT JOIN heist h ON h.id = q.heist_id
+       ${whereSql}
+       ORDER BY q.heist_id IS NOT NULL ASC, q.created_at DESC, q.id DESC`
+    );
+
+    const [[summary]] = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(CASE WHEN heist_id IS NULL THEN 1 END) AS unused,
+         COUNT(CASE WHEN heist_id IS NOT NULL THEN 1 END) AS assigned,
+         COUNT(CASE WHEN is_active = 1 THEN 1 END) AS active
+       FROM heist_questions`
+    );
+
+    return res.json({ questions, summary });
+  } catch (err) {
+    console.error("admin question bank list error:", err);
+    return res.status(500).json({ message: "Error fetching question bank" });
+  }
+});
+
+router.post("/question-bank/questions", async (req, res) => {
+  try {
+    const questions = Array.isArray(req.body) ? req.body : req.body?.questions;
+    if (!Array.isArray(questions) || !questions.length) {
+      return res.status(400).json({ message: "Questions are required" });
+    }
+
+    const rows = [];
+    for (const item of questions) {
+      const answer = normalizeAnswer(item?.correct_answer);
+      const text = String(item?.question_text || "").trim();
+      if (!text || !answer) {
+        return res.status(400).json({ message: "Only true or false answers are allowed" });
+      }
+      rows.push([null, text, answer, Number(item.sort_order || 1), 1]);
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO heist_questions
+        (heist_id, question_text, correct_answer, sort_order, is_active)
+       VALUES ?`,
+      [rows]
+    );
+
+    return res.status(201).json({
+      message: "Bank questions added",
+      inserted_count: result.affectedRows,
+    });
+  } catch (err) {
+    console.error("admin add bank questions error:", err);
+    return res.status(500).json({ message: "Error adding bank questions" });
+  }
+});
+
+router.patch("/question-bank/questions/:questionId", async (req, res) => {
+  try {
+    const questionId = Number(req.params.questionId);
+    if (!questionId) return res.status(400).json({ message: "Invalid question" });
+
+    const updates = [];
+    const params = [];
+
+    if (req.body?.question_text !== undefined) {
+      const text = String(req.body.question_text || "").trim();
+      if (!text) return res.status(400).json({ message: "Question text is required" });
+      updates.push("question_text = ?");
+      params.push(text);
+    }
+
+    if (req.body?.correct_answer !== undefined) {
+      const answer = normalizeAnswer(req.body.correct_answer);
+      if (!answer) return res.status(400).json({ message: "Only true or false answers are allowed" });
+      updates.push("correct_answer = ?");
+      params.push(answer);
+    }
+
+    if (req.body?.is_active !== undefined) {
+      updates.push("is_active = ?");
+      params.push(boolToTinyInt(req.body.is_active));
+    }
+
+    if (!updates.length) return res.status(400).json({ message: "No updates provided" });
+
+    params.push(questionId);
+    const [result] = await pool.query(
+      `UPDATE heist_questions SET ${updates.join(", ")} WHERE id = ?`,
+      params
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Question not found" });
+
+    const [[question]] = await pool.query(
+      `SELECT id, heist_id, question_text, correct_answer, sort_order, is_active, assigned_at, created_at
+       FROM heist_questions
+       WHERE id = ?
+       LIMIT 1`,
+      [questionId]
+    );
+    if (question?.heist_id) await syncHeistQuestionCount(pool, question.heist_id);
+
+    return res.json({ message: "Question updated", question });
+  } catch (err) {
+    console.error("admin update bank question error:", err);
+    return res.status(500).json({ message: "Error updating bank question" });
+  }
+});
+
+router.delete("/question-bank/questions/:questionId", async (req, res) => {
+  try {
+    const questionId = Number(req.params.questionId);
+    if (!questionId) return res.status(400).json({ message: "Invalid question" });
+
+    const [[question]] = await pool.query(
+      "SELECT id, heist_id FROM heist_questions WHERE id = ? LIMIT 1",
+      [questionId]
+    );
+    if (!question) return res.status(404).json({ message: "Question not found" });
+    if (question.heist_id) {
+      return res.status(400).json({
+        message: "Assigned questions are already used by a heist and cannot be deleted from the bank",
+      });
+    }
+
+    await pool.query("DELETE FROM heist_questions WHERE id = ?", [questionId]);
+    return res.json({ message: "Bank question deleted" });
+  } catch (err) {
+    console.error("admin delete bank question error:", err);
+    return res.status(500).json({ message: "Error deleting bank question" });
+  }
+});
+
+router.post("/:id/questions/assign", async (req, res) => {
+  const heistId = Number(req.params.id);
+  const questionCount = Number(req.body?.question_count ?? req.body?.questions_per_session ?? 0);
+  if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [[heist]] = await conn.query(
+      "SELECT id FROM heist WHERE id = ? LIMIT 1 FOR UPDATE",
+      [heistId]
+    );
+    if (!heist) {
+      await conn.rollback();
+      return res.status(404).json({ message: "Heist not found" });
+    }
+
+    const assignment = await assignQuestionBankToHeist(conn, {
+      heistId,
+      questionCount,
+      adminId: req.user.userId,
+    });
+    if (assignment.status >= 400) {
+      await conn.rollback();
+      return res.status(assignment.status).json(assignment.body);
+    }
+
+    await conn.commit();
+    return res.json(assignment.body);
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error("admin assign heist questions error:", err);
+    return res.status(500).json({ message: "Error assigning heist questions" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

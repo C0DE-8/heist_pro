@@ -35,12 +35,6 @@ function heistClosedReason(heist) {
   return null;
 }
 
-function getQuestionSessionSize(heist, activeQuestionCount) {
-  const configured = Number(heist?.questions_per_session || 0);
-  if (!Number.isInteger(configured) || configured <= 0) return activeQuestionCount;
-  return Math.min(configured, activeQuestionCount);
-}
-
 async function getAssignedQuestions(conn, submissionId, { includeAnswers = false } = {}) {
   const fields = includeAnswers
     ? "q.id, q.question_text, q.correct_answer, q.sort_order, hsq.position"
@@ -66,28 +60,15 @@ async function assignRandomQuestions(conn, { submissionId, heistId, userId, heis
   );
   if (existing.length) return getAssignedQuestions(conn, submissionId);
 
-  const [[countRow]] = await conn.query(
-    `SELECT COUNT(*) AS total
-     FROM heist_questions
-     WHERE heist_id = ? AND is_active = 1`,
-    [heistId]
-  );
-  const activeQuestionCount = Number(countRow?.total || 0);
-  const sessionSize = getQuestionSessionSize(heist, activeQuestionCount);
-  if (!sessionSize) {
-    return { error: { status: 400, body: { message: "No active questions" } } };
-  }
-
   const [selectedQuestions] = await conn.query(
     `SELECT id, question_text, sort_order
      FROM heist_questions
      WHERE heist_id = ? AND is_active = 1
-     ORDER BY RAND()
-     LIMIT ?`,
-    [heistId, sessionSize]
+     ORDER BY RAND()`,
+    [heistId]
   );
-  if (selectedQuestions.length < sessionSize) {
-    return { error: { status: 400, body: { message: "Not enough active questions" } } };
+  if (!selectedQuestions.length) {
+    return { error: { status: 400, body: { message: "No active questions" } } };
   }
 
   await conn.query(

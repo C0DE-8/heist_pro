@@ -30,6 +30,33 @@ export async function deleteAdminHeistQuestion(heistId, questionId) {
   return data;
 }
 
+export async function getAdminQuestionBank(params = {}) {
+  const { data } = await api.get("/admin/heists/question-bank", { params });
+  return data;
+}
+
+export async function addAdminQuestionBankQuestions(questions) {
+  const { data } = await api.post("/admin/heists/question-bank/questions", { questions });
+  return data;
+}
+
+export async function updateAdminQuestionBankQuestion(questionId, payload) {
+  const { data } = await api.patch(`/admin/heists/question-bank/questions/${questionId}`, payload);
+  return data;
+}
+
+export async function deleteAdminQuestionBankQuestion(questionId) {
+  const { data } = await api.delete(`/admin/heists/question-bank/questions/${questionId}`);
+  return data;
+}
+
+export async function assignAdminHeistQuestions(heistId, questionCount) {
+  const { data } = await api.post(`/admin/heists/${heistId}/questions/assign`, {
+    question_count: questionCount,
+  });
+  return data;
+}
+
 export async function updateAdminHeistStatus(heistId, status) {
   const { data } = await api.patch(`/admin/heists/${heistId}/status`, { status });
   return data;

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 21, 2026 at 09:09 PM
+-- Generation Time: Apr 22, 2026 at 02:25 PM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -20,6 +20,26 @@ SET time_zone = "+00:00";
 --
 -- Database: `heist_pro`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `admin_analytics_user_exclusions`
+--
+
+CREATE TABLE `admin_analytics_user_exclusions` (
+  `user_id` int(11) NOT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `admin_analytics_user_exclusions`
+--
+
+INSERT INTO `admin_analytics_user_exclusions` (`user_id`, `created_by`, `created_at`) VALUES
+(2, 1, '2026-04-21 20:35:35'),
+(3, 1, '2026-04-21 20:35:39');
 
 -- --------------------------------------------------------
 
@@ -196,8 +216,8 @@ CREATE TABLE `heist` (
 --
 
 INSERT INTO `heist` (`id`, `name`, `description`, `min_users`, `ticket_price`, `total_questions`, `questions_per_session`, `prize_cop_points`, `status`, `submissions_locked`, `winner_user_id`, `countdown_started_at`, `countdown_duration_minutes`, `countdown_ends_at`, `starts_at`, `ends_at`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 100, 10, 0, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50'),
-(2, 'weekend heist', 'for the road as we go ', 3, 20, 4, 2, 100, 'pending', 0, NULL, NULL, 10, NULL, NULL, NULL, 1, '2026-04-17 17:49:02', '2026-04-21 17:54:14'),
+(1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 50, 10, 0, 200, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-21 19:23:16'),
+(2, 'weekend heist', 'for the road as we go ', 2, 20, 4, 2, 30, 'completed', 1, 3, '2026-04-21 12:18:51', 2, '2026-04-21 12:28:51', NULL, NULL, 1, '2026-04-17 17:49:02', '2026-04-21 20:37:54'),
 (3, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 100, 10, 0, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50');
 
 -- --------------------------------------------------------
@@ -222,7 +242,8 @@ CREATE TABLE `heist_participants` (
 
 INSERT INTO `heist_participants` (`id`, `heist_id`, `user_id`, `affiliate_user_id`, `referral_code`, `joined_at`, `status`) VALUES
 (8, 2, 4, 3, 'HRMTFDLTH', '2026-04-17 18:44:29', 'submitted'),
-(18, 2, 3, NULL, NULL, '2026-04-21 17:56:08', 'submitted');
+(18, 2, 3, NULL, NULL, '2026-04-21 17:56:08', 'submitted'),
+(19, 1, 4, NULL, NULL, '2026-04-21 20:57:01', 'joined');
 
 -- --------------------------------------------------------
 
@@ -512,12 +533,19 @@ CREATE TABLE `users` (
 INSERT INTO `users` (`id`, `email`, `username`, `full_name`, `password_hash`, `trade_pin_hash`, `trade_pin_changed`, `role`, `is_verified`, `is_blocked`, `referral_code`, `wallet_address`, `game_id`, `cop_point`, `created_at`, `updated_at`) VALUES
 (1, 'admin@admin.com', 'admin', 'Heist Admin', '$2b$12$lplYyGYca0nFRf7i8LELPOsEYI41bKEYndz3csoOc4aDyL0FJMCve', NULL, 0, 'admin', 1, 0, 'ADMIN01', 'copADMINWALLET000001', 'ADMIN-GAME-001', 0, '2026-04-17 07:42:52', '2026-04-21 11:03:28'),
 (2, 'jossycode0@gmail.com', 'jossy01', 'Jossy Code', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', NULL, 0, 'user', 1, 0, 'billions', 'coptg67Gv5Ep3Uk29IgEMwH', 'ZSDW-C5PZ-RN8K', 900, '2026-04-17 09:00:03', '2026-04-17 13:44:21'),
-(3, '8amlight@gmail.com', 'light', 'Samuel Oghenchovwe', '$2b$12$6YpXM2xJkyu27NPcobfEf./UUDW1GAqw0DiBMh1/GlGONCL3.BJ5S', '$2b$12$4DPjwsX3yThq3Xl0znpMK.lU6rJG9N9ey52cnBMlDqY.R3LppMlX.', 1, 'user', 1, 0, 'light', 'copiOKpOlWoG1ofmEz0FBGR', 'VHA5-EGR2-H276', 649, '2026-04-17 10:35:32', '2026-04-21 17:56:08'),
-(4, '8amjoker@gmail.com', 'joker', '8amjoker', '$2b$12$/McCefomtmThjCWl5NvsMONTsHUsVa69SuL.MO0tJPMe5Cu.soVR6', NULL, 0, 'user', 1, 0, 'joker', 'coplwnYe2DDW5NynK6NxJB3', 'P6ZX-Q765-8BZ8', 198, '2026-04-17 18:42:25', '2026-04-21 18:50:25');
+(3, '8amlight@gmail.com', 'light', 'Samuel Oghenchovwe', '$2b$12$6YpXM2xJkyu27NPcobfEf./UUDW1GAqw0DiBMh1/GlGONCL3.BJ5S', '$2b$12$4DPjwsX3yThq3Xl0znpMK.lU6rJG9N9ey52cnBMlDqY.R3LppMlX.', 1, 'user', 1, 0, 'light', 'copiOKpOlWoG1ofmEz0FBGR', 'VHA5-EGR2-H276', 679, '2026-04-17 10:35:32', '2026-04-21 19:28:51'),
+(4, '8amjoker@gmail.com', 'joker', '8amjoker', '$2b$12$/McCefomtmThjCWl5NvsMONTsHUsVa69SuL.MO0tJPMe5Cu.soVR6', NULL, 0, 'user', 1, 0, 'joker', 'coplwnYe2DDW5NynK6NxJB3', 'P6ZX-Q765-8BZ8', 148, '2026-04-17 18:42:25', '2026-04-21 20:57:01');
 
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `admin_analytics_user_exclusions`
+--
+ALTER TABLE `admin_analytics_user_exclusions`
+  ADD PRIMARY KEY (`user_id`),
+  ADD KEY `idx_admin_analytics_exclusions_created_by` (`created_by`);
 
 --
 -- Indexes for table `affiliate_tasks`
@@ -731,7 +759,7 @@ ALTER TABLE `heist`
 -- AUTO_INCREMENT for table `heist_participants`
 --
 ALTER TABLE `heist_participants`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `heist_questions`
@@ -796,6 +824,13 @@ ALTER TABLE `users`
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `admin_analytics_user_exclusions`
+--
+ALTER TABLE `admin_analytics_user_exclusions`
+  ADD CONSTRAINT `fk_admin_analytics_exclusions_admin` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_admin_analytics_exclusions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `affiliate_tasks`
