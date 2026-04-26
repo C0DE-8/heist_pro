@@ -9,7 +9,7 @@
 }
 
 .main {
-  width: min(1180px, calc(100% - 32px));
+  width: min(1280px, calc(100% - 32px));
   margin: 0 auto;
   padding: 18px 0 42px;
   display: grid;
@@ -37,7 +37,7 @@
   border-radius: 30px;
   padding: 24px;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
 }
@@ -58,7 +58,7 @@
 }
 
 .hero h1 {
-  max-width: 12ch;
+  max-width: 18ch;
   font-size: clamp(2.4rem, 6vw, 4.8rem);
   line-height: 0.94;
 }
@@ -87,6 +87,7 @@
   font: inherit;
   font-weight: 900;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .refreshBtn,
@@ -133,12 +134,12 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
 
 .statsGrid > div {
-  min-height: 120px;
+  min-height: 104px;
   border-radius: 24px;
   padding: 16px;
   display: grid;
@@ -171,6 +172,12 @@
   padding: 18px;
   display: grid;
   gap: 14px;
+  min-width: 0;
+  align-self: start;
+}
+
+.mainPanel {
+  min-height: 420px;
 }
 
 .panelHead {
@@ -178,6 +185,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .panelHead .primaryBtn {
@@ -187,6 +195,7 @@
 .panelHead h2 {
   font-size: 1.35rem;
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .panelHead > svg {
@@ -258,6 +267,10 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+  align-content: start;
 }
 
 .heistCard {
@@ -275,6 +288,7 @@
   text-align: left;
   cursor: pointer;
   transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+  min-width: 0;
 }
 
 .heistCard:hover,
@@ -298,6 +312,7 @@
 .heistCard strong {
   font-size: 1.1rem;
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .heistCard small,
@@ -324,13 +339,14 @@
 
 .detailGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .metaGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
 }
 
@@ -352,9 +368,10 @@
 
 .statusBox {
   display: grid;
-  grid-template-columns: minmax(120px, 0.55fr) auto minmax(140px, 1fr) auto auto;
+  grid-template-columns: minmax(130px, 0.75fr) minmax(160px, auto) minmax(140px, 0.8fr) minmax(140px, auto) minmax(150px, auto);
   gap: 10px;
   align-items: center;
+  overflow: hidden;
 }
 
 .questionRow {
@@ -387,6 +404,10 @@
 .rows {
   display: grid;
   gap: 10px;
+  max-height: 380px;
+  overflow: auto;
+  padding-right: 4px;
+  align-content: start;
 }
 
 .dataRow {
@@ -394,6 +415,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .dataRow span {
@@ -430,6 +452,8 @@
   display: flex;
   gap: 8px;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .rowActions button {
@@ -445,14 +469,28 @@
   .detailGrid {
     grid-template-columns: 1fr;
   }
+
+  .statusBox {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 820px) {
   .hero,
-  .statsGrid,
   .statusBox,
   .taskForm {
     grid-template-columns: 1fr;
+  }
+
+  .hero {
+    border-radius: 22px;
+  }
+
+  .heistGrid,
+  .rows {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .questionRow {
@@ -474,11 +512,27 @@
 
 @media (max-width: 560px) {
   .main {
-    width: min(100%, calc(100% - 24px));
+    width: min(100%, calc(100% - 20px));
   }
 
   .hero {
     padding: 18px;
+  }
+
+  .hero h1 {
+    max-width: none;
+    font-size: clamp(2.15rem, 12vw, 3.2rem);
+  }
+
+  .mainPanel,
+  .detailPanel {
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  .heistCard {
+    min-height: 158px;
+    border-radius: 18px;
   }
 
   .twoCol,
@@ -489,5 +543,10 @@
   .dataRow {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .rowActions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }

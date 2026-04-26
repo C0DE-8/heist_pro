@@ -113,6 +113,16 @@ function AdminHeistsPage() {
     [heists]
   );
 
+  const activeHeists = useMemo(
+    () => heists.filter((heist) => heist.status !== "completed"),
+    [heists]
+  );
+
+  const completedHeists = useMemo(
+    () => heists.filter((heist) => heist.status === "completed"),
+    [heists]
+  );
+
   const loadHeists = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -121,7 +131,10 @@ function AdminHeistsPage() {
       const data = await getAdminHeists();
       const rows = Array.isArray(data?.heists) ? data.heists : [];
       setHeists(rows);
-      setSelectedId((current) => current || rows[0]?.id || null);
+      setSelectedId((current) => {
+        if (current) return current;
+        return rows.find((heist) => heist.status !== "completed")?.id || rows[0]?.id || null;
+      });
     } catch (err) {
       console.error("Load admin heists error:", err);
       setError(err?.response?.data?.message || "Unable to load heists.");
@@ -484,7 +497,7 @@ function AdminHeistsPage() {
             <div className={styles.panelHead}>
               <div>
                 <p className={styles.kicker}>Manage</p>
-                <h2>Heists</h2>
+                <h2>Active Heists</h2>
               </div>
               <button
                 type="button"
@@ -500,8 +513,8 @@ function AdminHeistsPage() {
             <div className={styles.heistGrid}>
               {loading ? (
                 <div className={styles.emptyState}>Loading heists...</div>
-              ) : heists.length ? (
-                heists.map((heist) => (
+              ) : activeHeists.length ? (
+                activeHeists.map((heist) => (
                   <button
                     type="button"
                     key={heist.id}
@@ -520,7 +533,46 @@ function AdminHeistsPage() {
                   </button>
                 ))
               ) : (
-                <div className={styles.emptyState}>No heists yet.</div>
+                <div className={styles.emptyState}>No active heists.</div>
+              )}
+            </div>
+          </section>
+        </section>
+
+        <section className={styles.workspace}>
+          <section className={styles.mainPanel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Archive</p>
+                <h2>Completed Heists</h2>
+              </div>
+              <span className={styles.status}>{formatNum(completedHeists.length)} completed</span>
+            </div>
+
+            <div className={styles.heistGrid}>
+              {loading ? (
+                <div className={styles.emptyState}>Loading completed heists...</div>
+              ) : completedHeists.length ? (
+                completedHeists.map((heist) => (
+                  <button
+                    type="button"
+                    key={heist.id}
+                    className={`${styles.heistCard} ${Number(selectedId) === Number(heist.id) ? styles.selectedCard : ""}`}
+                    onClick={() => setSelectedId(heist.id)}
+                  >
+                    <span className={styles.status}>{heist.status}</span>
+                    <strong>{heist.name}</strong>
+                    <small>
+                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
+                    </small>
+                    <span className={styles.cardStats}>
+                      <em>{formatNum(heist.total_participants)} players</em>
+                      <em>{formatNum(heist.total_submissions)} submissions</em>
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className={styles.emptyState}>No completed heists yet.</div>
               )}
             </div>
           </section>
