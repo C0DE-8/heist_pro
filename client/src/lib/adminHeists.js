@@ -10,6 +10,11 @@ export async function createAdminHeist(payload) {
   return data;
 }
 
+export async function getAdminHeist(heistId) {
+  const { data } = await api.get(`/admin/heists/${heistId}`);
+  return data;
+}
+
 export async function updateAdminHeist(heistId, payload) {
   const { data } = await api.patch(`/admin/heists/${heistId}`, payload);
   return data;

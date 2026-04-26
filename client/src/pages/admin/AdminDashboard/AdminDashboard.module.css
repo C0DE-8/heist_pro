@@ -110,7 +110,7 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
 
@@ -277,6 +277,13 @@
 .panelHead > svg {
   color: #9fffe7;
   font-size: 1.35rem;
+}
+
+.panelNote {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .rows {

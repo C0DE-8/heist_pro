@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  FaChartLine,
   FaCoins,
   FaFlask,
   FaRedoAlt,
@@ -44,6 +45,7 @@ export default function AdminDashboard() {
   const heistStats = data?.stats?.heists || {};
   const activityStats = data?.stats?.activity || {};
   const rewardStats = data?.stats?.rewards || {};
+  const analyticsStats = data?.stats?.analytics || {};
   const recentHeists = Array.isArray(data?.recent_heists) ? data.recent_heists : [];
   const recentUsers = Array.isArray(data?.recent_users) ? data.recent_users : [];
 
@@ -93,6 +95,14 @@ export default function AdminDashboard() {
         tone: "gold",
       },
       {
+        title: "Analytics",
+        text: "Review platform coin totals, excluded accounts, heist profit, and reconciliation.",
+        path: "/admin/analytics",
+        icon: <FaChartLine />,
+        stat: `${formatNum(analyticsStats.excluded_users)} excluded`,
+        tone: "purple",
+      },
+      {
         title: "Payouts",
         text: "Jump directly into outgoing withdrawal reviews and payout decisions.",
         path: "/admin/transactions",
@@ -101,7 +111,12 @@ export default function AdminDashboard() {
         tone: "pink",
       },
     ],
-    [heistStats.total_heists, userStats.total_cop_points, userStats.total_users]
+    [
+      analyticsStats.excluded_users,
+      heistStats.total_heists,
+      userStats.total_cop_points,
+      userStats.total_users,
+    ]
   );
 
   return (
@@ -143,7 +158,9 @@ export default function AdminDashboard() {
           <div className={styles.statCard}>
             <span>Total users</span>
             <strong>{loading ? "..." : formatNum(userStats.total_users)}</strong>
-            <small>{formatNum(userStats.verified_users)} verified</small>
+            <small>
+              {formatNum(userStats.included_users)} shown · {formatNum(userStats.excluded_users)} excluded
+            </small>
           </div>
           <div className={styles.statCard}>
             <span>Started heists</span>
@@ -154,6 +171,11 @@ export default function AdminDashboard() {
             <span>Submitted results</span>
             <strong>{loading ? "..." : formatNum(activityStats.submitted_results)}</strong>
             <small>{formatNum(activityStats.total_submissions)} submissions</small>
+          </div>
+          <div className={styles.statCard}>
+            <span>Total user coins</span>
+            <strong>{loading ? "..." : `${formatNum(userStats.total_cop_points)} CP`}</strong>
+            <small>{formatNum(userStats.excluded_user_coin_balance)} CP excluded</small>
           </div>
           <div className={styles.statCard}>
             <span>Affiliate rewards</span>
@@ -226,7 +248,7 @@ export default function AdminDashboard() {
             <div className={styles.panelHead}>
               <div>
                 <p className={styles.kicker}>Users</p>
-                <h2>Newest users</h2>
+                <h2>Newest included users</h2>
               </div>
               <FaUsers />
             </div>
@@ -252,9 +274,12 @@ export default function AdminDashboard() {
                   </button>
                 ))
               ) : (
-                <div className={styles.emptyState}>No users yet.</div>
+                <div className={styles.emptyState}>No included users to show.</div>
               )}
             </div>
+            <p className={styles.panelNote}>
+              Excluded accounts are removed from this list and from the dashboard user-coin total.
+            </p>
           </article>
         </section>
       </main>

@@ -20,6 +20,7 @@ import {
   deleteAdminQuestionBankQuestion,
   finalizeAdminHeist,
   getAdminAffiliateTaskProgress,
+  getAdminHeist,
   getAdminAffiliateTasks,
   getAdminHeistQuestions,
   getAdminHeists,
@@ -70,16 +71,35 @@ function formatDate(value) {
   });
 }
 
+function formatDurationMinutes(value) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) return "Not set";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  return rem ? `${hours}h ${rem}m` : `${hours}h`;
+}
+
+function formatTimerWindow(heist) {
+  if (!heist) return "Not scheduled";
+  if (heist.countdown_ends_at) return `Ends ${formatDate(heist.countdown_ends_at)}`;
+  if (heist.ends_at) return `Closes ${formatDate(heist.ends_at)}`;
+  if (heist.starts_at) return `Starts ${formatDate(heist.starts_at)}`;
+  return "No timer set";
+}
+
 function AdminHeistsPage() {
   const toast = useToast();
 
   const [heists, setHeists] = useState([]);
+  const [detailHeist, setDetailHeist] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [questionBank, setQuestionBank] = useState([]);
   const [questionBankSummary, setQuestionBankSummary] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [progress, setProgress] = useState([]);
+  const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -102,6 +122,11 @@ function AdminHeistsPage() {
     () => heists.find((heist) => Number(heist.id) === Number(selectedId)) || null,
     [heists, selectedId]
   );
+
+  const activeDetailHeist = useMemo(() => {
+    if (Number(detailHeist?.id) === Number(selectedId)) return detailHeist;
+    return selectedHeist;
+  }, [detailHeist, selectedHeist, selectedId]);
 
   const totals = useMemo(
     () => ({
@@ -156,23 +181,28 @@ function AdminHeistsPage() {
 
   const loadSelectedDetails = useCallback(async () => {
     if (!selectedId) {
+      setDetailHeist(null);
       setQuestions([]);
       setTasks([]);
       setProgress([]);
+      setParticipants([]);
       return;
     }
 
     setDetailLoading(true);
     try {
-      const [questionData, taskData, progressData] = await Promise.all([
+      const [heistData, questionData, taskData, progressData] = await Promise.all([
+        getAdminHeist(selectedId),
         getAdminHeistQuestions(selectedId),
         getAdminAffiliateTasks(selectedId),
         getAdminAffiliateTaskProgress(selectedId),
       ]);
 
+      setDetailHeist(heistData?.heist || null);
       setQuestions(Array.isArray(questionData?.questions) ? questionData.questions : []);
       setTasks(Array.isArray(taskData?.tasks) ? taskData.tasks : []);
       setProgress(Array.isArray(progressData?.progress) ? progressData.progress : []);
+      setParticipants(Array.isArray(heistData?.participants) ? heistData.participants : []);
     } catch (err) {
       console.error("Load heist details error:", err);
       toast.error(err?.response?.data?.message || "Unable to load heist details.");
@@ -187,14 +217,14 @@ function AdminHeistsPage() {
   }, [loadHeists, loadQuestionBank]);
 
   useEffect(() => {
-    if (selectedHeist?.status) setStatusValue(selectedHeist.status);
-  }, [selectedHeist?.status]);
+    if (activeDetailHeist?.status) setStatusValue(activeDetailHeist.status);
+  }, [activeDetailHeist?.status]);
 
   useEffect(() => {
-    if (selectedHeist) {
-      setSessionQuestionCount(String(selectedHeist.questions_per_session || 0));
+    if (activeDetailHeist) {
+      setSessionQuestionCount(String(activeDetailHeist.questions_per_session || 0));
     }
-  }, [selectedHeist]);
+  }, [activeDetailHeist]);
 
   useEffect(() => {
     loadSelectedDetails();
@@ -529,6 +559,7 @@ function AdminHeistsPage() {
                     <span className={styles.cardStats}>
                       <em>{formatNum(heist.total_participants)} players</em>
                       <em>{formatNum(heist.total_submissions)} submissions</em>
+                      <em>{formatTimerWindow(heist)}</em>
                     </span>
                   </button>
                 ))
@@ -568,6 +599,7 @@ function AdminHeistsPage() {
                     <span className={styles.cardStats}>
                       <em>{formatNum(heist.total_participants)} players</em>
                       <em>{formatNum(heist.total_submissions)} submissions</em>
+                      <em>{formatTimerWindow(heist)}</em>
                     </span>
                   </button>
                 ))
@@ -578,30 +610,46 @@ function AdminHeistsPage() {
           </section>
         </section>
 
-        {selectedHeist ? (
+        {activeDetailHeist ? (
           <section className={styles.detailGrid}>
             <article className={styles.detailPanel}>
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Selected</p>
-                  <h2>{selectedHeist.name}</h2>
+                  <h2>{activeDetailHeist.name}</h2>
                 </div>
                 <FaTrophy />
               </div>
 
+              {activeDetailHeist.description ? (
+                <p className={styles.detailCopy}>{activeDetailHeist.description}</p>
+              ) : null}
+
               <div className={styles.metaGrid}>
-                <div><span>Status</span><strong>{selectedHeist.status}</strong></div>
-                <div><span>Prize</span><strong>{formatNum(selectedHeist.prize_cop_points)} CP</strong></div>
-                <div><span>Assigned questions</span><strong>{formatNum(selectedHeist.total_questions)}</strong></div>
+                <div><span>Status</span><strong>{activeDetailHeist.status}</strong></div>
+                <div><span>Prize</span><strong>{formatNum(activeDetailHeist.prize_cop_points)} CP</strong></div>
+                <div><span>Ticket</span><strong>{formatNum(activeDetailHeist.ticket_price)} CP</strong></div>
+                <div><span>Min users</span><strong>{formatNum(activeDetailHeist.min_users)}</strong></div>
+                <div><span>Participants</span><strong>{formatNum(activeDetailHeist.total_participants)}</strong></div>
+                <div><span>Joined only</span><strong>{formatNum(activeDetailHeist.joined_participants)}</strong></div>
+                <div><span>Submitted</span><strong>{formatNum(activeDetailHeist.submitted_participants)}</strong></div>
+                <div><span>Assigned questions</span><strong>{formatNum(activeDetailHeist.total_questions)}</strong></div>
                 <div>
                   <span>Question target</span>
                   <strong>
-                    {Number(selectedHeist.questions_per_session) > 0
-                      ? formatNum(selectedHeist.questions_per_session)
+                    {Number(activeDetailHeist.questions_per_session) > 0
+                      ? formatNum(activeDetailHeist.questions_per_session)
                       : "All"}
                   </strong>
                 </div>
-                <div><span>Created</span><strong>{formatDate(selectedHeist.created_at)}</strong></div>
+                <div><span>Countdown</span><strong>{formatDurationMinutes(activeDetailHeist.countdown_duration_minutes)}</strong></div>
+                <div><span>Timer start</span><strong>{formatDate(activeDetailHeist.countdown_started_at)}</strong></div>
+                <div><span>Timer end</span><strong>{formatDate(activeDetailHeist.countdown_ends_at)}</strong></div>
+                <div><span>Starts at</span><strong>{formatDate(activeDetailHeist.starts_at)}</strong></div>
+                <div><span>Ends at</span><strong>{formatDate(activeDetailHeist.ends_at)}</strong></div>
+                <div><span>Winner</span><strong>{activeDetailHeist.winner_full_name || activeDetailHeist.winner_username || "Not decided"}</strong></div>
+                <div><span>Created by</span><strong>{activeDetailHeist.created_by_full_name || activeDetailHeist.created_by_username || "Unknown"}</strong></div>
+                <div><span>Created</span><strong>{formatDate(activeDetailHeist.created_at)}</strong></div>
               </div>
 
               <div className={styles.statusBox}>
@@ -630,6 +678,55 @@ function AdminHeistsPage() {
                 <button type="button" className={styles.finalizeBtn} onClick={finalizeHeist} disabled={busy}>
                   Finalize winner
                 </button>
+              </div>
+            </article>
+
+            <article className={styles.detailPanel}>
+              <div className={styles.panelHead}>
+                <div>
+                  <p className={styles.kicker}>Players</p>
+                  <h2>Joined users</h2>
+                </div>
+                <FaUsers />
+              </div>
+
+              <div className={styles.rows}>
+                {detailLoading ? (
+                  <div className={styles.emptyState}>Loading participants...</div>
+                ) : participants.length ? (
+                  participants.map((participant) => (
+                    <div className={styles.dataRow} key={participant.id}>
+                      <span>
+                        <strong>{participant.full_name || participant.username}</strong>
+                        <small>
+                          @{participant.username}
+                          {participant.email ? ` · ${participant.email}` : ""}
+                        </small>
+                        <small>
+                          Joined {formatDate(participant.joined_at)}
+                          {participant.affiliate_username
+                            ? ` · referred by ${participant.affiliate_full_name || participant.affiliate_username}`
+                            : ""}
+                        </small>
+                        {participant.submission_id ? (
+                          <small>
+                            Score {formatNum(participant.correct_count)}/{formatNum(
+                              Number(participant.correct_count || 0) +
+                                Number(participant.wrong_count || 0) +
+                                Number(participant.unanswered_count || 0)
+                            )} · {formatNum(participant.score_percent)}% · {formatNum(participant.total_time_seconds)}s
+                          </small>
+                        ) : null}
+                      </span>
+                      <div className={styles.rowActions}>
+                        <em>{participant.status}</em>
+                        {participant.submission_status ? <em>{participant.submission_status}</em> : null}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.emptyState}>No joined users yet.</div>
+                )}
               </div>
             </article>
 
@@ -936,7 +1033,7 @@ function AdminHeistsPage() {
         <Modal
           open={taskModalOpen}
           title="Create affiliate task"
-          subtitle={selectedHeist ? `Reward users for referring joins to ${selectedHeist.name}.` : "Select a heist first."}
+          subtitle={activeDetailHeist ? `Reward users for referring joins to ${activeDetailHeist.name}.` : "Select a heist first."}
           size="md"
           onClose={() => !busy && setTaskModalOpen(false)}
           disableClose={busy}
@@ -945,7 +1042,7 @@ function AdminHeistsPage() {
               <button type="button" className={styles.softBtn} onClick={() => setTaskModalOpen(false)} disabled={busy}>
                 Cancel
               </button>
-              <button type="submit" form="create-task-form" className={styles.primaryBtn} disabled={busy || !selectedHeist}>
+              <button type="submit" form="create-task-form" className={styles.primaryBtn} disabled={busy || !activeDetailHeist}>
                 Create task
               </button>
             </>

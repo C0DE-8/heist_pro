@@ -7,6 +7,14 @@ const router = express.Router();
 
 router.use(authenticateToken, authenticateAdmin);
 
+function excludedSql(alias, excludedUserIds) {
+  if (!excludedUserIds.length) return { sql: "", params: [] };
+  return {
+    sql: ` AND ${alias}.id NOT IN (${excludedUserIds.map(() => "?").join(", ")})`,
+    params: excludedUserIds,
+  };
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -28,20 +36,34 @@ async function getAdminProfile(userId) {
   return admin || null;
 }
 
+async function getSavedExcludedUserIds() {
+  const [rows] = await pool.query(
+    `SELECT user_id
+     FROM admin_analytics_user_exclusions
+     ORDER BY user_id ASC`
+  );
+  return rows.map((row) => Number(row.user_id)).filter(Boolean);
+}
+
 router.get("/", async (req, res) => {
   try {
     const admin = await getAdminProfile(req.user.userId);
     if (!admin) return res.status(404).json({ message: "Admin not found" });
+    const excludedUserIds = await getSavedExcludedUserIds();
+    const exclusion = excludedSql("u", excludedUserIds);
 
     const [[userStats]] = await pool.query(
       `SELECT
-         COUNT(*) AS total_users,
-         COUNT(CASE WHEN role = 'admin' THEN 1 END) AS total_admins,
-         COUNT(CASE WHEN role = 'user' THEN 1 END) AS total_regular_users,
-         COUNT(CASE WHEN is_verified = 1 THEN 1 END) AS verified_users,
-         COUNT(CASE WHEN is_blocked = 1 THEN 1 END) AS blocked_users,
-         COALESCE(SUM(cop_point), 0) AS total_cop_points
-       FROM users`
+         (SELECT COUNT(*) FROM users) AS total_users,
+         COUNT(*) AS included_users,
+         (SELECT COUNT(*) FROM users WHERE role = 'admin') AS total_admins,
+         COUNT(CASE WHEN u.role = 'user' THEN 1 END) AS total_regular_users,
+         COUNT(CASE WHEN u.is_verified = 1 THEN 1 END) AS verified_users,
+         COUNT(CASE WHEN u.is_blocked = 1 THEN 1 END) AS blocked_users,
+         COALESCE(SUM(u.cop_point), 0) AS total_cop_points
+       FROM users u
+       WHERE 1 = 1 ${exclusion.sql}`,
+      exclusion.params
     );
 
     const [[heistStats]] = await pool.query(
@@ -86,10 +108,47 @@ router.get("/", async (req, res) => {
     const [recentUsers] = await pool.query(
       `SELECT id, email, username, full_name, role, is_verified, is_blocked,
               cop_point, created_at
-       FROM users
+       FROM users u
+       WHERE 1 = 1 ${exclusion.sql}
        ORDER BY created_at DESC
-       LIMIT 10`
+       LIMIT 10`,
+      exclusion.params
     );
+
+    let excludedStats = { excluded_users: 0, excluded_user_coin_balance: 0 };
+    if (excludedUserIds.length) {
+      [[excludedStats]] = await pool.query(
+        `SELECT
+           COUNT(*) AS excluded_users,
+           COALESCE(SUM(cop_point), 0) AS excluded_user_coin_balance
+         FROM users
+         WHERE id IN (${excludedUserIds.map(() => "?").join(", ")})`,
+        excludedUserIds
+      );
+    }
+
+    const analyticsPreview = {
+      excluded_user_ids: excludedUserIds,
+      excluded_users: Number(excludedStats.excluded_users || 0),
+      excluded_user_coin_balance: Number(excludedStats.excluded_user_coin_balance || 0),
+      filtered_user_coin_balance: Number(userStats.total_cop_points || 0),
+      displayed_recent_users: recentUsers.length,
+    };
+
+    userStats.total_users = Number(userStats.total_users || 0);
+    userStats.included_users = Number(userStats.included_users || 0);
+    userStats.total_admins = Number(userStats.total_admins || 0);
+    userStats.total_regular_users = Number(userStats.total_regular_users || 0);
+    userStats.verified_users = Number(userStats.verified_users || 0);
+    userStats.blocked_users = Number(userStats.blocked_users || 0);
+    userStats.total_cop_points = Number(userStats.total_cop_points || 0);
+    userStats.excluded_users = analyticsPreview.excluded_users;
+    userStats.excluded_user_coin_balance = analyticsPreview.excluded_user_coin_balance;
+
+    const normalizedRecentUsers = recentUsers.map((user) => ({
+      ...user,
+      cop_point: Number(user.cop_point || 0),
+    }));
 
     return res.json({
       admin,
@@ -98,9 +157,10 @@ router.get("/", async (req, res) => {
         heists: heistStats,
         activity: activityStats,
         rewards: rewardStats,
+        analytics: analyticsPreview,
       },
       recent_heists: recentHeists,
-      recent_users: recentUsers,
+      recent_users: normalizedRecentUsers,
     });
   } catch (err) {
     console.error("admin profile error:", err);

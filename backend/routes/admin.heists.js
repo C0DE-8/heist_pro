@@ -165,14 +165,29 @@ router.get("/", async (req, res) => {
       `SELECT
          h.id,
          h.name,
+         h.description,
          h.status,
+         h.min_users,
+         h.ticket_price,
          h.prize_cop_points,
          h.total_questions,
          h.questions_per_session,
+         h.submissions_locked,
+         h.countdown_started_at,
+         h.countdown_duration_minutes,
+         h.countdown_ends_at,
+         h.starts_at,
+         h.ends_at,
+         h.winner_user_id,
          h.created_at,
+         winner.username AS winner_username,
+         winner.full_name AS winner_full_name,
          COUNT(DISTINCT hp.id) AS total_participants,
-         COUNT(DISTINCT hs.id) AS total_submissions
+         COUNT(DISTINCT hs.id) AS total_submissions,
+         COUNT(DISTINCT CASE WHEN hp.status = 'joined' THEN hp.id END) AS joined_participants,
+         COUNT(DISTINCT CASE WHEN hp.status = 'submitted' THEN hp.id END) AS submitted_participants
        FROM heist h
+       LEFT JOIN users winner ON winner.id = h.winner_user_id
        LEFT JOIN heist_participants hp ON hp.heist_id = h.id
        LEFT JOIN heist_submissions hs ON hs.heist_id = h.id AND hs.status = 'submitted'
        GROUP BY h.id
@@ -478,6 +493,94 @@ router.get("/:id/questions", async (req, res) => {
   } catch (err) {
     console.error("admin get questions error:", err);
     return res.status(500).json({ message: "Error fetching questions" });
+  }
+});
+
+router.get("/:id", async (req, res) => {
+  try {
+    const heistId = Number(req.params.id);
+    if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+
+    const [[heist]] = await pool.query(
+      `SELECT
+         h.id,
+         h.name,
+         h.description,
+         h.status,
+         h.min_users,
+         h.ticket_price,
+         h.prize_cop_points,
+         h.total_questions,
+         h.questions_per_session,
+         h.submissions_locked,
+         h.countdown_started_at,
+         h.countdown_duration_minutes,
+         h.countdown_ends_at,
+         h.starts_at,
+         h.ends_at,
+         h.created_at,
+         h.updated_at,
+         h.winner_user_id,
+         creator.username AS created_by_username,
+         creator.full_name AS created_by_full_name,
+         winner.username AS winner_username,
+         winner.full_name AS winner_full_name,
+         COUNT(DISTINCT hp.id) AS total_participants,
+         COUNT(DISTINCT hs.id) AS total_submissions,
+         COUNT(DISTINCT CASE WHEN hp.status = 'joined' THEN hp.id END) AS joined_participants,
+         COUNT(DISTINCT CASE WHEN hp.status = 'submitted' THEN hp.id END) AS submitted_participants
+       FROM heist h
+       LEFT JOIN users creator ON creator.id = h.created_by
+       LEFT JOIN users winner ON winner.id = h.winner_user_id
+       LEFT JOIN heist_participants hp ON hp.heist_id = h.id
+       LEFT JOIN heist_submissions hs ON hs.heist_id = h.id AND hs.status = 'submitted'
+       WHERE h.id = ?
+       GROUP BY h.id
+       LIMIT 1`,
+      [heistId]
+    );
+
+    if (!heist) return res.status(404).json({ message: "Heist not found" });
+
+    const [participants] = await pool.query(
+      `SELECT
+         hp.id,
+         hp.heist_id,
+         hp.user_id,
+         hp.affiliate_user_id,
+         hp.referral_code,
+         hp.joined_at,
+         hp.status,
+         u.username,
+         u.full_name,
+         u.email,
+         affiliate.username AS affiliate_username,
+         affiliate.full_name AS affiliate_full_name,
+         hs.id AS submission_id,
+         hs.started_at,
+         hs.submitted_at,
+         hs.total_time_seconds,
+         hs.correct_count,
+         hs.wrong_count,
+         hs.unanswered_count,
+         hs.score_percent,
+         hs.status AS submission_status
+       FROM heist_participants hp
+       JOIN users u ON u.id = hp.user_id
+       LEFT JOIN users affiliate ON affiliate.id = hp.affiliate_user_id
+       LEFT JOIN heist_submissions hs
+         ON hs.participant_id = hp.id
+        AND hs.heist_id = hp.heist_id
+        AND hs.user_id = hp.user_id
+       WHERE hp.heist_id = ?
+       ORDER BY hp.joined_at DESC, hp.id DESC`,
+      [heistId]
+    );
+
+    return res.json({ heist, participants });
+  } catch (err) {
+    console.error("admin heist detail error:", err);
+    return res.status(500).json({ message: "Error fetching heist details" });
   }
 });
 
