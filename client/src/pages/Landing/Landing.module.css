@@ -21,6 +21,7 @@
 .heroInner,
 .stats,
 .section,
+.downloadSection,
 .cta {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
@@ -36,6 +37,7 @@
 .heroCopy h1,
 .sectionHead h2,
 .featurePanel h2,
+.downloadCard h2,
 .cta h2 {
   margin: 0;
   letter-spacing: 0;
@@ -50,6 +52,7 @@
 
 .heroCopy p,
 .featurePanel p,
+.downloadCard p,
 .cta p {
   max-width: 62ch;
   color: rgba(255, 255, 255, 0.72);
@@ -110,6 +113,7 @@
 .statCard,
 .stepCard,
 .featurePanel,
+.downloadCard,
 .motionPanel,
 .cta {
   border: 1px solid rgba(255, 255, 255, 0.13);
@@ -565,6 +569,52 @@
   animation-delay: -3s;
 }
 
+.downloadSection {
+  padding-top: 76px;
+}
+
+.downloadCard {
+  border-radius: 32px;
+  padding: 24px 26px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.downloadCard h2 {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 0.98;
+}
+
+.downloadCard > div > p:not(.kicker) {
+  margin: 16px 0 0;
+}
+
+.downloadMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.downloadMeta span {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 850;
+}
+
+.downloadMeta svg {
+  color: #baffc7;
+  flex: 0 0 auto;
+}
+
 .cta {
   margin-top: 76px;
   margin-bottom: 34px;
@@ -695,6 +745,7 @@
 @media (max-width: 920px) {
   .heroInner,
   .split,
+  .downloadCard,
   .cta {
     grid-template-columns: 1fr;
   }
@@ -726,6 +777,7 @@
   .heroInner,
   .stats,
   .section,
+  .downloadSection,
   .cta {
     width: min(100% - 22px, 1120px);
   }
@@ -821,11 +873,25 @@
   }
 
   .featurePanel,
+  .downloadCard,
   .motionPanel,
   .cta,
   .stepCard,
   .statCard {
     border-radius: 24px;
+  }
+
+  .downloadSection {
+    padding-top: 52px;
+  }
+
+  .downloadCard {
+    padding: 20px 18px;
+  }
+
+  .downloadMeta span {
+    width: 100%;
+    justify-content: center;
   }
 
   .featureList {

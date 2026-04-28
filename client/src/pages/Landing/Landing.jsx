@@ -5,6 +5,8 @@ import {
   FiCheckCircle,
   FiClock,
   FiCreditCard,
+  FiDownload,
+  FiSmartphone,
   FiSmile,
   FiTarget,
   FiTrendingUp,
@@ -13,6 +15,7 @@ import {
 } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import appApk from "../../assets/app/copupbid-2.0.apk";
 import styles from "./Landing.module.css";
 
 function useScrollReveal() {
@@ -217,6 +220,35 @@ export default function Landing() {
                 <strong>REF</strong>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className={styles.downloadSection} data-reveal>
+          <div className={styles.downloadCard}>
+            <div>
+              <p className={styles.kicker}>Android App</p>
+              <h2>Download CopupBid for Android.</h2>
+              <p>
+                Install the latest Android build and keep CopUpCoin, heists, referrals, and wallet
+                actions within reach.
+              </p>
+
+              <div className={styles.downloadMeta}>
+                <span>
+                  <FiSmartphone />
+                  Direct APK install
+                </span>
+                <span>
+                  <FiCheckCircle />
+                  Version 2.0
+                </span>
+              </div>
+            </div>
+
+            <a className={styles.primaryBtn} href={appApk} download="copupbid-2.0.apk">
+              Download APK
+              <FiDownload />
+            </a>
           </div>
         </section>
 
