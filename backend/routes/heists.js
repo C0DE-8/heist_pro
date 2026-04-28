@@ -10,6 +10,7 @@ const {
   maybeStartCountdown,
   recordAffiliateTaskProgress,
 } = require("../services/heist.service");
+const { applyReferralRewardJoin } = require("../services/referralReward.service");
 
 const router = express.Router();
 
@@ -351,6 +352,8 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       }
     }
 
+    const referral_reward_progress = await applyReferralRewardJoin(conn, userId, heistId);
+
     const countdown_started = await maybeStartCountdown(conn, heistId);
 
     await conn.commit();
@@ -362,6 +365,7 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       charged_cop_point: heist.ticket_price,
       countdown_started,
       affiliate_task_progress,
+      referral_reward_progress,
     });
   } catch (err) {
     if (conn) await conn.rollback();

@@ -12,8 +12,32 @@ const router = express.Router();
 
 /* ------------------------------ helpers ------------------------------ */
 function generateReferralCode() {
-  return Math.random().toString(36).slice(2, 8); // 6 chars
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 8 }, () =>
+    alphabet[Math.floor(Math.random() * alphabet.length)]
+  ).join("");
 }
+
+function validateUsername(username) {
+  const normalizedUsername = String(username || "").trim();
+  const reservedUsernames = new Set(["cop", "copup", "copupbid", "admin"]);
+  const loweredUsername = normalizedUsername.toLowerCase();
+
+  if (!normalizedUsername) {
+    return "Username is required";
+  }
+
+  if (normalizedUsername.length < 2) {
+    return "Username must be at least 2 characters";
+  }
+
+  if (reservedUsernames.has(loweredUsername)) {
+    return "That username is not allowed";
+  }
+
+  return null;
+}
+
 function generateWalletAddress() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let walletAddress = "cop";
@@ -27,6 +51,19 @@ function generateGameId() {
   const pick = (n) =>
     Array.from({ length: n }, () => base[Math.floor(Math.random() * base.length)]).join("");
   return `${pick(4)}-${pick(4)}-${pick(4)}`;
+}
+
+async function generateUniqueReferralCode(conn) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = generateReferralCode();
+    const [[existing]] = await conn.query(
+      "SELECT id FROM users WHERE referral_code = ? LIMIT 1",
+      [code]
+    );
+    if (!existing) return code;
+  }
+
+  throw new Error("Unable to generate a unique referral code");
 }
 
 /* ------------------------------- SEND OTP ------------------------------- */
@@ -77,64 +114,129 @@ router.post("/send-otp", async (req, res) => {
 /* -------------------------------- REGISTER ------------------------------- */
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
+  let conn;
   try {
-    const { username, email, full_name, password, otp, referralCode } = req.body || {};
-    if (!username || !email || !password || !otp) {
+    const {
+      username,
+      email,
+      full_name,
+      password,
+      otp,
+      referralCode,
+      referral_code,
+      ref,
+    } = req.body || {};
+
+    const normalizedUsername = String(username || "").trim();
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedFullName = String(full_name || "").trim() || null;
+    const normalizedOtp = String(otp || "").trim();
+    const normalizedReferralCode =
+      String(referralCode || referral_code || ref || "").trim() || null;
+    const usernameError = validateUsername(normalizedUsername);
+
+    if (!normalizedEmail || !password || !normalizedOtp) {
       return res.status(400).json({ message: "username, email, password, otp are required" });
     }
+    if (usernameError) {
+      return res.status(400).json({ message: usernameError });
+    }
 
-    const [[dupEmail]] = await pool.query("SELECT COUNT(*) AS c FROM users WHERE email = ?", [email]);
-    if (dupEmail.c) return res.status(400).json({ message: "Email already exists" });
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const rollbackAndRespond = async (status, message) => {
+      await conn.rollback();
+      return res.status(status).json({ message });
+    };
 
-    const [[dupUser]] = await pool.query("SELECT COUNT(*) AS c FROM users WHERE username = ?", [username]);
-    if (dupUser.c) return res.status(400).json({ message: "Username already exists" });
+    const [[dupEmail]] = await conn.query("SELECT COUNT(*) AS c FROM users WHERE email = ?", [
+      normalizedEmail,
+    ]);
+    if (dupEmail.c) {
+      return rollbackAndRespond(400, "Email already exists");
+    }
 
-    if (full_name) {
-      const [[dupFull]] = await pool.query("SELECT COUNT(*) AS c FROM users WHERE full_name = ?", [full_name]);
-      if (dupFull.c) return res.status(400).json({ message: "Full name already exists" });
+    const [[dupUser]] = await conn.query("SELECT COUNT(*) AS c FROM users WHERE username = ?", [
+      normalizedUsername,
+    ]);
+    if (dupUser.c) {
+      return rollbackAndRespond(400, "Username already exists");
+    }
+
+    if (normalizedFullName) {
+      const [[dupFull]] = await conn.query("SELECT COUNT(*) AS c FROM users WHERE full_name = ?", [
+        normalizedFullName,
+      ]);
+      if (dupFull.c) {
+        return rollbackAndRespond(400, "Full name already exists");
+      }
     }
 
     // OTP check + expiry
-    const [otpRows] = await pool.query(
+    const [otpRows] = await conn.query(
       "SELECT email, otp, expires_at FROM otps WHERE email = ? AND otp = ? LIMIT 1",
-      [email, otp]
+      [normalizedEmail, normalizedOtp]
     );
-    if (!otpRows.length) return res.status(400).json({ message: "Invalid OTP" });
+    if (!otpRows.length) {
+      return rollbackAndRespond(400, "Invalid OTP");
+    }
     if (new Date(otpRows[0].expires_at).getTime() < Date.now()) {
-      return res.status(400).json({ message: "OTP has expired" });
+      return rollbackAndRespond(400, "OTP has expired");
     }
 
     const password_hash = await bcrypt.hash(password, 12);
-    const userReferralCode = generateReferralCode();
+    const userReferralCode = await generateUniqueReferralCode(conn);
     const walletAddress = generateWalletAddress();
     const gameId = generateGameId();
+    let referrerId = null;
 
-    // ⬇️ No `profile` field here anymore
-    const [result] = await pool.query(
+    if (normalizedReferralCode) {
+      const [[referrer]] = await conn.query(
+        "SELECT id FROM users WHERE referral_code = ? LIMIT 1",
+        [normalizedReferralCode]
+      );
+      referrerId = referrer?.id || null;
+    }
+
+    const [result] = await conn.query(
       `INSERT INTO users
         (email, username, full_name, password_hash, role, is_verified, is_blocked, referral_code, wallet_address, game_id)
        VALUES
         (?, ?, ?, ?, 'user', 1, 0, ?, ?, ?)`,
-      [email, username, full_name || null, password_hash, userReferralCode, walletAddress, gameId]
+      [
+        normalizedEmail,
+        normalizedUsername,
+        normalizedFullName,
+        password_hash,
+        userReferralCode,
+        walletAddress,
+        gameId,
+      ]
     );
 
     const newUserId = result.insertId;
 
-    if (referralCode) {
-      const [refRows] = await pool.query("SELECT id FROM users WHERE referral_code = ? LIMIT 1", [referralCode]);
-      if (refRows.length) {
-        await pool.query("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", [
-          refRows[0].id,
+    if (referrerId && Number(referrerId) !== Number(newUserId)) {
+      await conn.query(
+        `INSERT INTO referrals (referrer_id, referred_id)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE referrer_id = referrer_id`,
+        [
+          referrerId,
           newUserId,
-        ]);
-      }
+        ]
+      );
     }
 
-    await pool.query("DELETE FROM otps WHERE email = ?", [email]);
+    await conn.query("DELETE FROM otps WHERE email = ?", [normalizedEmail]);
+    await conn.commit();
     res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
+    if (conn) await conn.rollback();
     console.error("register error:", err);
     res.status(500).json({ message: "Error registering user" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

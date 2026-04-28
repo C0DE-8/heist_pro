@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import styles from "../Auth.module.css";
 import { registerUser, sendRegistrationOtp } from "../../../lib/auth";
 import coinImg from "../../../assets/copupcoin.png";
@@ -7,8 +7,31 @@ import coinImg from "../../../assets/copupcoin.png";
 const isEmail = (v) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
 
+const RESERVED_USERNAMES = new Set(["cop", "copup", "copupbid", "admin"]);
+
+function getUsernameError(value) {
+  const username = String(value || "").trim();
+  const loweredUsername = username.toLowerCase();
+
+  if (!username) return "Username is required.";
+  if (username.length < 2) return "Username must be at least 2 characters.";
+  if (RESERVED_USERNAMES.has(loweredUsername)) return "That username is not allowed.";
+  return "";
+}
+
 export default function Register() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlReferralCode = useMemo(
+    () =>
+      String(
+        searchParams.get("ref") ||
+          searchParams.get("referral_code") ||
+          searchParams.get("referralCode") ||
+          ""
+      ).trim(),
+    [searchParams]
+  );
 
   // step 1 = send otp, step 2 = register
   const [step, setStep] = useState(1);
@@ -27,8 +50,16 @@ export default function Register() {
     email: "",
     password: "",
     otp: "",
-    referralCode: "",
+    referralCode: urlReferralCode,
   });
+
+  useEffect(() => {
+    if (!urlReferralCode) return;
+    setForm((prev) => {
+      if (prev.referralCode === urlReferralCode) return prev;
+      return { ...prev, referralCode: prev.referralCode || urlReferralCode };
+    });
+  }, [urlReferralCode]);
 
   const onChange = (k) => (e) => {
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -39,9 +70,14 @@ export default function Register() {
     setErr("");
 
     const normalizedEmail = form.email.trim().toLowerCase();
+    const usernameError = getUsernameError(form.username);
 
     if (!normalizedEmail || !isEmail(normalizedEmail)) {
       setErr("Enter a valid email address.");
+      return;
+    }
+    if (usernameError) {
+      setErr(usernameError);
       return;
     }
 
@@ -70,9 +106,14 @@ export default function Register() {
     setErr("");
 
     const registrationEmail = otpEmail || form.email.trim().toLowerCase();
+    const usernameError = getUsernameError(form.username);
 
-    if (!form.username || !registrationEmail || !form.password || !form.otp) {
+    if (!registrationEmail || !form.password || !form.otp) {
       setErr("username, email, password and otp are required.");
+      return;
+    }
+    if (usernameError) {
+      setErr(usernameError);
       return;
     }
     if (!isEmail(registrationEmail)) {
@@ -87,13 +128,14 @@ export default function Register() {
 
     setRegistering(true);
     try {
+      const activeReferralCode = form.referralCode.trim() || urlReferralCode || null;
       const data = await registerUser({
         username: form.username.trim(),
         full_name: form.full_name.trim() || null,
         email: registrationEmail,
         password: form.password,
         otp: form.otp.trim(),
-        referralCode: form.referralCode.trim() || null,
+        referralCode: activeReferralCode,
       });
 
       setMsg(data?.message || "Registered successfully.");
@@ -243,6 +285,9 @@ export default function Register() {
 
                 {msg ? <div className={styles.msgOk}>{msg}</div> : null}
                 {err ? <div className={styles.msgErr}>{err}</div> : null}
+                {urlReferralCode ? (
+                  <div className={styles.msgOk}>Referral code detected: {urlReferralCode}</div>
+                ) : null}
 
                 <div className={styles.hr} />
                 <div className={styles.miniRow}>
@@ -317,7 +362,11 @@ export default function Register() {
                     value={form.referralCode}
                     onChange={onChange("referralCode")}
                     placeholder="Referral code"
+                    readOnly={Boolean(urlReferralCode)}
                   />
+                  {urlReferralCode ? (
+                    <div className={styles.helper}>Locked from referral link: {urlReferralCode}</div>
+                  ) : null}
                 </div>
 
                 <div className={styles.actions}>

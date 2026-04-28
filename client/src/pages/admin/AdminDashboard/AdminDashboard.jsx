@@ -4,6 +4,7 @@ import {
   FaChartLine,
   FaCoins,
   FaFlask,
+  FaGift,
   FaRedoAlt,
   FaTrophy,
   FaUsers,
@@ -95,6 +96,14 @@ export default function AdminDashboard() {
         tone: "gold",
       },
       {
+        title: "Referral Rewards",
+        text: "Control referred-user join requirements, coin rewards, status, and reset the cycle.",
+        path: "/admin/referral",
+        icon: <FaGift />,
+        stat: `${formatNum(activityStats.affiliate_referrals)} referral joins`,
+        tone: "purple",
+      },
+      {
         title: "Analytics",
         text: "Review platform coin totals, excluded accounts, heist profit, and reconciliation.",
         path: "/admin/analytics",
@@ -113,6 +122,7 @@ export default function AdminDashboard() {
     ],
     [
       analyticsStats.excluded_users,
+      activityStats.affiliate_referrals,
       heistStats.total_heists,
       userStats.total_cop_points,
       userStats.total_users,

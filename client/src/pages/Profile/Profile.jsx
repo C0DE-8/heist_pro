@@ -15,7 +15,7 @@ import {
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useToast } from "../../components/Toast/ToastContext";
-import { getUserProfile, updateUserProfile } from "../../lib/users";
+import { getUserProfile, updateUserPassword, updateUserProfile } from "../../lib/users";
 import styles from "./Profile.module.css";
 
 function formatNum(value) {
@@ -65,8 +65,14 @@ export default function Profile() {
 
   const [profileData, setProfileData] = useState(null);
   const [form, setForm] = useState({ username: "", full_name: "", email: "" });
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
 
@@ -89,6 +95,9 @@ export default function Profile() {
       (form.username !== (user.username || "") ||
         form.full_name !== (user.full_name || "") ||
         form.email !== (user.email || ""))
+  );
+  const passwordDirty = Boolean(
+    passwordForm.current_password || passwordForm.new_password || passwordForm.confirm_password
   );
 
   const loadProfile = useCallback(async () => {
@@ -118,6 +127,11 @@ export default function Profile() {
   const updateField = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const updatePasswordField = (event) => {
+    const { name, value } = event.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const copyValue = async (label, value) => {
@@ -151,6 +165,37 @@ export default function Profile() {
       toast.error(err?.response?.data?.message || "Unable to update profile.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (event) => {
+    event.preventDefault();
+    if (!passwordDirty || passwordSaving) return;
+    if (passwordForm.new_password.length < 8) {
+      toast.error("New password must be at least 8 characters.");
+      return;
+    }
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      toast.error("New password and confirm password must match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const data = await updateUserPassword({
+        current_password: passwordForm.current_password,
+        new_password: passwordForm.new_password,
+      });
+      setPasswordForm({
+        current_password: "",
+        new_password: "",
+        confirm_password: "",
+      });
+      toast.success(data?.message || "Password updated");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to update password.");
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -252,6 +297,60 @@ export default function Profile() {
 
             <button type="submit" className={styles.saveBtn} disabled={!isDirty || loading || saving}>
               {saving ? "Saving..." : "Save changes"}
+            </button>
+          </form>
+
+          <form className={styles.editCard} onSubmit={handlePasswordSubmit}>
+            <div className={styles.cardHead}>
+              <div>
+                <p className={styles.kicker}>Security</p>
+                <h2>Update password</h2>
+              </div>
+              <FiShield />
+            </div>
+
+            <label className={styles.field}>
+              <span>Current password</span>
+              <input
+                type="password"
+                name="current_password"
+                value={passwordForm.current_password}
+                onChange={updatePasswordField}
+                placeholder="Current password"
+                disabled={loading || passwordSaving}
+              />
+            </label>
+
+            <label className={styles.field}>
+              <span>New password</span>
+              <input
+                type="password"
+                name="new_password"
+                value={passwordForm.new_password}
+                onChange={updatePasswordField}
+                placeholder="New password"
+                disabled={loading || passwordSaving}
+              />
+            </label>
+
+            <label className={styles.field}>
+              <span>Confirm new password</span>
+              <input
+                type="password"
+                name="confirm_password"
+                value={passwordForm.confirm_password}
+                onChange={updatePasswordField}
+                placeholder="Confirm new password"
+                disabled={loading || passwordSaving}
+              />
+            </label>
+
+            <button
+              type="submit"
+              className={styles.saveBtn}
+              disabled={!passwordDirty || loading || passwordSaving}
+            >
+              {passwordSaving ? "Updating..." : "Update password"}
             </button>
           </form>
         </section>

@@ -17,6 +17,7 @@ const adminUsersRoutes = require("./routes/admin.users");
 const adminAnalyticsRoutes = require("./routes/admin.analytics");
 const transactionRoutes = require("./routes/transactions");
 const adminTransactionRoutes = require("./routes/admin.transactions");
+const adminReferralRoutes = require("./routes/admin.referral");
 const { startHeistCron } = require("./jobs/heistCron");
 
 dotenv.config({ quiet: true });
@@ -57,6 +58,7 @@ app.use("/api/admin/profile", adminProfileRoutes);
 app.use("/api/admin/users", adminUsersRoutes);
 app.use("/api/admin/analytics", adminAnalyticsRoutes);
 app.use("/api/admin/transactions", adminTransactionRoutes);
+app.use("/api/admin/referral", adminReferralRoutes);
 
 
 app.get("/health", async (req, res) => {

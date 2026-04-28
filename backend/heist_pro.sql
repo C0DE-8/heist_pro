@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 22, 2026 at 02:25 PM
+-- Generation Time: Apr 28, 2026 at 01:52 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -40,6 +40,32 @@ CREATE TABLE `admin_analytics_user_exclusions` (
 INSERT INTO `admin_analytics_user_exclusions` (`user_id`, `created_by`, `created_at`) VALUES
 (2, 1, '2026-04-21 20:35:35'),
 (3, 1, '2026-04-21 20:35:39');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `admin_referral_settings`
+--
+
+CREATE TABLE `admin_referral_settings` (
+  `id` tinyint(1) UNSIGNED NOT NULL DEFAULT 1,
+  `is_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `required_heist_joins` int(11) NOT NULL DEFAULT 3,
+  `reward_cop_points` int(11) NOT NULL DEFAULT 1,
+  `reset_version` int(11) NOT NULL DEFAULT 1,
+  `updated_by` int(11) DEFAULT NULL,
+  `last_reset_by` int(11) DEFAULT NULL,
+  `last_reset_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `admin_referral_settings`
+--
+
+INSERT INTO `admin_referral_settings` (`id`, `is_enabled`, `required_heist_joins`, `reward_cop_points`, `reset_version`, `updated_by`, `last_reset_by`, `last_reset_at`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, 1, 2, 1, 1, '2026-04-27 16:49:52', '2026-04-27 23:31:44', '2026-04-27 23:49:52');
 
 -- --------------------------------------------------------
 
@@ -110,7 +136,10 @@ CREATE TABLE `affiliate_user_links` (
 
 INSERT INTO `affiliate_user_links` (`id`, `affiliate_user_id`, `heist_id`, `referral_code`, `referral_link`, `total_clicks`, `total_signups`, `total_heist_joins`, `created_at`, `updated_at`) VALUES
 (1, 3, 2, 'HRMTFDLTH', 'http://localhost:5173/heists/2/ref/HRMTFDLTH', 19, 0, 1, '2026-04-17 18:01:47', '2026-04-17 18:56:47'),
-(2, 3, 1, 'H3PBORYB3', 'http://localhost:5173/heists/1/ref/H3PBORYB3', 15, 0, 0, '2026-04-17 18:16:10', '2026-04-17 19:02:30');
+(2, 3, 1, 'H3PBORYB3', 'http://localhost:5173/heists/1/ref/H3PBORYB3', 15, 0, 0, '2026-04-17 18:16:10', '2026-04-17 19:02:30'),
+(3, 3, 5, 'HLU5UXF0A', 'http://localhost:5173/heists/5/ref/HLU5UXF0A', 0, 0, 0, '2026-04-27 22:57:47', '2026-04-27 22:57:47'),
+(4, 3, 4, 'HRZ89BW16', 'http://localhost:5173/heists/4/ref/HRZ89BW16', 0, 0, 0, '2026-04-27 22:57:47', '2026-04-27 22:57:47'),
+(5, 3, 3, 'HVKKBHV9A', 'http://localhost:5173/heists/3/ref/HVKKBHV9A', 0, 0, 0, '2026-04-27 22:57:47', '2026-04-27 22:57:47');
 
 -- --------------------------------------------------------
 
@@ -218,7 +247,9 @@ CREATE TABLE `heist` (
 INSERT INTO `heist` (`id`, `name`, `description`, `min_users`, `ticket_price`, `total_questions`, `questions_per_session`, `prize_cop_points`, `status`, `submissions_locked`, `winner_user_id`, `countdown_started_at`, `countdown_duration_minutes`, `countdown_ends_at`, `starts_at`, `ends_at`, `created_by`, `created_at`, `updated_at`) VALUES
 (1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 50, 10, 0, 200, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-21 19:23:16'),
 (2, 'weekend heist', 'for the road as we go ', 2, 20, 4, 2, 30, 'completed', 1, 3, '2026-04-21 12:18:51', 2, '2026-04-21 12:28:51', NULL, NULL, 1, '2026-04-17 17:49:02', '2026-04-21 20:37:54'),
-(3, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 100, 10, 0, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50');
+(3, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, 100, 10, 0, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50'),
+(4, 'Wealth', 'true false', 3, 0, 3, 3, 0, 'pending', 0, NULL, NULL, 10, NULL, NULL, NULL, 1, '2026-04-22 12:46:14', '2026-04-22 12:46:14'),
+(5, 'Health & Beauty', 'fixed my soul', 1, 2, 2, 2, 1, 'started', 0, NULL, '2026-04-27 16:47:10', 10, '2026-04-27 16:57:10', NULL, NULL, 1, '2026-04-22 12:48:43', '2026-04-27 23:47:10');
 
 -- --------------------------------------------------------
 
@@ -243,7 +274,8 @@ CREATE TABLE `heist_participants` (
 INSERT INTO `heist_participants` (`id`, `heist_id`, `user_id`, `affiliate_user_id`, `referral_code`, `joined_at`, `status`) VALUES
 (8, 2, 4, 3, 'HRMTFDLTH', '2026-04-17 18:44:29', 'submitted'),
 (18, 2, 3, NULL, NULL, '2026-04-21 17:56:08', 'submitted'),
-(19, 1, 4, NULL, NULL, '2026-04-21 20:57:01', 'joined');
+(19, 1, 4, NULL, NULL, '2026-04-21 20:57:01', 'joined'),
+(22, 5, 5, NULL, NULL, '2026-04-27 23:47:10', 'submitted');
 
 -- --------------------------------------------------------
 
@@ -253,11 +285,13 @@ INSERT INTO `heist_participants` (`id`, `heist_id`, `user_id`, `affiliate_user_i
 
 CREATE TABLE `heist_questions` (
   `id` bigint(20) UNSIGNED NOT NULL,
-  `heist_id` int(11) NOT NULL,
+  `heist_id` int(11) DEFAULT NULL,
   `question_text` text NOT NULL,
   `correct_answer` enum('true','false') NOT NULL,
   `sort_order` int(11) NOT NULL DEFAULT 1,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `assigned_at` datetime DEFAULT NULL,
+  `assigned_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -266,22 +300,33 @@ CREATE TABLE `heist_questions` (
 -- Dumping data for table `heist_questions`
 --
 
-INSERT INTO `heist_questions` (`id`, `heist_id`, `question_text`, `correct_answer`, `sort_order`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 1, 'The sun rises in the east.', 'true', 1, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(2, 1, 'A triangle has four sides.', 'false', 2, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(3, 1, 'Water freezes at 0 degrees Celsius.', 'true', 3, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(4, 1, 'Nigeria is in South America.', 'false', 4, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(5, 1, 'The human heart has four chambers.', 'true', 5, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(6, 1, '2 + 2 = 5.', 'false', 6, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(7, 1, 'The Atlantic Ocean is larger than a swimming pool.', 'true', 7, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(8, 1, 'Birds are mammals.', 'false', 8, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(9, 1, 'Earth is the third planet from the sun.', 'true', 9, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(10, 1, 'Light travels slower than sound.', 'false', 10, 1, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
-(11, 2, 'mix yellow and red can give you blue', 'false', 1, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
-(12, 2, 'a bed has 4 years', 'false', 2, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
-(13, 2, 'the sky is blue', 'true', 3, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
-(14, 3, 'the sky is blue', 'true', 1, 1, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
-(15, 2, 'can a pig fly', 'false', 1, 1, '2026-04-21 17:54:04', '2026-04-21 17:54:04');
+INSERT INTO `heist_questions` (`id`, `heist_id`, `question_text`, `correct_answer`, `sort_order`, `is_active`, `assigned_at`, `assigned_by`, `created_at`, `updated_at`) VALUES
+(1, 1, 'The sun rises in the east.', 'true', 1, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(2, 1, 'A triangle has four sides.', 'false', 2, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(3, 1, 'Water freezes at 0 degrees Celsius.', 'true', 3, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(4, 1, 'Nigeria is in South America.', 'false', 4, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(5, 1, 'The human heart has four chambers.', 'true', 5, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(6, 1, '2 + 2 = 5.', 'false', 6, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(7, 1, 'The Atlantic Ocean is larger than a swimming pool.', 'true', 7, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(8, 1, 'Birds are mammals.', 'false', 8, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(9, 1, 'Earth is the third planet from the sun.', 'true', 9, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(10, 1, 'Light travels slower than sound.', 'false', 10, 1, NULL, NULL, '2026-04-17 07:42:52', '2026-04-17 07:42:52'),
+(11, 2, 'mix yellow and red can give you blue', 'false', 1, 1, NULL, NULL, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
+(12, 2, 'a bed has 4 years', 'false', 2, 1, NULL, NULL, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
+(13, 2, 'the sky is blue', 'true', 3, 1, NULL, NULL, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
+(14, 3, 'the sky is blue', 'true', 1, 1, NULL, NULL, '2026-04-17 17:51:11', '2026-04-17 17:51:11'),
+(15, 2, 'can a pig fly', 'false', 1, 1, NULL, NULL, '2026-04-21 17:54:04', '2026-04-21 17:54:04'),
+(16, 4, 'The sun rises in the east.', 'true', 1, 1, '2026-04-22 05:46:14', 1, '2026-04-22 12:44:14', '2026-04-22 12:46:14'),
+(17, 5, 'A triangle has four sides.', 'false', 2, 1, '2026-04-22 05:48:44', 1, '2026-04-22 12:44:14', '2026-04-22 12:48:44'),
+(18, 5, 'Water freezes at 0 degrees Celsius.', 'true', 3, 1, '2026-04-22 05:48:44', 1, '2026-04-22 12:44:14', '2026-04-22 12:48:44'),
+(19, NULL, 'Nigeria is in South America.', 'false', 4, 1, NULL, NULL, '2026-04-22 12:44:14', '2026-04-22 12:44:14'),
+(20, NULL, 'The human heart has four chambers.', 'true', 5, 1, NULL, NULL, '2026-04-22 12:44:14', '2026-04-22 12:44:14'),
+(21, NULL, '2 + 2 equals 5.', 'false', 6, 1, NULL, NULL, '2026-04-22 12:44:14', '2026-04-22 12:44:14'),
+(22, NULL, 'Earth is the third planet from the sun.', 'true', 7, 1, NULL, NULL, '2026-04-22 12:44:14', '2026-04-22 12:44:14'),
+(23, 4, 'Birds are mammals.', 'false', 8, 1, '2026-04-22 05:46:14', 1, '2026-04-22 12:44:14', '2026-04-22 12:46:14'),
+(24, NULL, 'The Atlantic Ocean is larger than a swimming pool.', 'true', 9, 1, NULL, NULL, '2026-04-22 12:44:14', '2026-04-22 12:44:14'),
+(25, 4, 'Light travels faster than sound.', 'true', 10, 1, '2026-04-22 05:46:14', 1, '2026-04-22 12:44:14', '2026-04-22 12:46:14'),
+(26, NULL, 'is there good in goodness', 'true', 1, 1, NULL, NULL, '2026-04-22 12:49:52', '2026-04-22 12:49:52');
 
 -- --------------------------------------------------------
 
@@ -313,7 +358,8 @@ CREATE TABLE `heist_submissions` (
 
 INSERT INTO `heist_submissions` (`id`, `heist_id`, `user_id`, `participant_id`, `affiliate_user_id`, `started_at`, `submitted_at`, `total_time_seconds`, `correct_count`, `wrong_count`, `unanswered_count`, `score_percent`, `status`, `created_at`, `updated_at`) VALUES
 (12, 2, 4, 8, 3, '2026-04-21 10:55:32', '2026-04-21 10:55:43', 8, 1, 1, 0, 50.00, 'submitted', '2026-04-21 17:55:32', '2026-04-21 17:55:43'),
-(13, 2, 3, 18, NULL, '2026-04-21 10:56:12', '2026-04-21 10:56:22', 7, 1, 1, 0, 50.00, 'submitted', '2026-04-21 17:56:12', '2026-04-21 17:56:22');
+(13, 2, 3, 18, NULL, '2026-04-21 10:56:12', '2026-04-21 10:56:22', 7, 1, 1, 0, 50.00, 'submitted', '2026-04-21 17:56:12', '2026-04-21 17:56:22'),
+(14, 5, 5, 22, NULL, '2026-04-27 16:47:23', '2026-04-27 16:47:29', 2, 1, 1, 0, 50.00, 'submitted', '2026-04-27 23:47:23', '2026-04-27 23:47:29');
 
 -- --------------------------------------------------------
 
@@ -342,7 +388,9 @@ INSERT INTO `heist_submission_answers` (`id`, `submission_id`, `heist_id`, `ques
 (45, 12, 2, 11, 4, 'true', 0, '2026-04-21 10:55:43', 4, '2026-04-21 17:55:43'),
 (46, 12, 2, 15, 4, 'false', 1, '2026-04-21 10:55:43', 4, '2026-04-21 17:55:43'),
 (47, 13, 2, 11, 3, 'true', 0, '2026-04-21 10:56:22', 3, '2026-04-21 17:56:22'),
-(48, 13, 2, 13, 3, 'true', 1, '2026-04-21 10:56:22', 4, '2026-04-21 17:56:22');
+(48, 13, 2, 13, 3, 'true', 1, '2026-04-21 10:56:22', 4, '2026-04-21 17:56:22'),
+(49, 14, 5, 17, 5, 'false', 1, '2026-04-27 16:47:29', 1, '2026-04-27 23:47:29'),
+(50, 14, 5, 18, 5, 'false', 0, '2026-04-27 16:47:29', 1, '2026-04-27 23:47:29');
 
 -- --------------------------------------------------------
 
@@ -368,7 +416,9 @@ INSERT INTO `heist_submission_questions` (`id`, `submission_id`, `heist_id`, `qu
 (4, 12, 2, 11, 4, 1, '2026-04-21 17:55:32'),
 (5, 12, 2, 15, 4, 2, '2026-04-21 17:55:32'),
 (6, 13, 2, 11, 3, 1, '2026-04-21 17:56:12'),
-(7, 13, 2, 13, 3, 2, '2026-04-21 17:56:12');
+(7, 13, 2, 13, 3, 2, '2026-04-21 17:56:12'),
+(8, 14, 5, 17, 5, 1, '2026-04-27 23:47:23'),
+(9, 14, 5, 18, 5, 2, '2026-04-27 23:47:23');
 
 -- --------------------------------------------------------
 
@@ -499,7 +549,35 @@ CREATE TABLE `referrals` (
 
 INSERT INTO `referrals` (`id`, `referrer_id`, `referred_id`, `created_at`) VALUES
 (1, 2, 3, '2026-04-17 10:35:32'),
-(2, 3, 4, '2026-04-17 18:42:25');
+(2, 3, 4, '2026-04-17 18:42:25'),
+(3, 3, 5, '2026-04-27 23:06:48');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `referral_reward_progress`
+--
+
+CREATE TABLE `referral_reward_progress` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `reset_version` int(11) NOT NULL,
+  `referrer_id` int(11) NOT NULL,
+  `referred_user_id` int(11) NOT NULL,
+  `joined_heists` int(11) NOT NULL DEFAULT 0,
+  `rewarded_at` datetime DEFAULT NULL,
+  `awarded_cop_points` int(11) NOT NULL DEFAULT 0,
+  `last_joined_heist_id` int(11) DEFAULT NULL,
+  `last_joined_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `referral_reward_progress`
+--
+
+INSERT INTO `referral_reward_progress` (`id`, `reset_version`, `referrer_id`, `referred_user_id`, `joined_heists`, `rewarded_at`, `awarded_cop_points`, `last_joined_heist_id`, `last_joined_at`, `created_at`, `updated_at`) VALUES
+(3, 1, 3, 5, 1, '2026-04-27 16:47:51', 1, 5, '2026-04-27 16:47:10', '2026-04-27 23:47:10', '2026-04-27 23:47:51');
 
 -- --------------------------------------------------------
 
@@ -533,8 +611,9 @@ CREATE TABLE `users` (
 INSERT INTO `users` (`id`, `email`, `username`, `full_name`, `password_hash`, `trade_pin_hash`, `trade_pin_changed`, `role`, `is_verified`, `is_blocked`, `referral_code`, `wallet_address`, `game_id`, `cop_point`, `created_at`, `updated_at`) VALUES
 (1, 'admin@admin.com', 'admin', 'Heist Admin', '$2b$12$lplYyGYca0nFRf7i8LELPOsEYI41bKEYndz3csoOc4aDyL0FJMCve', NULL, 0, 'admin', 1, 0, 'ADMIN01', 'copADMINWALLET000001', 'ADMIN-GAME-001', 0, '2026-04-17 07:42:52', '2026-04-21 11:03:28'),
 (2, 'jossycode0@gmail.com', 'jossy01', 'Jossy Code', '$2b$12$GnGoXL0fuZDdwd1d0p7bnOiXsJ5BHhTUVi3jbVH54K8fgHfedC2pe', NULL, 0, 'user', 1, 0, 'billions', 'coptg67Gv5Ep3Uk29IgEMwH', 'ZSDW-C5PZ-RN8K', 900, '2026-04-17 09:00:03', '2026-04-17 13:44:21'),
-(3, '8amlight@gmail.com', 'light', 'Samuel Oghenchovwe', '$2b$12$6YpXM2xJkyu27NPcobfEf./UUDW1GAqw0DiBMh1/GlGONCL3.BJ5S', '$2b$12$4DPjwsX3yThq3Xl0znpMK.lU6rJG9N9ey52cnBMlDqY.R3LppMlX.', 1, 'user', 1, 0, 'light', 'copiOKpOlWoG1ofmEz0FBGR', 'VHA5-EGR2-H276', 679, '2026-04-17 10:35:32', '2026-04-21 19:28:51'),
-(4, '8amjoker@gmail.com', 'joker', '8amjoker', '$2b$12$/McCefomtmThjCWl5NvsMONTsHUsVa69SuL.MO0tJPMe5Cu.soVR6', NULL, 0, 'user', 1, 0, 'joker', 'coplwnYe2DDW5NynK6NxJB3', 'P6ZX-Q765-8BZ8', 148, '2026-04-17 18:42:25', '2026-04-21 20:57:01');
+(3, '8amlight@gmail.com', 'light', 'Samuel Oghenchovwe', '$2b$12$6YpXM2xJkyu27NPcobfEf./UUDW1GAqw0DiBMh1/GlGONCL3.BJ5S', '$2b$12$4DPjwsX3yThq3Xl0znpMK.lU6rJG9N9ey52cnBMlDqY.R3LppMlX.', 1, 'user', 1, 0, 'light', 'copiOKpOlWoG1ofmEz0FBGR', 'VHA5-EGR2-H276', 680, '2026-04-17 10:35:32', '2026-04-27 23:47:51'),
+(4, '8amjoker@gmail.com', 'joker', '8amjoker', '$2b$12$/McCefomtmThjCWl5NvsMONTsHUsVa69SuL.MO0tJPMe5Cu.soVR6', NULL, 0, 'user', 1, 0, 'joker', 'coplwnYe2DDW5NynK6NxJB3', 'P6ZX-Q765-8BZ8', 148, '2026-04-17 18:42:25', '2026-04-21 20:57:01'),
+(5, '8amfish@gmail.com', 'fish', 'Providence Oghenetega', '$2b$12$AL928wLwhiNNfVWOVxF31eoQ93CEnR3jXO.Hu9fSpyBv2Rb7yTRD2', NULL, 0, 'user', 1, 0, 'MYBE7NPJ', 'coprMgbFHxK9PVWXSl08mlW', 'VK3J-87TA-TNWN', 98, '2026-04-27 23:06:48', '2026-04-27 23:47:10');
 
 --
 -- Indexes for dumped tables
@@ -546,6 +625,14 @@ INSERT INTO `users` (`id`, `email`, `username`, `full_name`, `password_hash`, `t
 ALTER TABLE `admin_analytics_user_exclusions`
   ADD PRIMARY KEY (`user_id`),
   ADD KEY `idx_admin_analytics_exclusions_created_by` (`created_by`);
+
+--
+-- Indexes for table `admin_referral_settings`
+--
+ALTER TABLE `admin_referral_settings`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_admin_referral_settings_updated_by` (`updated_by`),
+  ADD KEY `idx_admin_referral_settings_reset_by` (`last_reset_by`);
 
 --
 -- Indexes for table `affiliate_tasks`
@@ -621,7 +708,9 @@ ALTER TABLE `heist_participants`
 ALTER TABLE `heist_questions`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_heist_questions_heist_id` (`heist_id`),
-  ADD KEY `idx_heist_questions_heist_sort` (`heist_id`,`sort_order`);
+  ADD KEY `idx_heist_questions_heist_sort` (`heist_id`,`sort_order`),
+  ADD KEY `idx_heist_questions_bank` (`heist_id`,`is_active`),
+  ADD KEY `idx_heist_questions_assigned_by` (`assigned_by`);
 
 --
 -- Indexes for table `heist_submissions`
@@ -699,6 +788,17 @@ ALTER TABLE `referrals`
   ADD KEY `idx_referrals_referrer` (`referrer_id`);
 
 --
+-- Indexes for table `referral_reward_progress`
+--
+ALTER TABLE `referral_reward_progress`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_referral_reward_cycle_user` (`reset_version`,`referred_user_id`),
+  ADD KEY `idx_referral_reward_referrer` (`referrer_id`,`reset_version`),
+  ADD KEY `idx_referral_reward_rewarded` (`reset_version`,`rewarded_at`),
+  ADD KEY `idx_referral_reward_last_heist` (`last_joined_heist_id`),
+  ADD KEY `fk_referral_reward_referred` (`referred_user_id`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -729,7 +829,7 @@ ALTER TABLE `affiliate_task_progress`
 -- AUTO_INCREMENT for table `affiliate_user_links`
 --
 ALTER TABLE `affiliate_user_links`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `affiliate_user_referrals`
@@ -753,37 +853,37 @@ ALTER TABLE `cop_point_transfers`
 -- AUTO_INCREMENT for table `heist`
 --
 ALTER TABLE `heist`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `heist_participants`
 --
 ALTER TABLE `heist_participants`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `heist_questions`
 --
 ALTER TABLE `heist_questions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
 
 --
 -- AUTO_INCREMENT for table `heist_submissions`
 --
 ALTER TABLE `heist_submissions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `heist_submission_answers`
 --
 ALTER TABLE `heist_submission_answers`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=51;
 
 --
 -- AUTO_INCREMENT for table `heist_submission_questions`
 --
 ALTER TABLE `heist_submission_questions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `manual_payin_requests`
@@ -795,7 +895,7 @@ ALTER TABLE `manual_payin_requests`
 -- AUTO_INCREMENT for table `otps`
 --
 ALTER TABLE `otps`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `payment_accounts`
@@ -813,13 +913,19 @@ ALTER TABLE `payout_requests`
 -- AUTO_INCREMENT for table `referrals`
 --
 ALTER TABLE `referrals`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `referral_reward_progress`
+--
+ALTER TABLE `referral_reward_progress`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Constraints for dumped tables
@@ -831,6 +937,13 @@ ALTER TABLE `users`
 ALTER TABLE `admin_analytics_user_exclusions`
   ADD CONSTRAINT `fk_admin_analytics_exclusions_admin` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_admin_analytics_exclusions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `admin_referral_settings`
+--
+ALTER TABLE `admin_referral_settings`
+  ADD CONSTRAINT `fk_admin_referral_settings_last_reset_by` FOREIGN KEY (`last_reset_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_admin_referral_settings_updated_by` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Constraints for table `affiliate_tasks`
@@ -886,6 +999,7 @@ ALTER TABLE `heist_participants`
 -- Constraints for table `heist_questions`
 --
 ALTER TABLE `heist_questions`
+  ADD CONSTRAINT `fk_heist_questions_assigned_by` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_heist_questions_heist` FOREIGN KEY (`heist_id`) REFERENCES `heist` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
@@ -941,6 +1055,14 @@ ALTER TABLE `payout_requests`
 ALTER TABLE `referrals`
   ADD CONSTRAINT `fk_referrals_referred` FOREIGN KEY (`referred_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_referrals_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `referral_reward_progress`
+--
+ALTER TABLE `referral_reward_progress`
+  ADD CONSTRAINT `fk_referral_reward_last_heist` FOREIGN KEY (`last_joined_heist_id`) REFERENCES `heist` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_referral_reward_referred` FOREIGN KEY (`referred_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_referral_reward_referrer` FOREIGN KEY (`referrer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

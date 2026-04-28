@@ -3,10 +3,14 @@ import { useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
   FiCheckCircle,
+  FiChevronRight,
   FiCopy,
   FiExternalLink,
   FiLink,
+  FiLock,
   FiRefreshCw,
+  FiShare2,
+  FiTarget,
   FiTrendingUp,
   FiUsers,
 } from "react-icons/fi";
@@ -14,7 +18,7 @@ import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useToast } from "../../components/Toast/ToastContext";
 import { createHeistAffiliateLink, getAvailableHeists } from "../../lib/heists";
-import { getUserProfile } from "../../lib/users";
+import { claimReferredUserReward, getReferredUsers, getUserProfile } from "../../lib/users";
 import styles from "./Affiliate.module.css";
 
 function formatNum(value) {
@@ -47,10 +51,13 @@ export default function Affiliate() {
 
   const [heists, setHeists] = useState([]);
   const [profileData, setProfileData] = useState(null);
+  const [referredUsers, setReferredUsers] = useState([]);
+  const [referredSettings, setReferredSettings] = useState(null);
   const [linksByHeist, setLinksByHeist] = useState({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [busyAll, setBusyAll] = useState(false);
+  const [claimingUserId, setClaimingUserId] = useState(null);
   const [copiedKey, setCopiedKey] = useState("");
   const [error, setError] = useState("");
 
@@ -59,6 +66,9 @@ export default function Affiliate() {
   const taskProgress = Array.isArray(profileData?.affiliate_task_progress)
     ? profileData.affiliate_task_progress
     : [];
+  const user = profileData?.user || null;
+  const userReferralCode = String(user?.referral_code || "").trim();
+  const userReferralLink = String(user?.referral_link || "").trim();
 
   const activeHeists = useMemo(
     () => heists.filter((heist) => heist.status !== "completed" && heist.status !== "cancelled"),
@@ -70,13 +80,16 @@ export default function Affiliate() {
     setError("");
 
     try {
-      const [heistData, profile] = await Promise.all([
+      const [heistData, profile, referrals] = await Promise.all([
         getAvailableHeists(),
         getUserProfile(),
+        getReferredUsers(),
       ]);
 
       setHeists(Array.isArray(heistData?.heists) ? heistData.heists : []);
       setProfileData(profile);
+      setReferredSettings(referrals?.settings || null);
+      setReferredUsers(Array.isArray(referrals?.referrals) ? referrals.referrals : []);
     } catch (err) {
       console.error("Affiliate load error:", err);
       setError(err?.response?.data?.message || "Unable to load affiliate page.");
@@ -101,6 +114,30 @@ export default function Affiliate() {
     } catch (err) {
       toast.error("Unable to copy");
       return false;
+    }
+  };
+
+  const shareAccountReferralLink = async () => {
+    if (!userReferralLink) return;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Join CopUpBid",
+          text: userReferralCode
+            ? `Use my CopUpBid referral code: ${userReferralCode}`
+            : "Join CopUpBid with my referral link.",
+          url: userReferralLink,
+        });
+        toast.success("Referral link shared");
+        return;
+      }
+
+      await copyValue("account-link", userReferralLink, "Referral link");
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+      console.error("Share referral link error:", err);
+      toast.error("Unable to share referral link.");
     }
   };
 
@@ -159,6 +196,27 @@ export default function Affiliate() {
     }
   };
 
+  const claimReward = async (referredUserId) => {
+    if (!referredUserId || claimingUserId) return;
+
+    setClaimingUserId(referredUserId);
+    try {
+      const data = await claimReferredUserReward(referredUserId);
+      toast.success(data?.message || "Referral reward claimed.");
+      await loadAffiliate();
+    } catch (err) {
+      console.error("Claim referral reward error:", err);
+      toast.error(err?.response?.data?.message || "Unable to claim referral reward.");
+    } finally {
+      setClaimingUserId(null);
+    }
+  };
+
+  const goalHeists = Number(referredSettings?.required_heist_joins || 0);
+  const rewardCoins = Number(referredSettings?.reward_cop_points || 0);
+  const rewardSystemEnabled = Boolean(referredSettings?.is_enabled);
+  const claimableUsers = referredUsers.filter((item) => item.is_claimable);
+
   return (
     <div className={styles.page}>
       <Header />
@@ -186,8 +244,8 @@ export default function Affiliate() {
             <p className={styles.kicker}>Affiliate Heists</p>
             <h1>Share heists. Earn CopUpCoin.</h1>
             <p>
-              Generate a heist affiliate link, share it, and earn task rewards when users join
-              before that heist is completed.
+              Share your main referral link to bring in new users, then generate heist affiliate
+              links when you want referral joins to count toward active tasks.
             </p>
           </div>
 
@@ -206,6 +264,70 @@ export default function Affiliate() {
           </div>
         ) : null}
 
+        <section className={styles.accountPanel}>
+          <div className={styles.accountIntro}>
+            <p className={styles.kicker}>Account Referral</p>
+            <h2>Your signup referral</h2>
+            <p>
+              New users who open this link and register will be linked to your account
+              automatically.
+            </p>
+          </div>
+
+          <div className={styles.accountGrid}>
+            <div className={styles.linkBox}>
+              <div>
+                <span>Referral code</span>
+                <strong>{userReferralCode || "Not assigned"}</strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyValue("account-code", userReferralCode, "Referral code")}
+                aria-label="Copy referral code"
+                disabled={!userReferralCode}
+              >
+                {copiedKey === "account-code" ? <FiCheckCircle /> : <FiCopy />}
+              </button>
+            </div>
+
+            <div className={styles.linkBox}>
+              <div>
+                <span>Referral link</span>
+                <strong>{userReferralLink || "Referral link unavailable"}</strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyValue("account-link", userReferralLink, "Referral link")}
+                aria-label="Copy referral link"
+                disabled={!userReferralLink}
+              >
+                {copiedKey === "account-link" ? <FiCheckCircle /> : <FiCopy />}
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.linkActions}>
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={() => copyValue("account-link", userReferralLink, "Referral link")}
+              disabled={!userReferralLink}
+            >
+              {copiedKey === "account-link" ? <FiCheckCircle /> : <FiCopy />}
+              <span>{copiedKey === "account-link" ? "Copied" : "Copy referral link"}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.softBtn}
+              onClick={shareAccountReferralLink}
+              disabled={!userReferralLink}
+            >
+              <FiShare2 />
+              <span>Share</span>
+            </button>
+          </div>
+        </section>
+
         <section className={styles.statsGrid}>
           <div>
             <FiLink />
@@ -218,15 +340,128 @@ export default function Affiliate() {
             <strong>{loading ? "..." : formatNum(affiliateStats.total_clicks)}</strong>
           </div>
           <div>
-            <FiUsers />
-            <span>Referred joins</span>
-            <strong>{loading ? "..." : formatNum(affiliateStats.referred_joins)}</strong>
-          </div>
-          <div>
             <FiCheckCircle />
             <span>Rewards earned</span>
             <strong>{loading ? "..." : `${formatNum(taskStats.affiliate_rewards_earned)} CP`}</strong>
           </div>
+          <div>
+            <FiUsers />
+            <span>Users referred</span>
+            <strong>{loading ? "..." : formatNum(referredUsers.length)}</strong>
+          </div>
+          <div>
+            <FiTarget />
+            <span>Ready to claim</span>
+            <strong>{loading ? "..." : formatNum(claimableUsers.length)}</strong>
+          </div>
+        </section>
+
+        <section className={styles.sectionHead}>
+          <div>
+            <p className={styles.kicker}>Referred Users</p>
+            <h2>People who joined with your code</h2>
+            <p className={styles.sectionText}>
+              Goal: {goalHeists ? `${formatNum(goalHeists)} joined heists` : "Not set"}.
+              Reward: {rewardCoins ? ` ${formatNum(rewardCoins)} CP per qualified user.` : " Not set."}
+              {rewardSystemEnabled ? " Claim each user once they hit the target." : " Claiming is paused while the system is off."}
+            </p>
+          </div>
+        </section>
+
+        <section className={styles.referredPanel}>
+          {loading ? (
+            <div className={styles.emptyState}>Loading referred users...</div>
+          ) : referredUsers.length ? (
+            <div className={styles.referredScroller}>
+              {referredUsers.map((item) => {
+                const pct = progressPercent(item.joined_heists, goalHeists);
+                const canClaim = Boolean(item.is_claimable);
+                const isClaimed = Boolean(item.is_claimed);
+                const claimLocked = !rewardSystemEnabled || !canClaim || isClaimed;
+
+                return (
+                  <article className={styles.referredCard} key={item.id}>
+                    <div className={styles.referredTop}>
+                      <div>
+                        <h3>{item.full_name || item.username || "Unnamed user"}</h3>
+                        <p>@{item.username || "unknown"}</p>
+                      </div>
+                      <span
+                        className={
+                          isClaimed
+                            ? styles.referredDonePill
+                            : canClaim
+                              ? styles.referredReadyPill
+                              : styles.referredOpenPill
+                        }
+                      >
+                        {isClaimed ? "Claimed" : canClaim ? "Ready" : "Tracking"}
+                      </span>
+                    </div>
+
+                    <div className={styles.referredMeta}>
+                      <span>{item.email || "No email"}</span>
+                      <span>Registered {formatDate(item.created_at)}</span>
+                    </div>
+
+                    <div className={styles.goalCard}>
+                      <div className={styles.progressText}>
+                        <span>
+                          {formatNum(item.joined_heists)} / {formatNum(goalHeists)} joined
+                        </span>
+                        <strong>{pct}%</strong>
+                      </div>
+                      <div className={styles.progressTrack}>
+                        <span style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className={styles.referredMeta}>
+                        <span>Last joined heist: {formatDate(item.last_joined_at)}</span>
+                        <span>
+                          Reward {isClaimed ? `${formatNum(item.awarded_cop_points)} CP claimed` : `${formatNum(rewardCoins)} CP`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className={styles.linkActions}>
+                      <button
+                        type="button"
+                        className={styles.primaryBtn}
+                        disabled={claimLocked || claimingUserId === item.user_id}
+                        onClick={() => claimReward(item.user_id)}
+                      >
+                        {isClaimed ? <FiCheckCircle /> : canClaim ? <FiGiftIconShim /> : <FiLock />}
+                        <span>
+                          {isClaimed
+                            ? "Already claimed"
+                            : claimingUserId === item.user_id
+                              ? "Claiming..."
+                              : canClaim
+                                ? "Claim reward"
+                                : rewardSystemEnabled
+                                  ? "Goal not reached"
+                                  : "Claiming paused"}
+                        </span>
+                      </button>
+                      <div className={styles.hintPill}>
+                        <FiChevronRight />
+                        <span>
+                          {isClaimed
+                            ? "This user has completed the cycle."
+                            : canClaim
+                              ? "Claim this user now."
+                              : `Needs ${formatNum(Math.max(goalHeists - Number(item.joined_heists || 0), 0))} more joins.`}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className={styles.emptyState}>
+              No users have registered with your referral code yet.
+            </div>
+          )}
         </section>
 
         <section className={styles.sectionHead}>
@@ -392,4 +627,8 @@ export default function Affiliate() {
       <Footer />
     </div>
   );
+}
+
+function FiGiftIconShim() {
+  return <FiTarget />;
 }
