@@ -16,6 +16,9 @@ import {
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import appApk from "../../assets/app/copupbid-2.0.apk";
+import copupGif from "../../assets/copup.gif";
+import flowerImg from "../../assets/flower.png";
+import flowerFlowingImg from "../../assets/flower-flowing.png";
 import styles from "./Landing.module.css";
 
 function useScrollReveal() {
@@ -47,33 +50,33 @@ function useScrollReveal() {
 }
 
 const stats = [
-  { label: "Game Mode", value: "True / False" },
-  { label: "Tie Breaker", value: "Fastest Time" },
-  { label: "Reward", value: "CopUpCoin" },
+  { label: "True/False Format", value: "Sharp Decisions" },
+  { label: "Fastest Wins Ties", value: "Speed Matters" },
+  { label: "Reward Drop", value: "CopUpCoin" },
 ];
 
 const steps = [
   {
     icon: <FiCreditCard />,
-    title: "Fund your wallet",
-    text: "Buy CopUpCoin from your account page and keep your game balance ready.",
+    title: "Load up for May",
+    text: "Buy CopUpCoin from your account page and keep your balance ready for fresh heists and faster runs.",
   },
   {
     icon: <FiTarget />,
-    title: "Join a heist",
-    text: "Pick an available heist, pay the entry fee, and start when the game opens.",
+    title: "Join the drop",
+    text: "Pick an active heist, pay the entry fee, and jump in the moment the round opens.",
   },
   {
     icon: <FiZap />,
-    title: "Answer fast",
-    text: "Choose True or False, submit your run, and climb the leaderboard by score and speed.",
+    title: "Think fast. Win faster.",
+    text: "Choose True or False, submit your run, and push up the leaderboard with clean answers and quick timing.",
   },
 ];
 
 const features = [
-  "True/False gameplay only",
-  "Prize paid in CopUpCoin",
-  "Affiliate tasks and referral links",
+  "True/False gameplay with fast rounds",
+  "CopUpCoin prizes for winning runs",
+  "Affiliate tasks and referral growth",
   "Wallet pay-in and payout tracking",
 ];
 
@@ -93,16 +96,32 @@ export default function Landing() {
             <span className={`${styles.shape} ${styles.shapeFour}`} />
             <span className={`${styles.shape} ${styles.shapeFive}`} />
             <span className={`${styles.shape} ${styles.shapeSix}`} />
+            <img src={flowerFlowingImg} alt="" className={styles.flowingFlower} />
+            <img src={flowerImg} alt="" className={styles.cornerFlower} />
           </div>
 
           <div className={styles.heroInner}>
             <div className={styles.heroCopy} data-reveal>
-              <p className={styles.kicker}>CopupBid Heist Arena</p>
-              <h1>Play fast. Think sharper. Win CopUpCoin.</h1>
+              <p className={styles.kicker}>May Heist Drop</p>
+              <div className={styles.wordmark} aria-label="CopUpBid">
+                <span>CopUpB</span>
+                <span className={styles.wordmarkI}>
+                  ı
+                  <img src={copupGif} alt="" className={styles.wordmarkGif} />
+                </span>
+                <span>d</span>
+              </div>
+              <h1>May Your Success Bloom.</h1>
               <p>
-                Enter bright True/False heists where every correct answer matters and speed decides
-                the tight races.
+                This May, think fast, answer smart, and win CopUpCoin in bright True/False heists
+                where speed can still break the tightest race.
               </p>
+
+              <div className={styles.heroPills} aria-label="May campaign highlights">
+                <span>Fresh Month. Fresh Heists. Fresh Wins.</span>
+                <span>May The Fastest Mind Win.</span>
+                <span>May Rewards Are Waiting.</span>
+              </div>
 
               <div className={styles.heroActions}>
                 <Link className={styles.primaryBtn} to="/register">
@@ -116,17 +135,23 @@ export default function Landing() {
             </div>
 
             <div className={styles.jokerPanel} data-reveal>
+              <img src={flowerImg} alt="" className={styles.panelFlower} />
               <div className={styles.marqueeLane} aria-hidden="true">
                 <span>TRUE</span>
                 <span>FALSE</span>
-                <span>APRIL FOOL</span>
+                <span>MAY DROP</span>
+                <span>BLOOM</span>
                 <span>HEIST</span>
               </div>
 
-              <div className={`${styles.marqueeLane} ${styles.marqueeLaneReverse}`} aria-hidden="true">
+              <div
+                className={`${styles.marqueeLane} ${styles.marqueeLaneReverse}`}
+                aria-hidden="true"
+              >
                 <span>FAST</span>
                 <span>SMART</span>
-                <span>JOKER MODE</span>
+                <span>MAY MODE</span>
+                <span>BLOOM</span>
                 <span>WIN</span>
               </div>
 
@@ -136,14 +161,14 @@ export default function Landing() {
                 <div className={styles.jokerFace}>
                   <FiSmile />
                 </div>
-                <strong>Joker Round</strong>
-                <p>April Fool's energy, real leaderboard pressure.</p>
+                <strong>Bloom Mode</strong>
+                <p>May momentum starts here. Fresh energy, real leaderboard pressure.</p>
               </div>
 
               <div className={styles.floatingChips} aria-hidden="true">
                 <span>TRUE</span>
                 <span>FALSE</span>
-                <span>?</span>
+                <span>BLOOM</span>
                 <span>CP</span>
               </div>
             </div>
@@ -166,8 +191,8 @@ export default function Landing() {
 
         <section className={styles.section}>
           <div className={styles.sectionHead} data-reveal>
-            <p className={styles.kicker}>How It Moves</p>
-            <h2>A wallet game flow that feels instant.</h2>
+            <p className={styles.kicker}>May Momentum Starts Here</p>
+            <h2>Bloom fast. Answer smart. Win CopUpCoin.</h2>
           </div>
 
           <div className={styles.stepGrid}>
@@ -189,11 +214,11 @@ export default function Landing() {
 
         <section className={`${styles.section} ${styles.split}`}>
           <div className={styles.featurePanel} data-reveal>
-            <p className={styles.kicker}>Why It Works</p>
-            <h2>Simple rules. Bright feedback. Clear rewards.</h2>
+            <p className={styles.kicker}>Fresh Month. Fresh Wins.</p>
+            <h2>New month. New heist. New reward.</h2>
             <p>
-              CopupBid keeps the game focused: join a heist, answer True or False, submit your run,
-              and let the leaderboard settle the winner.
+              CopupBid keeps the heist flow sharp: join the round, answer True or False, submit
+              your run, and let fast thinking and faster timing decide the winner.
             </p>
             <div className={styles.featureList}>
               {features.map((feature) => (
@@ -226,11 +251,11 @@ export default function Landing() {
         <section className={styles.downloadSection} data-reveal>
           <div className={styles.downloadCard}>
             <div>
-              <p className={styles.kicker}>Android App</p>
+              <p className={styles.kicker}>May Rewards Are Waiting</p>
               <h2>Download CopupBid for Android.</h2>
               <p>
-                Install the latest Android build and keep CopUpCoin, heists, referrals, and wallet
-                actions within reach.
+                Install the latest Android build and keep heists, CopUpCoin rewards, referrals, and
+                wallet actions within reach all month long.
               </p>
 
               <div className={styles.downloadMeta}>
@@ -254,8 +279,8 @@ export default function Landing() {
 
         <section className={styles.cta} data-reveal>
           <div>
-            <p className={styles.kicker}>Ready</p>
-            <h2>Open your first heist.</h2>
+            <p className={styles.kicker}>Your May Winning Streak Starts Now</p>
+            <h2>Bloom into victory.</h2>
             <p>Create an account, fund your wallet, and start chasing the next CopUpCoin prize.</p>
           </div>
           <Link className={styles.primaryBtn} to="/register">
