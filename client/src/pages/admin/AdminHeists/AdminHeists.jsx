@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaPlus,
-  FaRedoAlt,
   FaSave,
   FaTrash,
   FaTrophy,
   FaUsers,
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import Modal from "../../../components/ui/Modal";
 import { ToastProvider, useToast } from "../../../components/ui/Toaster";
 import {
@@ -480,24 +480,16 @@ function AdminHeistsPage() {
     <div className={styles.page}>
       <AdminNavbar />
       <main className={styles.main}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>Admin Heists</p>
-            <h1>Heist control room</h1>
-            <p>Create True/False heists, assign unused bank questions, start countdowns, finalize winners, and track affiliate tasks.</p>
-          </div>
-          <button type="button" className={styles.refreshBtn} onClick={loadHeists} disabled={loading || busy}>
-            <FaRedoAlt />
-            <span>{loading ? "Loading..." : "Refresh"}</span>
-          </button>
-        </section>
-
-        {error ? (
-          <div className={styles.errorBox}>
-            <span>{error}</span>
-            <button type="button" onClick={loadHeists}>Retry</button>
-          </div>
-        ) : null}
+        <AdminPageHeader
+          kicker="Admin Heists"
+          title="Heist control room"
+          description="Create True/False heists, assign unused bank questions, start countdowns, finalize winners, and track affiliate tasks."
+          onRefresh={loadHeists}
+          refreshing={loading || busy}
+          refreshingLabel="Loading..."
+          error={error}
+          onRetry={loadHeists}
+        />
 
         <section className={styles.statsGrid}>
           <div>

@@ -5,12 +5,12 @@ import {
   FaCoins,
   FaFlask,
   FaGift,
-  FaRedoAlt,
   FaTrophy,
   FaUsers,
   FaWallet,
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { getAdminProfile } from "../../../lib/admin";
 import styles from "./AdminDashboard.module.css";
 
@@ -134,35 +134,15 @@ export default function AdminDashboard() {
       <AdminNavbar admin={admin} />
 
       <main className={styles.main}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>Admin Dashboard</p>
-            <h1>{loading ? "Loading control room..." : `Welcome, ${adminName(admin)}`}</h1>
-            <p>
-              Monitor CopUpCoin balances, Heist activity, affiliate rewards, and platform users
-              from one admin workspace.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className={styles.refreshBtn}
-            onClick={loadDashboard}
-            disabled={loading}
-          >
-            <FaRedoAlt />
-            <span>{loading ? "Refreshing..." : "Refresh"}</span>
-          </button>
-        </section>
-
-        {error ? (
-          <div className={styles.errorBox}>
-            <span>{error}</span>
-            <button type="button" onClick={loadDashboard}>
-              Retry
-            </button>
-          </div>
-        ) : null}
+        <AdminPageHeader
+          kicker="Admin Dashboard"
+          title={loading ? "Loading control room..." : `Welcome, ${adminName(admin)}`}
+          description="Monitor CopUpCoin balances, Heist activity, affiliate rewards, and platform users from one admin workspace."
+          onRefresh={loadDashboard}
+          refreshing={loading}
+          error={error}
+          onRetry={loadDashboard}
+        />
 
         <section className={styles.statsGrid}>
           <div className={styles.statCard}>

@@ -3,13 +3,13 @@ import {
   FaBalanceScale,
   FaChartLine,
   FaCoins,
-  FaRedoAlt,
   FaSearch,
   FaTrophy,
   FaUsers,
   FaWallet,
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { useToast } from "../../../components/Toast/ToastContext";
 import {
   clearAdminAnalyticsExclusions,
@@ -129,27 +129,15 @@ export default function AdminAnalytics() {
       <AdminNavbar />
 
       <main className={styles.main}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>Admin Analytics</p>
-            <h1>System Analysis</h1>
-            <p>Track coin balances, heist revenue, prize payouts, and platform reconciliation.</p>
-          </div>
-
-          <button type="button" className={styles.refreshBtn} onClick={loadAnalytics} disabled={loading}>
-            <FaRedoAlt />
-            <span>{loading ? "Refreshing..." : "Refresh"}</span>
-          </button>
-        </section>
-
-        {error ? (
-          <div className={styles.errorBox}>
-            <span>{error}</span>
-            <button type="button" onClick={loadAnalytics}>
-              Retry
-            </button>
-          </div>
-        ) : null}
+        <AdminPageHeader
+          kicker="Admin Analytics"
+          title="System Analysis"
+          description="Track coin balances, heist revenue, prize payouts, and platform reconciliation."
+          onRefresh={loadAnalytics}
+          refreshing={loading}
+          error={error}
+          onRetry={loadAnalytics}
+        />
 
         <section className={styles.statsGrid}>
           <div className={styles.statBox}>

@@ -4,12 +4,12 @@ import {
   FaCoins,
   FaCopy,
   FaCreditCard,
-  FaRedoAlt,
   FaSave,
   FaTimes,
   FaWallet,
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import Modal from "../../../components/ui/Modal";
 import { ToastProvider, useToast } from "../../../components/ui/Toaster";
 import {
@@ -271,30 +271,15 @@ function AdminTransactionsPage() {
       <AdminNavbar />
 
       <main className={styles.main}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>Transactions</p>
-            <h1>Pay-in and payout control</h1>
-            <p>
-              Manage manual bank payment details, coin rate, incoming pay-ins, and user withdrawal
-              requests from one admin workspace.
-            </p>
-          </div>
-
-          <button type="button" className={styles.refreshBtn} onClick={loadAll} disabled={loading}>
-            <FaRedoAlt />
-            <span>{loading ? "Refreshing..." : "Refresh"}</span>
-          </button>
-        </section>
-
-        {error ? (
-          <div className={styles.errorBox}>
-            <span>{error}</span>
-            <button type="button" onClick={loadAll}>
-              Retry
-            </button>
-          </div>
-        ) : null}
+        <AdminPageHeader
+          kicker="Transactions"
+          title="Pay-in and payout control"
+          description="Manage manual bank payment details, coin rate, incoming pay-ins, and user withdrawal requests from one admin workspace."
+          onRefresh={loadAll}
+          refreshing={loading}
+          error={error}
+          onRetry={loadAll}
+        />
 
         <section className={styles.statsGrid}>
           <div className={styles.statCard}>

@@ -3,7 +3,6 @@ import {
   FaBan,
   FaCheckCircle,
   FaEdit,
-  FaRedoAlt,
   FaSave,
   FaSearch,
   FaTrash,
@@ -12,6 +11,7 @@ import {
   FaWallet,
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { useToast } from "../../../components/Toast/ToastContext";
 import {
   deleteAdminUser,
@@ -188,18 +188,15 @@ export default function AdminUsers() {
       <AdminNavbar />
 
       <main className={styles.main}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>Admin Users</p>
-            <h1>Users</h1>
-            <p>Manage accounts, balances, roles, verification, and access status.</p>
-          </div>
-
-          <button type="button" className={styles.refreshBtn} onClick={loadUsers} disabled={loading}>
-            <FaRedoAlt />
-            <span>{loading ? "Refreshing..." : "Refresh"}</span>
-          </button>
-        </section>
+        <AdminPageHeader
+          kicker="Admin Users"
+          title="Users"
+          description="Manage accounts, balances, roles, verification, and access status."
+          onRefresh={loadUsers}
+          refreshing={loading}
+          error={error}
+          onRetry={loadUsers}
+        />
 
         <section className={styles.statsGrid}>
           <div className={styles.statBox}>
@@ -251,15 +248,6 @@ export default function AdminUsers() {
             <span>Apply</span>
           </button>
         </form>
-
-        {error ? (
-          <div className={styles.errorBox}>
-            <span>{error}</span>
-            <button type="button" onClick={loadUsers}>
-              Retry
-            </button>
-          </div>
-        ) : null}
 
         <section className={styles.contentGrid}>
           <div className={styles.panel}>

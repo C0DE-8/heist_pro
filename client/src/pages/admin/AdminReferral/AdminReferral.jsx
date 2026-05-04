@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaExclamationTriangle, FaGift, FaPowerOff, FaRedoAlt, FaSave, FaUsers } from "react-icons/fa";
+import { FaCheckCircle, FaExclamationTriangle, FaGift, FaPowerOff, FaSave, FaUsers } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { useToast } from "../../../components/Toast/ToastContext";
 import {
   getAdminReferralSettings,
@@ -133,30 +134,15 @@ export default function AdminReferral() {
       <AdminNavbar />
 
       <main className={styles.main}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>Admin Referral</p>
-            <h1>Referral Rewards</h1>
-            <p>
-              Control how many heists a referred user must join, how many coins the referrer earns,
-              and when the reward cycle resets.
-            </p>
-          </div>
-
-          <button type="button" className={styles.refreshBtn} onClick={loadPage} disabled={loading}>
-            <FaRedoAlt />
-            <span>{loading ? "Refreshing..." : "Refresh"}</span>
-          </button>
-        </section>
-
-        {error ? (
-          <div className={styles.errorBox}>
-            <span>{error}</span>
-            <button type="button" onClick={loadPage}>
-              Retry
-            </button>
-          </div>
-        ) : null}
+        <AdminPageHeader
+          kicker="Admin Referral"
+          title="Referral Rewards"
+          description="Control how many heists a referred user must join, how many coins the referrer earns, and when the reward cycle resets."
+          onRefresh={loadPage}
+          refreshing={loading}
+          error={error}
+          onRetry={loadPage}
+        />
 
         <section className={styles.statsGrid}>
           {stats.map((stat) => (

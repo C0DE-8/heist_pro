@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { FaEnvelope, FaIdBadge, FaKey, FaRedoAlt, FaSave, FaUserShield } from "react-icons/fa";
+import { FaEnvelope, FaIdBadge, FaKey, FaSave, FaUserShield } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { useToast } from "../../../components/Toast/ToastContext";
 import {
   getAdminProfile,
@@ -99,32 +100,15 @@ export default function AdminProfile() {
       <AdminNavbar admin={admin} />
 
       <main className={styles.main}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.kicker}>Admin Profile</p>
-            <h1>{loading ? "Loading profile..." : admin?.full_name || admin?.username || "Admin"}</h1>
-            <p>Manage admin identity details and change the admin account password.</p>
-          </div>
-
-          <button
-            type="button"
-            className={styles.refreshBtn}
-            onClick={loadProfile}
-            disabled={loading}
-          >
-            <FaRedoAlt />
-            <span>{loading ? "Refreshing..." : "Refresh"}</span>
-          </button>
-        </section>
-
-        {error ? (
-          <div className={styles.errorBox}>
-            <span>{error}</span>
-            <button type="button" onClick={loadProfile}>
-              Retry
-            </button>
-          </div>
-        ) : null}
+        <AdminPageHeader
+          kicker="Admin Profile"
+          title={loading ? "Loading profile..." : admin?.full_name || admin?.username || "Admin"}
+          description="Manage admin identity details and change the admin account password."
+          onRefresh={loadProfile}
+          refreshing={loading}
+          error={error}
+          onRetry={loadProfile}
+        />
 
         <section className={styles.grid}>
           <form className={styles.panel} onSubmit={saveProfile}>
