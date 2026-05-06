@@ -206,7 +206,6 @@ async function answerCallback(callbackQueryId, text, showAlert = false) {
 
 // Remove buttons after a successful review so the same request is not clicked twice.
 async function removeInlineKeyboard(callbackQuery) {
-  
   const message = callbackQuery?.message;
   if (!message?.chat?.id || !message?.message_id) return;
   await telegramPost("editMessageReplyMarkup", {
@@ -225,43 +224,107 @@ function validateWebhookSecret(req) {
   );
 }
 
-// Handle Telegram admin actions
-router.post("/webhook", async (req, res) => {
+// Get Telegram webhook status
+router.get("/webhook-info", async (req, res) => {
   if (!validateWebhookSecret(req)) {
     return res.status(403).json({ ok: false, message: "Invalid Telegram webhook secret" });
   }
 
-  const callbackQuery = req.body?.callback_query;
-  if (!callbackQuery) return res.json({ ok: true });
+  try {
+    const data = await telegramPost("getWebhookInfo", {});
+    return res.json({ ok: true, telegram: data });
+  } catch (err) {
+    console.error("telegram webhook info error:", err.response?.data || err.message);
+    return res.status(500).json({
+      ok: false,
+      message: "Error fetching Telegram webhook info",
+      error: err.response?.data || err.message,
+    });
+  }
+});
 
-  const chatId = callbackQuery.message?.chat?.id;
-  if (!isAllowedTelegramChat(chatId)) {
-    await answerCallback(callbackQuery.id, "This Telegram chat is not allowed.", true);
+// Register Telegram webhook
+router.post("/set-webhook", async (req, res) => {
+  if (!validateWebhookSecret(req)) {
+    return res.status(403).json({ ok: false, message: "Invalid Telegram webhook secret" });
+  }
+
+  try {
+    const webhookUrl =
+      req.body?.url ||
+      process.env.TELEGRAM_WEBHOOK_URL ||
+      `${req.protocol}://${req.get("host")}/api/admin/telegram/webhook`;
+
+    const payload = {
+      url: webhookUrl,
+      allowed_updates: ["callback_query"],
+    };
+
+    if (process.env.TELEGRAM_WEBHOOK_SECRET) {
+      payload.secret_token = process.env.TELEGRAM_WEBHOOK_SECRET;
+    }
+
+    const data = await telegramPost("setWebhook", payload);
+    return res.json({ ok: true, webhook_url: webhookUrl, telegram: data });
+  } catch (err) {
+    console.error("telegram set webhook error:", err.response?.data || err.message);
+    return res.status(500).json({
+      ok: false,
+      message: "Error setting Telegram webhook",
+      error: err.response?.data || err.message,
+    });
+  }
+});
+
+// Handle Telegram admin actions
+router.post("/webhook", async (req, res) => {
+  try {
+    if (!validateWebhookSecret(req)) {
+      console.warn("telegram webhook rejected: invalid secret");
+      return res.status(403).json({ ok: false, message: "Invalid Telegram webhook secret" });
+    }
+
+    const callbackQuery = req.body?.callback_query;
+    if (!callbackQuery) return res.json({ ok: true });
+
+    const chatId = callbackQuery.message?.chat?.id;
+    console.log("telegram callback received:", {
+      data: callbackQuery.data,
+      chat_id: chatId,
+      from_id: callbackQuery.from?.id,
+    });
+
+    if (!isAllowedTelegramChat(chatId)) {
+      await answerCallback(callbackQuery.id, "This Telegram chat is not allowed.", true);
+      return res.json({ ok: true });
+    }
+
+    const action = parseCallbackData(callbackQuery.data);
+    if (!action) {
+      await answerCallback(callbackQuery.id, "Unknown action.", true);
+      return res.json({ ok: true });
+    }
+
+    const adminId = await getTelegramAdminId();
+    const result =
+      action.type === "payin"
+        ? await reviewPayin({ requestId: action.requestId, status: action.status, adminId })
+        : await reviewPayout({ requestId: action.requestId, status: action.status, adminId });
+
+    await answerCallback(callbackQuery.id, result.message, !result.ok);
+
+    if (result.ok) {
+      await removeInlineKeyboard(callbackQuery);
+      notifyAdmins(result.notification).catch((err) =>
+        console.error("telegram review notify error:", err.message)
+      );
+    }
+
     return res.json({ ok: true });
+  } catch (err) {
+    console.error("telegram webhook error:", err.response?.data || err.message);
+    return res.json({ ok: false });
   }
-
-  const action = parseCallbackData(callbackQuery.data);
-  if (!action) {
-    await answerCallback(callbackQuery.id, "Unknown action.", true);
-    return res.json({ ok: true });
-  }
-
-  const adminId = await getTelegramAdminId();
-  const result =
-    action.type === "payin"
-      ? await reviewPayin({ requestId: action.requestId, status: action.status, adminId })
-      : await reviewPayout({ requestId: action.requestId, status: action.status, adminId });
-
-  await answerCallback(callbackQuery.id, result.message, !result.ok);
-
-  if (result.ok) {
-    await removeInlineKeyboard(callbackQuery);
-    notifyAdmins(result.notification).catch((err) =>
-      console.error("telegram review notify error:", err.message)
-    );
-  }
-
-  return res.json({ ok: true });
 });
 
 module.exports = router;
