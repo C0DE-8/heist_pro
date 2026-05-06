@@ -3,6 +3,8 @@ const { pool } = require("../conf/db");
 const { getAdminChatIds, notifyAdmins, telegramPost } = require("../services/telegram");
 
 const router = express.Router();
+const TELEGRAM_ADMIN_NOTE = "Processed by Copupbid AI Review System";
+const TELEGRAM_REJECTION_REASON = "Declined by Copupbid AI Validation";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -94,8 +96,8 @@ async function reviewPayin({ requestId, status, adminId }) {
       [
         status,
         adminId,
-        "Reviewed from Telegram",
-        status === "rejected" ? "Rejected from Telegram" : null,
+        TELEGRAM_ADMIN_NOTE,
+        status === "rejected" ? TELEGRAM_REJECTION_REASON : null,
         requestId,
       ]
     );
@@ -163,8 +165,8 @@ async function reviewPayout({ requestId, status, adminId }) {
       [
         status,
         adminId,
-        "Reviewed from Telegram",
-        status === "rejected" ? "Rejected from Telegram" : null,
+        TELEGRAM_ADMIN_NOTE,
+        status === "rejected" ? TELEGRAM_REJECTION_REASON : null,
         requestId,
       ]
     );
