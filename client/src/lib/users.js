@@ -20,6 +20,11 @@ export async function getReferredUsers() {
   };
 }
 
+export async function getUserHeistAlerts() {
+  const { data } = await api.get("/users/heist-alerts");
+  return Array.isArray(data?.alerts) ? data.alerts : [];
+}
+
 export async function claimReferredUserReward(referredUserId) {
   const { data } = await api.post(`/users/referred/${referredUserId}/claim`);
   return data;

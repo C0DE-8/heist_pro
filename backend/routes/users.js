@@ -47,6 +47,7 @@ async function getUserProfile(userId, req) {
   return user;
 }
 
+// Get user profile
 router.get("/profile", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -137,6 +138,117 @@ router.get("/profile", authenticateToken, async (req, res) => {
   }
 });
 
+// List user alerts
+router.get("/heist-alerts", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const [heistRows] = await pool.query(
+      `SELECT
+         h.id AS heist_id,
+         h.name,
+         h.status,
+         h.prize_cop_points,
+         h.countdown_started_at,
+         h.countdown_ends_at,
+         h.updated_at,
+         h.winner_user_id,
+         u.username AS winner_username,
+         u.full_name AS winner_full_name,
+         hp.joined_at,
+         hp.status AS participant_status
+       FROM heist_participants hp
+       JOIN heist h ON h.id = hp.heist_id
+       LEFT JOIN users u ON u.id = h.winner_user_id
+       WHERE hp.user_id = ?
+         AND h.status IN ('started', 'completed')
+       ORDER BY COALESCE(h.updated_at, h.countdown_started_at, hp.joined_at) DESC
+       LIMIT 30`,
+      [userId]
+    );
+
+    const alerts = [];
+    for (const row of heistRows) {
+      if (row.status === "started") {
+        alerts.push({
+          id: `heist:${row.heist_id}:started`,
+          type: "started",
+          heist_id: row.heist_id,
+          heist_name: row.name,
+          title: "Heist started",
+          message: `${row.name} has started.`,
+          created_at: row.countdown_started_at || row.updated_at || row.joined_at,
+        });
+      }
+
+      if (row.status === "completed") {
+        alerts.push({
+          id: `heist:${row.heist_id}:ended`,
+          type: "ended",
+          heist_id: row.heist_id,
+          heist_name: row.name,
+          title: "Heist ended",
+          message: `${row.name} has ended.`,
+          created_at: row.countdown_ends_at || row.updated_at || row.joined_at,
+        });
+
+        if (Number(row.winner_user_id) === Number(userId)) {
+          alerts.push({
+            id: `heist:${row.heist_id}:winner`,
+            type: "winner",
+            heist_id: row.heist_id,
+            heist_name: row.name,
+            title: "You won a heist",
+            message: `You won ${row.name}.`,
+            prize_cop_points: Number(row.prize_cop_points || 0),
+            created_at: row.updated_at || row.countdown_ends_at || row.joined_at,
+          });
+        }
+      }
+    }
+
+    const [transferRows] = await pool.query(
+      `SELECT
+         t.id,
+         t.sender_user_id,
+         sender.username AS sender_username,
+         sender.full_name AS sender_full_name,
+         t.cop_points,
+         t.note,
+         t.created_at
+       FROM cop_point_transfers t
+       JOIN users sender ON sender.id = t.sender_user_id
+       WHERE t.recipient_user_id = ?
+       ORDER BY t.created_at DESC, t.id DESC
+       LIMIT 30`,
+      [userId]
+    );
+
+    for (const row of transferRows) {
+      const senderName = row.sender_full_name || row.sender_username || "a user";
+      alerts.push({
+        id: `trade:${row.id}:received`,
+        type: "trade_received",
+        transfer_id: row.id,
+        sender_user_id: row.sender_user_id,
+        sender_name: senderName,
+        title: "Coin received",
+        message: `${senderName} sent you ${Number(row.cop_points || 0).toLocaleString()} CopUpCoin.`,
+        cop_points: Number(row.cop_points || 0),
+        note: row.note,
+        created_at: row.created_at,
+      });
+    }
+
+    alerts.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    return res.json({ alerts: alerts.slice(0, 40) });
+  } catch (err) {
+    console.error("user heist alerts error:", err);
+    return res.status(500).json({ message: "Error fetching user alerts" });
+  }
+});
+
+// Update user profile
 router.patch("/profile", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -190,6 +302,7 @@ router.patch("/profile", authenticateToken, async (req, res) => {
   }
 });
 
+// Update user password
 router.patch("/profile/password", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -230,6 +343,7 @@ router.patch("/profile/password", authenticateToken, async (req, res) => {
   }
 });
 
+// List referred users
 router.get("/referred", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -283,6 +397,7 @@ router.get("/referred", authenticateToken, async (req, res) => {
   }
 });
 
+// Claim referral reward
 router.post("/referred/:referredUserId/claim", authenticateToken, async (req, res) => {
   let conn;
   try {
