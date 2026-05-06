@@ -11,6 +11,20 @@ function boolToTinyInt(value) {
   return value === true || value === 1 || value === "1" || value === "true" ? 1 : 0;
 }
 
+function normalizeDateTimeInput(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const normalized = raw.replace("T", " ");
+  return normalized.length === 16 ? `${normalized}:00` : normalized;
+}
+
 async function getAssignedQuestionCount(conn, heistId) {
   const [[countRow]] = await conn.query(
     "SELECT COUNT(*) AS total FROM heist_questions WHERE heist_id = ? AND is_active = 1",
@@ -90,6 +104,7 @@ async function assignQuestionBankToHeist(conn, { heistId, questionCount, adminId
   return { status: 200, body: { message: "Questions assigned", total_questions: total } };
 }
 
+// Create heist
 router.post("/", async (req, res) => {
   let conn;
   try {
@@ -159,6 +174,7 @@ router.post("/", async (req, res) => {
   }
 });
 
+// List heists
 router.get("/", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -200,6 +216,7 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Update heist
 router.patch("/:id", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -208,6 +225,46 @@ router.patch("/:id", async (req, res) => {
     const updates = [];
     const params = [];
 
+    if (req.body?.name !== undefined) {
+      const name = String(req.body.name || "").trim();
+      if (!name) return res.status(400).json({ message: "Name is required" });
+      updates.push("name = ?");
+      params.push(name);
+    }
+
+    if (req.body?.description !== undefined) {
+      const description = String(req.body.description || "").trim();
+      updates.push("description = ?");
+      params.push(description || null);
+    }
+
+    if (req.body?.min_users !== undefined) {
+      const minUsers = Number(req.body.min_users);
+      if (!Number.isInteger(minUsers) || minUsers < 1) {
+        return res.status(400).json({ message: "min_users must be 1 or greater" });
+      }
+      updates.push("min_users = ?");
+      params.push(minUsers);
+    }
+
+    if (req.body?.ticket_price !== undefined) {
+      const ticketPrice = Number(req.body.ticket_price);
+      if (!Number.isInteger(ticketPrice) || ticketPrice < 0) {
+        return res.status(400).json({ message: "ticket_price must be 0 or greater" });
+      }
+      updates.push("ticket_price = ?");
+      params.push(ticketPrice);
+    }
+
+    if (req.body?.prize_cop_points !== undefined) {
+      const prizeCopPoints = Number(req.body.prize_cop_points);
+      if (!Number.isInteger(prizeCopPoints) || prizeCopPoints < 0) {
+        return res.status(400).json({ message: "prize_cop_points must be 0 or greater" });
+      }
+      updates.push("prize_cop_points = ?");
+      params.push(prizeCopPoints);
+    }
+
     if (req.body?.questions_per_session !== undefined) {
       const questionsPerSession = Number(req.body.questions_per_session);
       if (!Number.isInteger(questionsPerSession) || questionsPerSession < 0) {
@@ -215,6 +272,26 @@ router.patch("/:id", async (req, res) => {
       }
       updates.push("questions_per_session = ?");
       params.push(questionsPerSession);
+    }
+
+    if (req.body?.countdown_duration_minutes !== undefined) {
+      const countdownDuration = Number(req.body.countdown_duration_minutes);
+      if (!Number.isInteger(countdownDuration) || countdownDuration < 1) {
+        return res.status(400).json({ message: "countdown_duration_minutes must be 1 or greater" });
+      }
+      updates.push("countdown_duration_minutes = ?");
+      params.push(countdownDuration);
+    }
+
+    for (const field of ["starts_at", "ends_at"]) {
+      if (req.body?.[field] !== undefined) {
+        const value = normalizeDateTimeInput(req.body[field]);
+        if (value === false) {
+          return res.status(400).json({ message: `${field} must be a valid date` });
+        }
+        updates.push(`${field} = ?`);
+        params.push(value);
+      }
     }
 
     if (!updates.length) return res.status(400).json({ message: "No updates provided" });
@@ -227,7 +304,20 @@ router.patch("/:id", async (req, res) => {
     if (!result.affectedRows) return res.status(404).json({ message: "Heist not found" });
 
     const [[heist]] = await pool.query(
-      `SELECT id, total_questions, questions_per_session
+      `SELECT
+         id,
+         name,
+         description,
+         status,
+         min_users,
+         ticket_price,
+         prize_cop_points,
+         total_questions,
+         questions_per_session,
+         countdown_duration_minutes,
+         starts_at,
+         ends_at,
+         updated_at
        FROM heist
        WHERE id = ?
        LIMIT 1`,
@@ -241,6 +331,7 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
+// List question bank
 router.get("/question-bank", async (req, res) => {
   try {
     const status = String(req.query.status || "all").toLowerCase();
@@ -283,6 +374,7 @@ router.get("/question-bank", async (req, res) => {
   }
 });
 
+// Add bank questions
 router.post("/question-bank/questions", async (req, res) => {
   try {
     const questions = Array.isArray(req.body) ? req.body : req.body?.questions;
@@ -317,6 +409,7 @@ router.post("/question-bank/questions", async (req, res) => {
   }
 });
 
+// Update bank question
 router.patch("/question-bank/questions/:questionId", async (req, res) => {
   try {
     const questionId = Number(req.params.questionId);
@@ -369,6 +462,7 @@ router.patch("/question-bank/questions/:questionId", async (req, res) => {
   }
 });
 
+// Delete bank question
 router.delete("/question-bank/questions/:questionId", async (req, res) => {
   try {
     const questionId = Number(req.params.questionId);
@@ -393,6 +487,7 @@ router.delete("/question-bank/questions/:questionId", async (req, res) => {
   }
 });
 
+// Assign heist questions
 router.post("/:id/questions/assign", async (req, res) => {
   const heistId = Number(req.params.id);
   const questionCount = Number(req.body?.question_count ?? req.body?.questions_per_session ?? 0);
@@ -433,6 +528,7 @@ router.post("/:id/questions/assign", async (req, res) => {
   }
 });
 
+// Add heist questions
 router.post("/:id/questions", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -477,6 +573,7 @@ router.post("/:id/questions", async (req, res) => {
   }
 });
 
+// List heist questions
 router.get("/:id/questions", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -496,6 +593,7 @@ router.get("/:id/questions", async (req, res) => {
   }
 });
 
+// Get heist details
 router.get("/:id", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -584,6 +682,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+// Delete heist question
 router.delete("/:id/questions/:questionId", async (req, res) => {
   const heistId = Number(req.params.id);
   const questionId = Number(req.params.questionId);
@@ -627,6 +726,7 @@ router.delete("/:id/questions/:questionId", async (req, res) => {
   }
 });
 
+// List affiliate tasks
 router.get("/:id/affiliate-tasks", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -647,6 +747,7 @@ router.get("/:id/affiliate-tasks", async (req, res) => {
   }
 });
 
+// Create affiliate task
 router.post("/:id/affiliate-tasks", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -682,6 +783,7 @@ router.post("/:id/affiliate-tasks", async (req, res) => {
   }
 });
 
+// Update affiliate task
 router.patch("/:id/affiliate-tasks/:taskId", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -732,6 +834,7 @@ router.patch("/:id/affiliate-tasks/:taskId", async (req, res) => {
   }
 });
 
+// Delete affiliate task
 router.delete("/:id/affiliate-tasks/:taskId", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -751,6 +854,7 @@ router.delete("/:id/affiliate-tasks/:taskId", async (req, res) => {
   }
 });
 
+// List affiliate progress
 router.get("/:id/affiliate-tasks/progress", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -793,6 +897,7 @@ router.get("/:id/affiliate-tasks/progress", async (req, res) => {
   }
 });
 
+// Update heist status
 router.patch("/:id/status", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
@@ -830,6 +935,7 @@ router.patch("/:id/status", async (req, res) => {
   }
 });
 
+// Finalize heist
 router.post("/:id/finalize", async (req, res) => {
   const heistId = Number(req.params.id);
   if (!heistId) return res.status(400).json({ message: "Invalid heist id" });

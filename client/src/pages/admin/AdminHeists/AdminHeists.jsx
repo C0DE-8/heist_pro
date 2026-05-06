@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  FaChevronLeft,
+  FaChevronRight,
+  FaEdit,
   FaPlus,
   FaSave,
   FaTrash,
@@ -25,6 +28,7 @@ import {
   getAdminHeistQuestions,
   getAdminHeists,
   getAdminQuestionBank,
+  updateAdminHeist,
   updateAdminAffiliateTask,
   updateAdminHeistStatus,
 } from "../../../lib/adminHeists";
@@ -53,6 +57,8 @@ const EMPTY_TASK = {
   reward_cop_points: "0",
   is_active: true,
 };
+
+const HEISTS_PER_PAGE = 6;
 
 function formatNum(value) {
   const n = Number(value);
@@ -88,6 +94,42 @@ function formatTimerWindow(heist) {
   return "No timer set";
 }
 
+function toDateTimeLocalValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad = (part) => String(part).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join("-") + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function heistToForm(heist) {
+  return {
+    name: heist?.name || "",
+    description: heist?.description || "",
+    min_users: String(heist?.min_users ?? "1"),
+    ticket_price: String(heist?.ticket_price ?? "0"),
+    prize_cop_points: String(heist?.prize_cop_points ?? "0"),
+    questions_per_session: String(heist?.questions_per_session ?? "0"),
+    countdown_duration_minutes: String(heist?.countdown_duration_minutes ?? "10"),
+    starts_at: toDateTimeLocalValue(heist?.starts_at),
+    ends_at: toDateTimeLocalValue(heist?.ends_at),
+  };
+}
+
+function pageCountFor(total) {
+  return Math.max(1, Math.ceil(Number(total || 0) / HEISTS_PER_PAGE));
+}
+
+function paginateRows(rows, page) {
+  const start = (page - 1) * HEISTS_PER_PAGE;
+  return rows.slice(start, start + HEISTS_PER_PAGE);
+}
+
 function AdminHeistsPage() {
   const toast = useToast();
 
@@ -105,10 +147,12 @@ function AdminHeistsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [questionsModalOpen, setQuestionsModalOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
 
   const [createForm, setCreateForm] = useState(EMPTY_HEIST);
+  const [editForm, setEditForm] = useState(EMPTY_HEIST);
   const [questionRows, setQuestionRows] = useState([
     { ...EMPTY_QUESTION, sort_order: "1" },
     { ...EMPTY_QUESTION, sort_order: "2" },
@@ -117,6 +161,8 @@ function AdminHeistsPage() {
   const [taskForm, setTaskForm] = useState(EMPTY_TASK);
   const [statusValue, setStatusValue] = useState("pending");
   const [sessionQuestionCount, setSessionQuestionCount] = useState("0");
+  const [activePage, setActivePage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
 
   const selectedHeist = useMemo(
     () => heists.find((heist) => Number(heist.id) === Number(selectedId)) || null,
@@ -146,6 +192,22 @@ function AdminHeistsPage() {
   const completedHeists = useMemo(
     () => heists.filter((heist) => heist.status === "completed"),
     [heists]
+  );
+
+  const activePageCount = useMemo(() => pageCountFor(activeHeists.length), [activeHeists.length]);
+  const completedPageCount = useMemo(
+    () => pageCountFor(completedHeists.length),
+    [completedHeists.length]
+  );
+
+  const pagedActiveHeists = useMemo(
+    () => paginateRows(activeHeists, activePage),
+    [activeHeists, activePage]
+  );
+
+  const pagedCompletedHeists = useMemo(
+    () => paginateRows(completedHeists, completedPage),
+    [completedHeists, completedPage]
   );
 
   const loadHeists = useCallback(async () => {
@@ -230,9 +292,28 @@ function AdminHeistsPage() {
     loadSelectedDetails();
   }, [loadSelectedDetails]);
 
+  useEffect(() => {
+    setActivePage((current) => Math.min(current, activePageCount));
+  }, [activePageCount]);
+
+  useEffect(() => {
+    setCompletedPage((current) => Math.min(current, completedPageCount));
+  }, [completedPageCount]);
+
   const updateCreateForm = (event) => {
     const { name, value } = event.target;
     setCreateForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const updateEditForm = (event) => {
+    const { name, value } = event.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const openEditModal = () => {
+    if (!activeDetailHeist) return;
+    setEditForm(heistToForm(activeDetailHeist));
+    setEditModalOpen(true);
   };
 
   const createHeist = async (event) => {
@@ -266,6 +347,37 @@ function AdminHeistsPage() {
     } catch (err) {
       console.error("Create heist error:", err);
       toast.error(err?.response?.data?.message || "Unable to create heist.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateHeist = async (event) => {
+    event.preventDefault();
+    if (!selectedId || busy) return;
+    if (!editForm.name.trim()) {
+      toast.warn("Heist name is required");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await updateAdminHeist(selectedId, {
+        ...editForm,
+        min_users: Number(editForm.min_users || 1),
+        ticket_price: Number(editForm.ticket_price || 0),
+        prize_cop_points: Number(editForm.prize_cop_points || 0),
+        questions_per_session: Number(editForm.questions_per_session || 0),
+        countdown_duration_minutes: Number(editForm.countdown_duration_minutes || 10),
+        starts_at: editForm.starts_at || null,
+        ends_at: editForm.ends_at || null,
+      });
+      toast.success("Heist updated");
+      setEditModalOpen(false);
+      await Promise.all([loadHeists(), loadSelectedDetails()]);
+    } catch (err) {
+      console.error("Update heist error:", err);
+      toast.error(err?.response?.data?.message || "Unable to update heist.");
     } finally {
       setBusy(false);
     }
@@ -476,6 +588,34 @@ function AdminHeistsPage() {
     }
   };
 
+  const renderPagination = ({ page, pageCount, total, onPageChange }) => {
+    if (loading || total <= HEISTS_PER_PAGE) return null;
+
+    return (
+      <div className={styles.pagination}>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          aria-label="Previous heists page"
+        >
+          <FaChevronLeft />
+        </button>
+        <span>
+          Page {formatNum(page)} of {formatNum(pageCount)}
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(pageCount, page + 1))}
+          disabled={page >= pageCount}
+          aria-label="Next heists page"
+        >
+          <FaChevronRight />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.page}>
       <AdminNavbar />
@@ -536,7 +676,7 @@ function AdminHeistsPage() {
               {loading ? (
                 <div className={styles.emptyState}>Loading heists...</div>
               ) : activeHeists.length ? (
-                activeHeists.map((heist) => (
+                pagedActiveHeists.map((heist) => (
                   <button
                     type="button"
                     key={heist.id}
@@ -559,46 +699,12 @@ function AdminHeistsPage() {
                 <div className={styles.emptyState}>No active heists.</div>
               )}
             </div>
-          </section>
-        </section>
-
-        <section className={styles.workspace}>
-          <section className={styles.mainPanel}>
-            <div className={styles.panelHead}>
-              <div>
-                <p className={styles.kicker}>Archive</p>
-                <h2>Completed Heists</h2>
-              </div>
-              <span className={styles.status}>{formatNum(completedHeists.length)} completed</span>
-            </div>
-
-            <div className={styles.heistGrid}>
-              {loading ? (
-                <div className={styles.emptyState}>Loading completed heists...</div>
-              ) : completedHeists.length ? (
-                completedHeists.map((heist) => (
-                  <button
-                    type="button"
-                    key={heist.id}
-                    className={`${styles.heistCard} ${Number(selectedId) === Number(heist.id) ? styles.selectedCard : ""}`}
-                    onClick={() => setSelectedId(heist.id)}
-                  >
-                    <span className={styles.status}>{heist.status}</span>
-                    <strong>{heist.name}</strong>
-                    <small>
-                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
-                    </small>
-                    <span className={styles.cardStats}>
-                      <em>{formatNum(heist.total_participants)} players</em>
-                      <em>{formatNum(heist.total_submissions)} submissions</em>
-                      <em>{formatTimerWindow(heist)}</em>
-                    </span>
-                  </button>
-                ))
-              ) : (
-                <div className={styles.emptyState}>No completed heists yet.</div>
-              )}
-            </div>
+            {renderPagination({
+              page: activePage,
+              pageCount: activePageCount,
+              total: activeHeists.length,
+              onPageChange: setActivePage,
+            })}
           </section>
         </section>
 
@@ -610,7 +716,13 @@ function AdminHeistsPage() {
                   <p className={styles.kicker}>Selected</p>
                   <h2>{activeDetailHeist.name}</h2>
                 </div>
-                <FaTrophy />
+                <div className={styles.inlineActions}>
+                  <button type="button" className={styles.softBtn} onClick={openEditModal} disabled={busy}>
+                    <FaEdit />
+                    <span>Edit</span>
+                  </button>
+                  <FaTrophy />
+                </div>
               </div>
 
               {activeDetailHeist.description ? (
@@ -882,6 +994,52 @@ function AdminHeistsPage() {
           </section>
         ) : null}
 
+        <section className={styles.workspace}>
+          <section className={styles.mainPanel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Archive</p>
+                <h2>Completed Heists</h2>
+              </div>
+              <span className={styles.status}>{formatNum(completedHeists.length)} completed</span>
+            </div>
+
+            <div className={styles.heistGrid}>
+              {loading ? (
+                <div className={styles.emptyState}>Loading completed heists...</div>
+              ) : completedHeists.length ? (
+                pagedCompletedHeists.map((heist) => (
+                  <button
+                    type="button"
+                    key={heist.id}
+                    className={`${styles.heistCard} ${Number(selectedId) === Number(heist.id) ? styles.selectedCard : ""}`}
+                    onClick={() => setSelectedId(heist.id)}
+                  >
+                    <span className={styles.status}>{heist.status}</span>
+                    <strong>{heist.name}</strong>
+                    <small>
+                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
+                    </small>
+                    <span className={styles.cardStats}>
+                      <em>{formatNum(heist.total_participants)} players</em>
+                      <em>{formatNum(heist.total_submissions)} submissions</em>
+                      <em>{formatTimerWindow(heist)}</em>
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className={styles.emptyState}>No completed heists yet.</div>
+              )}
+            </div>
+            {renderPagination({
+              page: completedPage,
+              pageCount: completedPageCount,
+              total: completedHeists.length,
+              onPageChange: setCompletedPage,
+            })}
+          </section>
+        </section>
+
         <Modal
           open={createModalOpen}
           title="Create heist"
@@ -967,6 +1125,96 @@ function AdminHeistsPage() {
               <label className={styles.field}>
                 <span>Ends at</span>
                 <input type="datetime-local" name="ends_at" value={createForm.ends_at} onChange={updateCreateForm} />
+              </label>
+            </div>
+          </form>
+        </Modal>
+
+        <Modal
+          open={editModalOpen}
+          title="Update heist"
+          subtitle={activeDetailHeist ? `Edit ${activeDetailHeist.name}.` : "Select a heist first."}
+          size="lg"
+          onClose={() => !busy && setEditModalOpen(false)}
+          disableClose={busy}
+          footer={
+            <>
+              <button type="button" className={styles.softBtn} onClick={() => setEditModalOpen(false)} disabled={busy}>
+                Cancel
+              </button>
+              <button type="submit" form="edit-heist-form" className={styles.primaryBtn} disabled={busy || !activeDetailHeist}>
+                <FaSave />
+                <span>{busy ? "Saving..." : "Update heist"}</span>
+              </button>
+            </>
+          }
+        >
+          <form id="edit-heist-form" className={`${styles.form} ${styles.modalForm}`} onSubmit={updateHeist}>
+            <label className={styles.field}>
+              <span>Name</span>
+              <input name="name" value={editForm.name} onChange={updateEditForm} placeholder="Weekend Heist" />
+            </label>
+
+            <label className={styles.field}>
+              <span>Description</span>
+              <textarea
+                name="description"
+                value={editForm.description}
+                onChange={updateEditForm}
+                placeholder="Fast true/false run for CopUpCoin rewards."
+              />
+            </label>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span>Min users</span>
+                <input type="number" name="min_users" min="1" value={editForm.min_users} onChange={updateEditForm} />
+              </label>
+              <label className={styles.field}>
+                <span>Ticket CP</span>
+                <input type="number" name="ticket_price" min="0" value={editForm.ticket_price} onChange={updateEditForm} />
+              </label>
+            </div>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span>Prize CP</span>
+                <input type="number" name="prize_cop_points" min="0" value={editForm.prize_cop_points} onChange={updateEditForm} />
+              </label>
+              <label className={styles.field}>
+                <span>Questions per session</span>
+                <input
+                  type="number"
+                  name="questions_per_session"
+                  min="0"
+                  value={editForm.questions_per_session}
+                  onChange={updateEditForm}
+                  placeholder="0 means all questions"
+                />
+              </label>
+            </div>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span>Countdown minutes</span>
+                <input
+                  type="number"
+                  name="countdown_duration_minutes"
+                  min="1"
+                  value={editForm.countdown_duration_minutes}
+                  onChange={updateEditForm}
+                />
+              </label>
+            </div>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span>Starts at</span>
+                <input type="datetime-local" name="starts_at" value={editForm.starts_at} onChange={updateEditForm} />
+              </label>
+              <label className={styles.field}>
+                <span>Ends at</span>
+                <input type="datetime-local" name="ends_at" value={editForm.ends_at} onChange={updateEditForm} />
               </label>
             </div>
           </form>
