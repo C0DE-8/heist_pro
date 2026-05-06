@@ -46,6 +46,15 @@ function displayUser(row) {
   return escapeHtml(row?.full_name || row?.username || row?.email || `User #${row?.user_id}`);
 }
 
+function absoluteUrl(req, value) {
+  const url = String(value || "").trim();
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = `${req.protocol}://${req.get("host")}`.replace(/\/+$/g, "");
+  return `${base}/${url.replace(/^\/+/g, "")}`;
+}
+
+// Get transaction settings
 router.get("/settings", async (req, res) => {
   try {
     const [[paymentAccount]] = await pool.query(
@@ -64,6 +73,7 @@ router.get("/settings", async (req, res) => {
   }
 });
 
+// Update payment info
 router.put("/payment-info", async (req, res) => {
   const accountName = String(req.body?.account_name || "").trim();
   const accountNumber = String(req.body?.account_number || "").trim();
@@ -110,6 +120,7 @@ router.put("/payment-info", async (req, res) => {
   }
 });
 
+// Update coin rate
 router.put("/coin-rate", async (req, res) => {
   const unit = toPositiveInteger(Number(req.body?.unit));
   const price = toPositiveNumber(req.body?.price);
@@ -136,7 +147,7 @@ router.put("/coin-rate", async (req, res) => {
   }
 });
 
-// api/admin/transactions/payins
+// List pay-ins
 router.get("/payins", async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status).toLowerCase() : null;
@@ -164,6 +175,7 @@ router.get("/payins", async (req, res) => {
   }
 });
 
+// Review pay-in
 router.patch("/payins/:id/review", async (req, res) => {
   const requestId = Number(req.params.id);
   const status = normalizeReviewStatus(req.body?.status);
@@ -180,7 +192,7 @@ router.patch("/payins/:id/review", async (req, res) => {
 
     const [[request]] = await conn.query(
       `SELECT p.id, p.user_id, p.amount_ngn, p.coin_amount, p.status,
-              u.full_name, u.username, u.email
+              p.proof_url, u.full_name, u.username, u.email
        FROM manual_payin_requests p
        JOIN users u ON u.id = p.user_id
        WHERE p.id = ?
@@ -217,12 +229,15 @@ router.patch("/payins/:id/review", async (req, res) => {
     );
 
     await conn.commit();
+    const proofUrl = absoluteUrl(req, request.proof_url);
     notifyAdmins(
       `<b>Manual Pay-in ${status === "approved" ? "Approved" : "Rejected"}</b>\n\n` +
         `<b>Request ID:</b> <code>${request.id}</code>\n` +
         `<b>User:</b> ${displayUser(request)}\n` +
         `<b>Amount:</b> ${formatAmount(request.amount_ngn)}\n` +
         `<b>Credit:</b> ${Number(request.coin_amount).toLocaleString()} CP\n` +
+        `<b>Proof:</b> ${proofUrl ? `<a href="${escapeHtml(proofUrl)}">View receipt</a>` : "None"}\n` +
+        `<b>Proof URL:</b> ${proofUrl ? `<code>${escapeHtml(proofUrl)}</code>` : "None"}\n` +
         `<b>Reviewed by Admin ID:</b> <code>${req.user.userId}</code>\n` +
         `<b>Status:</b> ${escapeHtml(status)}`
     ).catch((err) => console.error("telegram pay-in review notify error:", err.message));
@@ -240,7 +255,7 @@ router.patch("/payins/:id/review", async (req, res) => {
   }
 });
 
-// api/admin/transactions/payouts
+// List payouts
 router.get("/payouts", async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status).toLowerCase() : null;
@@ -269,6 +284,7 @@ router.get("/payouts", async (req, res) => {
   }
 });
 
+// Review payout
 router.patch("/payouts/:id/review", async (req, res) => {
   const requestId = Number(req.params.id);
   const status = normalizeReviewStatus(req.body?.status);

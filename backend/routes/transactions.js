@@ -86,6 +86,14 @@ function displayUser(user, fallbackId) {
   return escapeHtml(user?.full_name || user?.username || user?.email || `User #${fallbackId}`);
 }
 
+function absoluteUrl(req, value) {
+  const url = String(value || "").trim();
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = `${req.protocol}://${req.get("host")}`.replace(/\/+$/g, "");
+  return `${base}/${url.replace(/^\/+/g, "")}`;
+}
+
 router.get("/payment-info", async (req, res) => {
   try {
     const [[paymentAccount]] = await pool.query(
@@ -167,6 +175,7 @@ router.post("/payins", uploadReceipt, async (req, res) => {
       "SELECT full_name, username, email FROM users WHERE id = ? LIMIT 1",
       [userId]
     );
+    const proofLink = absoluteUrl(req, proofUrl);
     notifyAdmins(
       `<b>New Manual Pay-in Request</b>\n\n` +
         `<b>Request ID:</b> <code>${result.insertId}</code>\n` +
@@ -174,6 +183,8 @@ router.post("/payins", uploadReceipt, async (req, res) => {
         `<b>Amount:</b> ${formatAmount(amountNgn, rate.currency || "NGN")}\n` +
         `<b>Credit:</b> ${Number(coinAmount).toLocaleString()} CP\n` +
         `<b>Reference:</b> ${proofReference ? `<code>${escapeHtml(proofReference)}</code>` : "None"}\n` +
+        `<b>Proof:</b> ${proofLink ? `<a href="${escapeHtml(proofLink)}">View receipt</a>` : "None"}\n` +
+        `<b>Proof URL:</b> ${proofLink ? `<code>${escapeHtml(proofLink)}</code>` : "None"}\n` +
         `<b>Status:</b> pending`
     ).catch((err) => console.error("telegram pay-in notify error:", err.message));
 
