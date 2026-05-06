@@ -240,8 +240,52 @@ router.get("/heist-alerts", authenticateToken, async (req, res) => {
       });
     }
 
+    const [payinRows] = await pool.query(
+      `SELECT id, amount_ngn, coin_amount, reviewed_at, updated_at, created_at
+       FROM manual_payin_requests
+       WHERE user_id = ? AND status = 'approved'
+       ORDER BY COALESCE(reviewed_at, updated_at, created_at) DESC, id DESC
+       LIMIT 20`,
+      [userId]
+    );
+
+    for (const row of payinRows) {
+      alerts.push({
+        id: `payin:${row.id}:approved`,
+        type: "payin_approved",
+        payin_id: row.id,
+        title: "Pay-in approved",
+        message: `Your pay-in was approved and ${Number(row.coin_amount || 0).toLocaleString()} CopUpCoin was added.`,
+        coin_amount: Number(row.coin_amount || 0),
+        amount_ngn: Number(row.amount_ngn || 0),
+        created_at: row.reviewed_at || row.updated_at || row.created_at,
+      });
+    }
+
+    const [payoutRows] = await pool.query(
+      `SELECT id, cop_points, amount_ngn, reviewed_at, updated_at, created_at
+       FROM payout_requests
+       WHERE user_id = ? AND status = 'approved'
+       ORDER BY COALESCE(reviewed_at, updated_at, created_at) DESC, id DESC
+       LIMIT 20`,
+      [userId]
+    );
+
+    for (const row of payoutRows) {
+      alerts.push({
+        id: `payout:${row.id}:approved`,
+        type: "payout_approved",
+        payout_id: row.id,
+        title: "Payout approved",
+        message: `Your payout of ${Number(row.cop_points || 0).toLocaleString()} CopUpCoin was approved.`,
+        cop_points: Number(row.cop_points || 0),
+        amount_ngn: Number(row.amount_ngn || 0),
+        created_at: row.reviewed_at || row.updated_at || row.created_at,
+      });
+    }
+
     alerts.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    return res.json({ alerts: alerts.slice(0, 40) });
+    return res.json({ alerts: alerts.slice(0, 50) });
   } catch (err) {
     console.error("user heist alerts error:", err);
     return res.status(500).json({ message: "Error fetching user alerts" });

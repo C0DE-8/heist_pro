@@ -185,6 +185,8 @@ export default function Header() {
                         unreadAlerts.map((alert) => {
                           const isWinner = alert.type === "winner";
                           const isTrade = alert.type === "trade_received";
+                          const isPayin = alert.type === "payin_approved";
+                          const isPayout = alert.type === "payout_approved";
                           return (
                             <button
                               type="button"
@@ -195,7 +197,7 @@ export default function Header() {
                               <span className={styles.alertIcon}>
                                 {isWinner ? (
                                   <Trophy size={16} />
-                                ) : isTrade ? (
+                                ) : isTrade || isPayin || isPayout ? (
                                   <Coins size={16} />
                                 ) : (
                                   <Clock size={16} />
@@ -208,6 +210,10 @@ export default function Header() {
                                     ? `${formatCoins(alert.prize_cop_points)} CopUpCoin won`
                                     : isTrade
                                       ? `${formatCoins(alert.cop_points)} CopUpCoin from ${alert.sender_name || "a user"}`
+                                    : isPayin
+                                      ? `${formatCoins(alert.coin_amount)} CopUpCoin added`
+                                    : isPayout
+                                      ? `${formatCoins(alert.cop_points)} CopUpCoin payout approved`
                                     : alert.message}
                                 </small>
                                 <em>{formatAlertTime(alert.created_at)}</em>
