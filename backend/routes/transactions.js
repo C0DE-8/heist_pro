@@ -185,7 +185,17 @@ router.post("/payins", uploadReceipt, async (req, res) => {
         `<b>Reference:</b> ${proofReference ? `<code>${escapeHtml(proofReference)}</code>` : "None"}\n` +
         `<b>Proof:</b> ${proofLink ? `<a href="${escapeHtml(proofLink)}">View receipt</a>` : "None"}\n` +
         `<b>Proof URL:</b> ${proofLink ? `<code>${escapeHtml(proofLink)}</code>` : "None"}\n` +
-        `<b>Status:</b> pending`
+        `<b>Status:</b> pending`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "Approve Pay-in", callback_data: `tx:payin:approve:${result.insertId}` },
+              { text: "Reject Pay-in", callback_data: `tx:payin:reject:${result.insertId}` },
+            ],
+          ],
+        },
+      }
     ).catch((err) => console.error("telegram pay-in notify error:", err.message));
 
     return res.status(201).json({
@@ -314,7 +324,17 @@ router.post("/payouts", async (req, res) => {
         `<b>Estimated Payout:</b> ${formatAmount(amountNgn, rate.currency || "NGN")}\n` +
         `<b>Account:</b> ${escapeHtml(accountName)} / <code>${escapeHtml(accountNumber)}</code>\n` +
         `<b>Bank:</b> ${escapeHtml(bankName || accountType)}\n` +
-        `<b>Status:</b> pending`
+        `<b>Status:</b> pending`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "Approve Payout", callback_data: `tx:payout:approve:${result.insertId}` },
+              { text: "Reject Payout", callback_data: `tx:payout:reject:${result.insertId}` },
+            ],
+          ],
+        },
+      }
     ).catch((err) => console.error("telegram payout notify error:", err.message));
 
     return res.status(201).json({
