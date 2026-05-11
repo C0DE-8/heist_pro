@@ -1,0 +1,12 @@
+.capacitor-native,
+.capacitor-native body,
+.capacitor-native #root {
+  min-height: 100%;
+}
+
+.capacitor-native body {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}

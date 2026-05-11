@@ -1,0 +1,9 @@
+{
+  "appId": "top.copupbid.app",
+  "appName": "CopUp Bid",
+  "webDir": "dist",
+  "server": {
+    "url": "https://copupbid.top/login",
+    "cleartext": false
+  }
+}
