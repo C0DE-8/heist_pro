@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Header.module.css";
 import coinImg from "../../assets/copupcoin.png";
 import UserToolbar from "../UserToolbar/UserToolbar";
-import { Bell, CheckCheck, ChevronLeft, Clock, Coins, Trophy, X } from "lucide-react";
+import { Bell, CheckCheck, Clock, Coins, Trophy, X } from "lucide-react";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
 import { getUserHeistAlerts } from "../../lib/users";
 import {
@@ -180,10 +180,7 @@ export default function Header() {
     <header className={styles.header}>
       <div className={styles.inner}>
         <a href="/" className={styles.brand} aria-label="CopUpBid Home">
-          <span className={styles.logoShell}>
-            <img src={coinImg} alt="CopUpCoin" className={styles.logo} />
-            <ChevronLeft size={26} className={styles.mobileBackMark} aria-hidden="true" />
-          </span>
+          <img src={coinImg} alt="CopUpCoin" className={styles.logo} />
           <div className={styles.brandText}>
             <div className={styles.title}>CopUpBid</div>
             <div className={styles.sub}>Shop • Buy with CopUpCoin</div>
