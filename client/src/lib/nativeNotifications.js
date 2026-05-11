@@ -44,7 +44,13 @@ function hashNoticeId(value, offset = 0) {
 }
 
 function isImportantNotice(alert) {
-  return ["winner", "trade_received", "payin_approved", "payout_approved"].includes(alert?.type);
+  return [
+    "winner",
+    "trade_received",
+    "payin_approved",
+    "payout_approved",
+    "admin_notice",
+  ].includes(alert?.type);
 }
 
 function formatNoticeBody(alert) {

@@ -35,6 +35,25 @@ function buildUserReferralLink(req, referralCode) {
   return `${getFrontendBaseUrl(req)}/register?ref=${encodeURIComponent(referralCode)}`;
 }
 
+async function ensureUserNoticesTable(db = pool) {
+  await db.query(
+    `CREATE TABLE IF NOT EXISTS user_notices (
+      id int(11) NOT NULL AUTO_INCREMENT,
+      user_id int(11) DEFAULT NULL,
+      type varchar(64) NOT NULL DEFAULT 'admin_notice',
+      title varchar(160) NOT NULL,
+      message text NOT NULL,
+      path varchar(255) DEFAULT '/dashboard',
+      priority enum('normal','important') NOT NULL DEFAULT 'important',
+      created_by int(11) DEFAULT NULL,
+      created_at timestamp NOT NULL DEFAULT current_timestamp(),
+      PRIMARY KEY (id),
+      KEY idx_user_notices_user_created (user_id, created_at),
+      KEY idx_user_notices_created_by (created_by)
+    )`
+  );
+}
+
 async function getUserProfile(userId, req) {
   const [[user]] = await pool.query(
     `SELECT id, email, username, full_name, role, is_verified, is_blocked,
@@ -326,6 +345,29 @@ router.get("/heist-alerts", authenticateToken, async (req, res) => {
         cop_points: Number(row.cop_points || 0),
         amount_ngn: Number(row.amount_ngn || 0),
         created_at: row.reviewed_at || row.updated_at || row.created_at,
+      });
+    }
+
+    await ensureUserNoticesTable();
+    const [noticeRows] = await pool.query(
+      `SELECT id, type, title, message, path, priority, created_at
+       FROM user_notices
+       WHERE user_id = ?
+       ORDER BY created_at DESC, id DESC
+       LIMIT 30`,
+      [userId]
+    );
+
+    for (const row of noticeRows) {
+      alerts.push({
+        id: `notice:${row.id}`,
+        type: row.type || "admin_notice",
+        notice_id: row.id,
+        title: row.title,
+        message: row.message,
+        path: row.path || "/dashboard",
+        priority: row.priority || "important",
+        created_at: row.created_at,
       });
     }
 
