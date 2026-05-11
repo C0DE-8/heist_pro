@@ -5,5 +5,17 @@
   "server": {
     "url": "https://copupbid.top/login",
     "cleartext": false
+  },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": false,
+      "backgroundColor": "#070B14",
+      "style": "DARK"
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_copup",
+      "iconColor": "#39D98A",
+      "sound": "default"
+    }
   }
 }

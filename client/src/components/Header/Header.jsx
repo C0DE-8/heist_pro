@@ -2,9 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Header.module.css";
 import coinImg from "../../assets/copupcoin.png";
 import UserToolbar from "../UserToolbar/UserToolbar";
-import { Bell, CheckCheck, Clock, Coins, Trophy, X } from "lucide-react";
+import { Bell, CheckCheck, ChevronLeft, Clock, Coins, Trophy, X } from "lucide-react";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
 import { getUserHeistAlerts } from "../../lib/users";
+import {
+  NATIVE_NOTICE_OPEN_EVENT,
+  cancelNativeNoticeNotifications,
+  consumePendingNativeNoticeOpen,
+  syncNativeNoticeNotifications,
+} from "../../lib/nativeNotifications";
 
 const DISMISSED_ALERTS_KEY = "copup_heist_alerts_dismissed";
 const WIN_POPUPS_KEY = "copup_heist_win_popups_seen";
@@ -71,6 +77,9 @@ export default function Header() {
     try {
       const nextAlerts = await getUserHeistAlerts();
       setAlerts(nextAlerts);
+      syncNativeNoticeNotifications(nextAlerts, dismissedAlerts).catch((err) => {
+        console.warn("Native notice sync failed:", err);
+      });
 
       const seenWinnerPopups = readStoredIds(WIN_POPUPS_KEY);
       const nextWinnerPopup = nextAlerts.find(
@@ -84,10 +93,13 @@ export default function Header() {
         setWinnerPopup(null);
       }
     }
-  }, []);
+  }, [dismissedAlerts]);
 
   const markAlertRead = (id) => {
     rememberId(DISMISSED_ALERTS_KEY, id);
+    cancelNativeNoticeNotifications([id]).catch((err) => {
+      console.warn("Native notice cancel failed:", err);
+    });
   };
 
   const markAllRead = () => {
@@ -95,6 +107,9 @@ export default function Header() {
     alerts.forEach((alert) => ids.add(alert.id));
     writeStoredIds(DISMISSED_ALERTS_KEY, ids);
     setDismissedAlerts(ids);
+    cancelNativeNoticeNotifications(alerts.map((alert) => alert.id)).catch((err) => {
+      console.warn("Native notice cancel failed:", err);
+    });
   };
 
   const closeWinnerPopup = () => {
@@ -144,11 +159,31 @@ export default function Header() {
     };
   }, [token, fetchAlerts]);
 
+  useEffect(() => {
+    const openNativeNotice = (alertId) => {
+      if (!alertId) return;
+      setAlertsOpen(true);
+    };
+
+    const pendingAlertId = consumePendingNativeNoticeOpen();
+    if (pendingAlertId) openNativeNotice(pendingAlertId);
+
+    const onNativeNoticeOpen = (event) => openNativeNotice(event.detail?.alertId);
+    window.addEventListener(NATIVE_NOTICE_OPEN_EVENT, onNativeNoticeOpen);
+
+    return () => {
+      window.removeEventListener(NATIVE_NOTICE_OPEN_EVENT, onNativeNoticeOpen);
+    };
+  }, []);
+
   return (
     <header className={styles.header}>
       <div className={styles.inner}>
         <a href="/" className={styles.brand} aria-label="CopUpBid Home">
-          <img src={coinImg} alt="CopUpCoin" className={styles.logo} />
+          <span className={styles.logoShell}>
+            <img src={coinImg} alt="CopUpCoin" className={styles.logo} />
+            <ChevronLeft size={26} className={styles.mobileBackMark} aria-hidden="true" />
+          </span>
           <div className={styles.brandText}>
             <div className={styles.title}>CopUpBid</div>
             <div className={styles.sub}>Shop • Buy with CopUpCoin</div>

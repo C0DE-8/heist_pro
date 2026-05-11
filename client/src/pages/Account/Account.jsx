@@ -14,6 +14,7 @@ import {
 } from "../../lib/transactions";
 import { getFlutterwaveBanks, resolveFlutterwaveAccount } from "../../lib/flutterwave";
 import { getUserProfile } from "../../lib/users";
+import { isNativeMobile, pickNativeReceiptImage } from "../../lib/nativeNotifications";
 import styles from "./Account.module.css";
 
 function formatNum(value) {
@@ -290,6 +291,22 @@ export default function Account() {
     } catch {
       setCopied(false);
       toast.error("Unable to copy amount.");
+    }
+  };
+
+  const chooseReceiptImage = async () => {
+    if (!isNativeMobile()) return;
+
+    try {
+      const file = await pickNativeReceiptImage();
+      if (file) {
+        setReceiptFile(file);
+        toast.success("Receipt image selected.");
+      }
+    } catch (err) {
+      if (err?.message?.toLowerCase?.().includes("cancel")) return;
+      console.error("Native receipt picker error:", err);
+      toast.error("Unable to open camera or gallery.");
     }
   };
 
@@ -621,12 +638,23 @@ export default function Account() {
 
                 <label className={styles.amountField}>
                   <span>Upload receipt</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setReceiptFile(event.target.files?.[0] || null)}
-                    disabled={transactionLoading}
-                  />
+                  {isNativeMobile() ? (
+                    <button
+                      type="button"
+                      className={styles.secondaryAction}
+                      onClick={chooseReceiptImage}
+                      disabled={transactionLoading}
+                    >
+                      Choose receipt image
+                    </button>
+                  ) : (
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => setReceiptFile(event.target.files?.[0] || null)}
+                      disabled={transactionLoading}
+                    />
+                  )}
                   {receiptFile ? <small>{receiptFile.name}</small> : null}
                 </label>
 

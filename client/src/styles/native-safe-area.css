@@ -4,6 +4,30 @@
   min-height: 100%;
 }
 
+.capacitor-native {
+  --native-safe-area-top: env(safe-area-inset-top);
+}
+
 .capacitor-native body {
+  background: #070b14;
+}
+
+.capacitor-native #root {
+  background: #070b14;
+}
+
+.capacitor-native header[class*="header"] {
+  top: var(--native-safe-area-top);
+}
+
+.capacitor-native body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--native-safe-area-top);
+  z-index: 199;
+  pointer-events: none;
   background: #070b14;
 }
