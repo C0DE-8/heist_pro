@@ -12,6 +12,9 @@
       "backgroundColor": "#070B14",
       "style": "DARK"
     },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
     "LocalNotifications": {
       "smallIcon": "ic_stat_copup",
       "iconColor": "#39D98A",

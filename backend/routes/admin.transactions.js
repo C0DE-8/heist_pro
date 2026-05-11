@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../conf/db");
 const { authenticateToken, authenticateAdmin } = require("../middleware/auth");
 const { notifyAdmins } = require("../services/telegram");
+const { noticePayload, sendPushToUser } = require("../services/push.service");
 
 const router = express.Router();
 
@@ -229,6 +230,20 @@ router.patch("/payins/:id/review", async (req, res) => {
     );
 
     await conn.commit();
+    sendPushToUser(
+      request.user_id,
+      noticePayload({
+        alertId: `payin:${request.id}:approved`,
+        type: "payin_approved",
+        title: status === "approved" ? "Pay-in approved" : "Pay-in rejected",
+        body:
+          status === "approved"
+            ? `${Number(request.coin_amount).toLocaleString()} CopUpCoin was added to your account.`
+            : "Your pay-in request was rejected. Open CopUpBid for details.",
+        path: "/account?tab=topup",
+      })
+    ).catch((pushErr) => console.error("pay-in push error:", pushErr.message));
+
     const proofUrl = absoluteUrl(req, request.proof_url);
     notifyAdmins(
       `<b>Manual Pay-in ${status === "approved" ? "Approved" : "Rejected"}</b>\n\n` +
@@ -339,6 +354,20 @@ router.patch("/payouts/:id/review", async (req, res) => {
     );
 
     await conn.commit();
+    sendPushToUser(
+      request.user_id,
+      noticePayload({
+        alertId: `payout:${request.id}:approved`,
+        type: "payout_approved",
+        title: status === "approved" ? "Payout approved" : "Payout rejected",
+        body:
+          status === "approved"
+            ? `Your payout of ${Number(request.cop_points).toLocaleString()} CopUpCoin was approved.`
+            : `${Number(request.cop_points).toLocaleString()} CopUpCoin was returned to your balance.`,
+        path: "/account?tab=withdraw",
+      })
+    ).catch((pushErr) => console.error("payout push error:", pushErr.message));
+
     notifyAdmins(
       `<b>Payout ${status === "approved" ? "Approved" : "Rejected"}</b>\n\n` +
         `<b>Request ID:</b> <code>${request.id}</code>\n` +

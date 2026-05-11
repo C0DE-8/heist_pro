@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "791792799204",
+    "project_id": "copupbid-ad142",
+    "storage_bucket": "copupbid-ad142.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:791792799204:android:c158857f6f0df785284bf1",
+        "android_client_info": {
+          "package_name": "top.copupbid.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGEzhm11vRDU31ecGsJhyiO005_-Wn-KE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

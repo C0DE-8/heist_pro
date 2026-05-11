@@ -1,3 +1,5 @@
+const { noticePayload, sendPushToUser } = require("./push.service");
+
 function normalizeAnswer(value) {
   const answer = String(value || "").trim().toLowerCase();
   return answer === "true" || answer === "false" ? answer : null;
@@ -125,6 +127,17 @@ async function finalizeHeist(db, heistId) {
      WHERE id = ?`,
     [winner.user_id, heistId]
   );
+
+  sendPushToUser(
+    winner.user_id,
+    noticePayload({
+      alertId: `heist:${heistId}:winner`,
+      type: "winner",
+      title: "You won a heist",
+      body: `You won ${Number(heist.prize_cop_points || 0).toLocaleString()} CopUpCoin.`,
+      path: `/heist/${heistId}/result`,
+    })
+  ).catch((pushErr) => console.error("heist winner push error:", pushErr.message));
 
   return {
     found: true,

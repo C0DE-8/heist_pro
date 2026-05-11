@@ -1,3 +1,5 @@
+const { noticePayload, sendPushToUser } = require("./push.service");
+
 async function ensureReferralSettings(db) {
   await db.query(
     `INSERT INTO admin_referral_settings
@@ -161,6 +163,17 @@ async function claimReferralReward(db, referrerId, referredUserId) {
      WHERE id = ? AND rewarded_at IS NULL`,
     [settings.reward_cop_points, progress.id]
   );
+
+  sendPushToUser(
+    referrerId,
+    noticePayload({
+      alertId: `referral:${progress.id}:reward`,
+      type: "referral_reward",
+      title: "Referral reward earned",
+      body: `${Number(settings.reward_cop_points || 0).toLocaleString()} CopUpCoin was added to your account.`,
+      path: "/affiliate",
+    })
+  ).catch((pushErr) => console.error("referral reward push error:", pushErr.message));
 
   return {
     progress_id: Number(progress.id),

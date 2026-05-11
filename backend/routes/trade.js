@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { pool } = require("../conf/db");
 const { authenticateToken } = require("../middleware/auth");
+const { noticePayload, sendPushToUser } = require("../services/push.service");
 
 const router = express.Router();
 const DEFAULT_TRADE_PIN = "0000";
@@ -198,6 +199,17 @@ router.post("/send", async (req, res) => {
     );
 
     await conn.commit();
+    sendPushToUser(
+      recipient.id,
+      noticePayload({
+        alertId: `trade:${result.insertId}:received`,
+        type: "trade_received",
+        title: "Coin received",
+        body: `${sender.username || "A user"} sent you ${copPoints.toLocaleString()} CopUpCoin.`,
+        path: "/trade",
+      })
+    ).catch((pushErr) => console.error("trade push error:", pushErr.message));
+
     return res.status(201).json({
       message: "cop_point sent",
       transfer: {

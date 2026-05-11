@@ -6,6 +6,10 @@ const {
   ensureReferralSettings,
   claimReferralReward,
 } = require("../services/referralReward.service");
+const {
+  registerPushToken,
+  unregisterPushToken,
+} = require("../services/push.service");
 
 const router = express.Router();
 
@@ -135,6 +139,47 @@ router.get("/profile", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error("user profile error:", err);
     return res.status(500).json({ message: "Error fetching profile" });
+  }
+});
+
+router.post("/push-token", authenticateToken, async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").trim();
+    const platform = String(req.body?.platform || "android").trim().slice(0, 32);
+    const appVersion = req.body?.app_version
+      ? String(req.body.app_version).trim().slice(0, 64)
+      : null;
+
+    if (!token) return res.status(400).json({ message: "Push token is required" });
+
+    await registerPushToken({
+      userId: req.user.userId,
+      token,
+      platform,
+      appVersion,
+    });
+
+    return res.json({ message: "Push token registered" });
+  } catch (err) {
+    console.error("push token register error:", err);
+    return res.status(500).json({ message: "Error registering push token" });
+  }
+});
+
+router.delete("/push-token", authenticateToken, async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").trim();
+    if (!token) return res.status(400).json({ message: "Push token is required" });
+
+    await unregisterPushToken({
+      userId: req.user.userId,
+      token,
+    });
+
+    return res.json({ message: "Push token removed" });
+  } catch (err) {
+    console.error("push token unregister error:", err);
+    return res.status(500).json({ message: "Error removing push token" });
   }
 });
 

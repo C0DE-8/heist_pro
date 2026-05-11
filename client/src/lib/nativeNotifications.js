@@ -1,14 +1,19 @@
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { PushNotifications } from "@capacitor/push-notifications";
+import { registerUserPushToken } from "./users";
 
 const CHANNEL_ID = "copup_notices";
 const NOTIFICATION_STATE_KEY = "copup_native_notice_notifications";
 const PENDING_OPEN_KEY = "copup_pending_native_notice_open";
 const REMINDER_DELAYS = [15 * 60 * 1000, 60 * 60 * 1000, 4 * 60 * 60 * 1000];
+const PUSH_TOKEN_KEY = "copup_native_push_token";
+const PUSH_REGISTERED_KEY = "copup_native_push_registered_token";
 
 let listenersRegistered = false;
 let channelReady = false;
+let pushListenersRegistered = false;
 
 export const NATIVE_NOTICE_OPEN_EVENT = "copup:native-notice-open";
 
@@ -75,10 +80,21 @@ async function ensureNotificationChannel() {
 export async function requestNativeNotificationPermission() {
   if (!isNativeMobile()) return "web";
 
-  const current = await LocalNotifications.checkPermissions();
-  if (current.display === "granted") return "granted";
-  const next = await LocalNotifications.requestPermissions();
-  return next.display;
+  const localCurrent = await LocalNotifications.checkPermissions();
+  const pushCurrent = await PushNotifications.checkPermissions();
+
+  let localStatus = localCurrent.display;
+  let pushStatus = pushCurrent.receive;
+
+  if (localStatus !== "granted") {
+    localStatus = (await LocalNotifications.requestPermissions()).display;
+  }
+
+  if (pushStatus !== "granted") {
+    pushStatus = (await PushNotifications.requestPermissions()).receive;
+  }
+
+  return localStatus === "granted" && pushStatus === "granted" ? "granted" : "denied";
 }
 
 export async function requestNativeMediaPermissions() {
@@ -138,6 +154,95 @@ export function consumePendingNativeNoticeOpen() {
   const alertId = localStorage.getItem(PENDING_OPEN_KEY);
   if (alertId) localStorage.removeItem(PENDING_OPEN_KEY);
   return alertId;
+}
+
+function handleNotificationOpen(data = {}) {
+  const alertId = data.alertId || data.alert_id;
+  const path = data.path || data.url;
+
+  if (alertId) {
+    localStorage.setItem(PENDING_OPEN_KEY, String(alertId));
+    window.dispatchEvent(
+      new CustomEvent(NATIVE_NOTICE_OPEN_EVENT, {
+        detail: { alertId },
+      })
+    );
+  }
+
+  if (path && typeof path === "string" && path.startsWith("/")) {
+    window.location.assign(path);
+  }
+}
+
+async function registerStoredPushTokenWithBackend() {
+  const token = localStorage.getItem(PUSH_TOKEN_KEY);
+  const authToken = localStorage.getItem("token");
+  const registeredToken = localStorage.getItem(PUSH_REGISTERED_KEY);
+
+  if (!token || !authToken || registeredToken === token) return;
+
+  await registerUserPushToken({
+    token,
+    platform: Capacitor.getPlatform(),
+    app_version: "android-capacitor",
+  });
+  localStorage.setItem(PUSH_REGISTERED_KEY, token);
+}
+
+export async function initializeNativePushNotifications() {
+  if (!isNativeMobile() || pushListenersRegistered) return;
+
+  pushListenersRegistered = true;
+  await ensureNotificationChannel();
+
+  PushNotifications.addListener("registration", async (token) => {
+    localStorage.setItem(PUSH_TOKEN_KEY, token.value);
+    try {
+      await registerStoredPushTokenWithBackend();
+    } catch (err) {
+      console.warn("Push token backend registration failed:", err);
+    }
+  });
+
+  PushNotifications.addListener("registrationError", (err) => {
+    console.warn("Push registration failed:", err);
+  });
+
+  PushNotifications.addListener("pushNotificationReceived", async (notification) => {
+    const permission = await requestNativeNotificationPermission();
+    if (permission !== "granted") return;
+
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: hashNoticeId(notification.id || notification.data?.alertId || Date.now()),
+          title: notification.title || "CopUpBid notice",
+          body: notification.body || "You have a new CopUpBid update.",
+          channelId: CHANNEL_ID,
+          smallIcon: "ic_stat_copup",
+          iconColor: "#39D98A",
+          autoCancel: true,
+          extra: notification.data || {},
+        },
+      ],
+    });
+  });
+
+  PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
+    handleNotificationOpen(event.notification?.data || {});
+  });
+
+  window.addEventListener("copup:auth-changed", () => {
+    registerStoredPushTokenWithBackend().catch((err) => {
+      console.warn("Push token backend registration failed:", err);
+    });
+  });
+
+  const permission = await requestNativeNotificationPermission();
+  if (permission === "granted") {
+    await PushNotifications.register();
+    await registerStoredPushTokenWithBackend();
+  }
 }
 
 export async function cancelNativeNoticeNotifications(alertIds) {

@@ -25,6 +25,18 @@ export async function getUserHeistAlerts() {
   return Array.isArray(data?.alerts) ? data.alerts : [];
 }
 
+export async function registerUserPushToken(payload) {
+  const { data } = await api.post("/users/push-token", payload);
+  return data;
+}
+
+export async function unregisterUserPushToken(token) {
+  const { data } = await api.delete("/users/push-token", {
+    data: { token },
+  });
+  return data;
+}
+
 export async function claimReferredUserReward(referredUserId) {
   const { data } = await api.post(`/users/referred/${referredUserId}/claim`);
   return data;
