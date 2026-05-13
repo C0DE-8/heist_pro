@@ -48,6 +48,39 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+const optionalAuthenticateToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+    if (!token) return next();
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return next();
+
+    const payload = jwt.verify(token, secret);
+    const userId = payload.userId || payload.id;
+    if (!userId) return next();
+
+    const [rows] = await pool.query(
+      "SELECT id, role, is_verified, is_blocked FROM users WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    const user = rows[0];
+    if (!user || !user.is_verified || user.is_blocked) return next();
+
+    req.user = {
+      userId: user.id,
+      id: user.id,
+      role: user.role,
+    };
+  } catch (error) {
+    console.warn("optional auth ignored:", error?.message || error);
+  }
+
+  return next();
+};
+
 const authenticateAdmin = (req, res, next) => {
   if (req.user && req.user.role === "admin") return next();
   return res.status(403).json({ message: "Admin access required" });
@@ -68,6 +101,7 @@ const errorHandlingMiddleware = (err, req, res, next) => {
 
 module.exports = {
   authenticateToken,
+  optionalAuthenticateToken,
   authenticateAdmin,
   errorHandlingMiddleware,
 };

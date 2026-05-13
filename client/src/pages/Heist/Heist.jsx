@@ -97,6 +97,32 @@ export default function Heist() {
     }
   };
 
+  const handleHeistAction = (heist) => {
+    if (!heist?.id || joiningId) return;
+
+    const hasSubmitted =
+      Number(heist?.has_submitted) === 1 ||
+      heist?.has_submitted === true ||
+      heist?.participant_status === "submitted";
+    const hasJoined =
+      hasSubmitted ||
+      Number(heist?.has_joined) === 1 ||
+      heist?.has_joined === true ||
+      heist?.participant_status === "joined";
+
+    if (hasSubmitted) {
+      navigate(`/heist/${heist.id}/leaderboard`);
+      return;
+    }
+
+    if (hasJoined) {
+      navigate(`/heist/${heist.id}`);
+      return;
+    }
+
+    handleJoin(heist);
+  };
+
   return (
     <div className={styles.page}>
       <Header />
@@ -136,7 +162,12 @@ export default function Heist() {
             [0, 1, 2].map((item) => <HeistCardSkeleton key={item} />)
           ) : available.length ? (
             available.map((heist) => (
-              <HeistCard key={heist.id} heist={heist} onJoin={handleJoin} />
+              <HeistCard
+                key={heist.id}
+                heist={heist}
+                onAction={handleHeistAction}
+                isBusy={joiningId === heist.id}
+              />
             ))
           ) : (
             <div className={styles.emptyState}>No available heists yet.</div>

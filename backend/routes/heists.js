@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require("../conf/db");
-const { authenticateToken } = require("../middleware/auth");
+const { authenticateToken, optionalAuthenticateToken } = require("../middleware/auth");
 const {
   normalizeAnswer,
   makeReferralCode,
@@ -177,14 +177,43 @@ async function createHeistSubmission(conn, { heistId, userId }) {
   };
 }
 // api/heists/available - list of pending/hold/started heists
-router.get("/available", async (req, res) => {
+router.get("/available", optionalAuthenticateToken, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT ${PUBLIC_HEIST_FIELDS}
-       FROM heist
-       WHERE status IN ('pending', 'hold', 'started')
-       ORDER BY created_at DESC`
-    );
+    const userId = req.user?.userId;
+    const [rows] = userId
+      ? await pool.query(
+          `SELECT
+             h.${PUBLIC_HEIST_FIELDS.replace(/\s+/g, " ").trim().replace(/, /g, ", h.")},
+             COALESCE(us.has_joined, 0) AS has_joined,
+             COALESCE(us.has_started, 0) AS has_started,
+             COALESCE(us.has_submitted, 0) AS has_submitted,
+             us.participant_status,
+             us.active_submission_id
+           FROM heist h
+           LEFT JOIN (
+             SELECT
+               hp.heist_id,
+               MAX(CASE WHEN hp.status IN ('joined', 'submitted') THEN 1 ELSE 0 END) AS has_joined,
+               MAX(CASE WHEN hs.status = 'started' THEN 1 ELSE 0 END) AS has_started,
+               MAX(CASE WHEN hp.status = 'submitted' OR hs.status = 'submitted' THEN 1 ELSE 0 END) AS has_submitted,
+               MAX(hp.status) AS participant_status,
+               MAX(CASE WHEN hs.status = 'started' THEN hs.id ELSE NULL END) AS active_submission_id
+             FROM heist_participants hp
+             LEFT JOIN heist_submissions hs
+               ON hs.heist_id = hp.heist_id AND hs.user_id = hp.user_id
+             WHERE hp.user_id = ?
+             GROUP BY hp.heist_id
+           ) us ON us.heist_id = h.id
+           WHERE h.status IN ('pending', 'hold', 'started')
+           ORDER BY h.created_at DESC`,
+          [userId]
+        )
+      : await pool.query(
+          `SELECT ${PUBLIC_HEIST_FIELDS}
+           FROM heist
+           WHERE status IN ('pending', 'hold', 'started')
+           ORDER BY created_at DESC`
+        );
     return res.json({ heists: rows });
   } catch (err) {
     console.error("available heists error:", err);
