@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import BackgroundMusic from "./components/BackgroundMusic/BackgroundMusic";
+import SEO from "./components/SEO/SEO";
 
 
 // Auth Pages
@@ -49,6 +50,7 @@ import Account from "./pages/Account/Account";
 export default function App() {
   return (
     <Router>
+      <SEO />
       <BackgroundMusic />
       <Routes>
         {/* ================= AUTH ROUTES ================= */}

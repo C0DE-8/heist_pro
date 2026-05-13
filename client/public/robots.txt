@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin-dashboard
+Disallow: /account
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /payment-result
+Disallow: /login
+Disallow: /forgot-password
+Disallow: /reset-password
+
+Sitemap: https://copupbid.top/sitemap.xml
