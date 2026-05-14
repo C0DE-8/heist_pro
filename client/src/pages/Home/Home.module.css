@@ -224,6 +224,10 @@
   overflow: hidden;
   background: rgba(255, 255, 255, 0.04);
   flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #baffc7;
+  font-size: 38px;
 }
 
 .cardImage {

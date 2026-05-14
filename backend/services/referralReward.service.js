@@ -171,7 +171,7 @@ async function claimReferralReward(db, referrerId, referredUserId) {
       type: "referral_reward",
       title: "Referral reward earned",
       body: `${Number(settings.reward_cop_points || 0).toLocaleString()} CopUpCoin was added to your account.`,
-      path: "/affiliate",
+      path: "/referral",
     })
   ).catch((pushErr) => console.error("referral reward push error:", pushErr.message));
 

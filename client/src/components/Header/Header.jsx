@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Header.module.css";
 import coinImg from "../../assets/copupcoin.png";
+import AffiliateToolbar from "../AffiliateToolbar/AffiliateToolbar";
 import UserToolbar from "../UserToolbar/UserToolbar";
 import { Bell, CheckCheck, Clock, Coins, Trophy, X } from "lucide-react";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
+import { getStoredRole } from "../../lib/auth";
 import { getUserHeistAlerts } from "../../lib/users";
 import {
   NATIVE_NOTICE_OPEN_EVENT,
@@ -46,6 +48,7 @@ function formatAlertTime(value) {
 
 export default function Header() {
   const [token, setToken] = useState(() => localStorage.getItem("token"));
+  const [role, setRole] = useState(() => getStoredRole());
   const [alerts, setAlerts] = useState([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [winnerPopup, setWinnerPopup] = useState(null);
@@ -124,6 +127,7 @@ export default function Header() {
     const syncToken = () => {
       const nextToken = localStorage.getItem("token");
       setToken(nextToken);
+      setRole(getStoredRole());
       if (!nextToken) {
         setAlerts([]);
         setAlertsOpen(false);
@@ -260,7 +264,7 @@ export default function Header() {
                   </div>
                 ) : null}
               </div>
-              <UserToolbar />
+              {role === "affiliate" ? <AffiliateToolbar /> : <UserToolbar />}
             </>
           ) : (
             <>

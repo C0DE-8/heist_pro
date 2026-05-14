@@ -78,12 +78,13 @@ export default function AdminUsers() {
     return users.reduce(
       (acc, user) => {
         acc.admins += user.role === "admin" ? 1 : 0;
+        acc.affiliates += user.role === "affiliate" ? 1 : 0;
         acc.blocked += user.is_blocked ? 1 : 0;
         acc.verified += user.is_verified ? 1 : 0;
         acc.points += Number(user.cop_point || 0);
         return acc;
       },
-      { admins: 0, blocked: 0, verified: 0, points: 0 }
+      { admins: 0, affiliates: 0, blocked: 0, verified: 0, points: 0 }
     );
   }, [users]);
 
@@ -239,6 +240,7 @@ export default function AdminUsers() {
             <select value={role} onChange={(event) => setRole(event.target.value)}>
               <option value="">All roles</option>
               <option value="user">Users</option>
+              <option value="affiliate">Affiliates</option>
               <option value="admin">Admins</option>
             </select>
           </label>
@@ -336,6 +338,7 @@ export default function AdminUsers() {
                     <span>Role</span>
                     <select value={form.role} onChange={updateField("role")}>
                       <option value="user">User</option>
+                      <option value="affiliate">Affiliate</option>
                       <option value="admin">Admin</option>
                     </select>
                   </label>

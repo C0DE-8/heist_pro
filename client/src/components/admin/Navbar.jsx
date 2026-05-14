@@ -32,7 +32,7 @@ export default function AdminNavbar({ admin: adminProp }) {
       { to: "/admin-dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
       { to: "/admin/users", label: "Users", icon: <FaUsers /> },
       { to: "/admin/analytics", label: "Analytics", icon: <FaChartLine /> },
-      { to: "/admin/referral", label: "Referral", icon: <FaGift /> },
+      { to: "/admin/referral", label: "Affiliate", icon: <FaGift /> },
       { to: "/admin/notifications", label: "Alerts", icon: <FaBell /> },
       { to: "/admin/heists", label: "Heists", icon: <FaFlask /> },
       { to: "/admin/transactions", label: "Transactions", icon: <FaWallet /> },

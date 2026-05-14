@@ -66,6 +66,12 @@ async function generateUniqueReferralCode(conn) {
   throw new Error("Unable to generate a unique referral code");
 }
 
+async function ensureAffiliateRole(conn = pool) {
+  await conn.query(
+    "ALTER TABLE users MODIFY role enum('user','affiliate','admin') NOT NULL DEFAULT 'user'"
+  );
+}
+
 /* ------------------------------- SEND OTP ------------------------------- */
 // POST /api/auth/send-otp
 router.post("/send-otp", async (req, res) => {
@@ -125,6 +131,8 @@ router.post("/register", async (req, res) => {
       referralCode,
       referral_code,
       ref,
+      account_type,
+      role,
     } = req.body || {};
 
     const normalizedUsername = String(username || "").trim();
@@ -133,6 +141,10 @@ router.post("/register", async (req, res) => {
     const normalizedOtp = String(otp || "").trim();
     const normalizedReferralCode =
       String(referralCode || referral_code || ref || "").trim() || null;
+    const requestedRole =
+      String(account_type || role || "").trim().toLowerCase() === "affiliate"
+        ? "affiliate"
+        : "user";
     const usernameError = validateUsername(normalizedUsername);
 
     if (!normalizedEmail || !password || !normalizedOtp) {
@@ -143,6 +155,9 @@ router.post("/register", async (req, res) => {
     }
 
     conn = await pool.getConnection();
+    if (requestedRole === "affiliate") {
+      await ensureAffiliateRole(conn);
+    }
     await conn.beginTransaction();
     const rollbackAndRespond = async (status, message) => {
       await conn.rollback();
@@ -202,12 +217,13 @@ router.post("/register", async (req, res) => {
       `INSERT INTO users
         (email, username, full_name, password_hash, role, is_verified, is_blocked, referral_code, wallet_address, game_id)
        VALUES
-        (?, ?, ?, ?, 'user', 1, 0, ?, ?, ?)`,
+        (?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
       [
         normalizedEmail,
         normalizedUsername,
         normalizedFullName,
         password_hash,
+        requestedRole,
         userReferralCode,
         walletAddress,
         gameId,

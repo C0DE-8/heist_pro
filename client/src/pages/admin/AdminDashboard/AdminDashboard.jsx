@@ -97,11 +97,11 @@ export default function AdminDashboard() {
         tone: "gold",
       },
       {
-        title: "Referral Rewards",
-        text: "Control referred-user join requirements, coin rewards, status, and reset the cycle.",
+        title: "Affiliate System",
+        text: "Manage affiliate links, Tiles, ticket targets, rewards, referral progress, and monthly earnings.",
         path: "/admin/referral",
         icon: <FaGift />,
-        stat: `${formatNum(activityStats.affiliate_referrals)} referral joins`,
+        stat: `${formatNum(activityStats.affiliate_referrals)} affiliate joins`,
         tone: "purple",
       },
       {

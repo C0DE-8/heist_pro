@@ -121,6 +121,34 @@
   gap: 12px;
 }
 
+.tileOverview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.tileOverview div {
+  min-height: 96px;
+  border-radius: 22px;
+  padding: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background:
+    linear-gradient(180deg, rgba(34, 211, 238, 0.1), rgba(255, 255, 255, 0.035)),
+    rgba(9, 18, 27, 0.82);
+  display: grid;
+  align-content: space-between;
+}
+
+.tileOverview span {
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.tileOverview strong {
+  font-size: clamp(1.2rem, 3vw, 1.7rem);
+}
+
 .statCard {
   border-radius: 24px;
   min-height: 134px;
@@ -216,7 +244,8 @@
   font-weight: 800;
 }
 
-.form input[type="number"] {
+.form input[type="number"],
+.form input[type="text"] {
   width: 100%;
   min-height: 46px;
   border-radius: 16px;
@@ -228,6 +257,7 @@
 }
 
 .switchRow {
+  display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 14px;
@@ -332,6 +362,137 @@
 
 .rows {
   display: grid;
+  gap: 12px;
+}
+
+.tileGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.tileCard,
+.performanceCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.72);
+  display: grid;
+  gap: 14px;
+  transition:
+    transform 0.24s ease,
+    border-color 0.24s ease,
+    box-shadow 0.24s ease;
+}
+
+.tileCard:hover,
+.performanceCard:hover {
+  transform: translateY(-8px);
+  border-color: rgba(34, 211, 238, 0.34);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
+}
+
+.tileCardActive {
+  border-color: rgba(74, 222, 128, 0.28);
+}
+
+.tileCardActive::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 54px 54px 0 0;
+  border-color: #22c55e transparent transparent transparent;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.tileCardActive::after {
+  content: "✓";
+  position: absolute;
+  left: 10px;
+  top: 6px;
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.tileCardHead {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+  min-height: 104px;
+}
+
+.tileCardHead > span {
+  color: #8de2ff;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tileCardHead h3 {
+  margin: 0;
+  max-width: 11ch;
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  font-weight: 450;
+  line-height: 0.98;
+}
+
+.tilePrice {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.tilePrice strong {
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.tilePrice span {
+  color: rgba(226, 232, 240, 0.62);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.tileFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tileFacts div {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.045);
+  display: grid;
+  gap: 5px;
+}
+
+.tileFacts span {
+  color: rgba(226, 232, 240, 0.58);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.tileFacts strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.performanceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
 }
 

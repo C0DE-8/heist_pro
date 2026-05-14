@@ -1,11 +1,15 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const { pool } = require("../conf/db");
-const { authenticateToken } = require("../middleware/auth");
+const { authenticateToken, authenticateAffiliate } = require("../middleware/auth");
 const {
   ensureReferralSettings,
   claimReferralReward,
 } = require("../services/referralReward.service");
+const {
+  buildUserAffiliateTileDashboard,
+  joinAffiliateTile,
+} = require("../services/affiliateTiles.service");
 const {
   registerPushToken,
   unregisterPushToken,
@@ -199,6 +203,46 @@ router.delete("/push-token", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error("push token unregister error:", err);
     return res.status(500).json({ message: "Error removing push token" });
+  }
+});
+
+router.get("/affiliate-tiles", authenticateToken, authenticateAffiliate, async (req, res) => {
+  try {
+    const dashboard = await buildUserAffiliateTileDashboard(pool, req.user.userId);
+    return res.json(dashboard);
+  } catch (err) {
+    console.error("affiliate tile dashboard error:", err);
+    return res.status(500).json({ message: "Error fetching affiliate tile performance" });
+  }
+});
+
+router.post("/affiliate-tiles/:tileId/join", authenticateToken, authenticateAffiliate, async (req, res) => {
+  let conn;
+  try {
+    const tileId = Number(req.params.tileId);
+    if (!tileId) return res.status(400).json({ message: "Invalid tile id" });
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const membership = await joinAffiliateTile(conn, req.user.userId, tileId);
+
+    await conn.commit();
+
+    const dashboard = await buildUserAffiliateTileDashboard(pool, req.user.userId);
+    const user = await getUserProfile(req.user.userId, req);
+    return res.status(201).json({
+      message: "Tile joined",
+      membership,
+      dashboard,
+      user,
+    });
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error("affiliate tile join error:", err);
+    return res.status(400).json({ message: err.message || "Error joining affiliate tile" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

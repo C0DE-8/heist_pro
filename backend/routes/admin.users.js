@@ -60,6 +60,12 @@ async function getUserById(userId) {
   return user || null;
 }
 
+async function ensureAffiliateRole() {
+  await pool.query(
+    "ALTER TABLE users MODIFY role enum('user','affiliate','admin') NOT NULL DEFAULT 'user'"
+  );
+}
+
 async function ensureUnique(field, value, userId, label) {
   if (!value) return;
 
@@ -95,7 +101,7 @@ router.get("/", async (req, res) => {
     }
 
     if (role) {
-      if (!["user", "admin"].includes(role)) {
+      if (!["user", "affiliate", "admin"].includes(role)) {
         return res.status(400).json({ message: "Invalid role filter" });
       }
       where.push("role = ?");
@@ -193,10 +199,11 @@ router.patch("/:id", async (req, res) => {
 
     if (req.body?.role !== undefined) {
       const role = cleanString(req.body.role);
-      if (!["user", "admin"].includes(role)) return res.status(400).json({ message: "Invalid role" });
+      if (!["user", "affiliate", "admin"].includes(role)) return res.status(400).json({ message: "Invalid role" });
       if (userId === adminId && role !== "admin") {
         return res.status(400).json({ message: "You cannot remove your own admin role" });
       }
+      await ensureAffiliateRole();
       updates.push("role = ?");
       params.push(role);
     }

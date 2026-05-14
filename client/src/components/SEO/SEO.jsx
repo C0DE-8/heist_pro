@@ -100,12 +100,39 @@ const ROUTE_SEO = [
     robots: "noindex, follow",
   },
   {
-    match: (path) => path === "/affiliate",
-    title: "CopUpBid Affiliate Rewards",
+    match: (path) => path === "/affiliate-dashboard",
+    title: "CopUpBid Affiliate Dashboard",
     description:
-      "Invite users to CopUpBid, grow your referrals, and earn affiliate rewards from platform activity.",
+      "View CopUpBid affiliate balance, referral performance, Tile status, estimated earnings, and affiliate tools.",
     keywords:
-      "CopUpBid affiliate, referral rewards, invite friends, earn online, CopUpCoin referral",
+      "CopUpBid affiliate dashboard, affiliate earnings, referral network, CopUpCoin balance",
+    robots: "noindex, follow",
+  },
+  {
+    match: (path) => path === "/affiliate" || path === "/affiliate/plans",
+    title: "CopUpBid Affiliate Tile Earnings",
+    description:
+      "Track CopUpBid Affiliate Tile levels, monthly referral-network ticket activity, targets, and estimated CopUpCoin earnings.",
+    keywords:
+      "CopUpBid affiliate, affiliate tiles, tile earnings, ticket targets, CopUpCoin earnings",
+    robots: "noindex, follow",
+  },
+  {
+    match: (path) => path === "/referral" || path === "/affiliate/referral",
+    title: "CopUpBid Referral Tools",
+    description:
+      "Share CopUpBid referral links, manage referred users, generate heist links, and track referral reward progress.",
+    keywords:
+      "CopUpBid referral, referral links, referred users, heist links, CopUpCoin referral rewards",
+    robots: "noindex, follow",
+  },
+  {
+    match: (path) => path === "/affiliate/how-it-works",
+    title: "How CopUpBid Affiliate Earnings Work",
+    description:
+      "Learn how CopUpBid affiliate Tile plans, referral networks, ticket targets, and performance payouts work.",
+    keywords:
+      "CopUpBid affiliate guide, affiliate how it works, Tile plans, referral payouts",
     robots: "noindex, follow",
   },
   {

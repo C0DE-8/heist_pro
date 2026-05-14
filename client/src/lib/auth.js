@@ -7,7 +7,9 @@ export { getUserProfile } from "./users";
 
 export function normalizeRole(raw) {
   const role = String(raw || "").toLowerCase();
-  return role.includes("admin") ? "admin" : "user";
+  if (role.includes("admin")) return "admin";
+  if (role.includes("affiliate")) return "affiliate";
+  return "user";
 }
 
 export function getStoredToken() {
@@ -33,7 +35,7 @@ export function getJwtExp(token) {
     const data = JSON.parse(atob(padded));
 
     return typeof data?.exp === "number" ? data.exp : null;
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -92,6 +94,7 @@ export async function registerUser(payload) {
     password: payload?.password,
     otp: String(payload?.otp || "").trim(),
     referralCode: String(payload?.referralCode || "").trim() || null,
+    account_type: payload?.account_type === "affiliate" ? "affiliate" : "user",
   });
   return data;
 }

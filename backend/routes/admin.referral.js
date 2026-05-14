@@ -5,6 +5,11 @@ const {
   ensureReferralSettings,
   normalizeSettings,
 } = require("../services/referralReward.service");
+const {
+  ensureAffiliateTilesTable,
+  parseTilePayload,
+  buildAdminAffiliateTileDashboard,
+} = require("../services/affiliateTiles.service");
 
 const router = express.Router();
 
@@ -86,11 +91,102 @@ async function buildReferralAdminResponse(db) {
 
 router.get("/", async (req, res) => {
   try {
-    const data = await buildReferralAdminResponse(pool);
-    return res.json(data);
+    await ensureAffiliateTilesTable(pool);
+    const [data, tile_dashboard] = await Promise.all([
+      buildReferralAdminResponse(pool),
+      buildAdminAffiliateTileDashboard(pool),
+    ]);
+    return res.json({ ...data, tile_dashboard });
   } catch (err) {
     console.error("admin referral get error:", err);
     return res.status(500).json({ message: "Error fetching referral reward settings" });
+  }
+});
+
+router.post("/tiles", async (req, res) => {
+  try {
+    await ensureAffiliateTilesTable(pool);
+    const payload = parseTilePayload(req.body);
+    const [result] = await pool.query(
+      `INSERT INTO affiliate_tiles
+        (tile_level, name, target_tickets, reward_cop_points, required_affiliates, plan_price_cop_points, is_active, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        payload.tile_level,
+        payload.name,
+        payload.target_tickets,
+        payload.reward_cop_points,
+        payload.required_affiliates,
+        payload.plan_price_cop_points,
+        payload.is_active,
+        req.user.userId,
+        req.user.userId,
+      ]
+    );
+
+    const tile_dashboard = await buildAdminAffiliateTileDashboard(pool);
+    return res.status(201).json({
+      message: "Affiliate tile created",
+      tile_id: result.insertId,
+      tile_dashboard,
+    });
+  } catch (err) {
+    console.error("admin affiliate tile create error:", err);
+    return res.status(400).json({ message: err.message || "Error creating affiliate tile" });
+  }
+});
+
+router.patch("/tiles/:tileId", async (req, res) => {
+  try {
+    await ensureAffiliateTilesTable(pool);
+    const tileId = Number(req.params.tileId);
+    if (!tileId) return res.status(400).json({ message: "Invalid tile id" });
+
+    const payload = parseTilePayload(req.body, { partial: true });
+    const updates = [];
+    const params = [];
+
+    for (const [field, value] of Object.entries(payload)) {
+      updates.push(`${field} = ?`);
+      params.push(value);
+    }
+
+    if (!updates.length) return res.status(400).json({ message: "No updates provided" });
+
+    updates.push("updated_by = ?");
+    params.push(req.user.userId, tileId);
+
+    const [result] = await pool.query(
+      `UPDATE affiliate_tiles
+       SET ${updates.join(", ")}
+       WHERE id = ?`,
+      params
+    );
+
+    if (!result.affectedRows) return res.status(404).json({ message: "Affiliate tile not found" });
+
+    const tile_dashboard = await buildAdminAffiliateTileDashboard(pool);
+    return res.json({ message: "Affiliate tile updated", tile_dashboard });
+  } catch (err) {
+    console.error("admin affiliate tile update error:", err);
+    return res.status(400).json({ message: err.message || "Error updating affiliate tile" });
+  }
+});
+
+router.delete("/tiles/:tileId", async (req, res) => {
+  try {
+    await ensureAffiliateTilesTable(pool);
+    const tileId = Number(req.params.tileId);
+    if (!tileId) return res.status(400).json({ message: "Invalid tile id" });
+
+    const [result] = await pool.query("DELETE FROM affiliate_tiles WHERE id = ?", [tileId]);
+    if (!result.affectedRows) return res.status(404).json({ message: "Affiliate tile not found" });
+
+    const tile_dashboard = await buildAdminAffiliateTileDashboard(pool);
+    return res.json({ message: "Affiliate tile deleted", tile_dashboard });
+  } catch (err) {
+    console.error("admin affiliate tile delete error:", err);
+    return res.status(500).json({ message: "Error deleting affiliate tile" });
   }
 });
 
@@ -148,10 +244,14 @@ router.patch("/", async (req, res) => {
 
     await conn.commit();
 
-    const data = await buildReferralAdminResponse(pool);
+    const [data, tile_dashboard] = await Promise.all([
+      buildReferralAdminResponse(pool),
+      buildAdminAffiliateTileDashboard(pool),
+    ]);
     return res.json({
       message: "Referral reward settings updated",
       ...data,
+      tile_dashboard,
     });
   } catch (err) {
     if (conn) await conn.rollback();
@@ -181,8 +281,11 @@ router.post("/reset", async (req, res) => {
     );
 
     await conn.commit();
-    const data = await buildReferralAdminResponse(pool);
-    return res.json({ message: "Referral reward progress reset", ...data });
+    const [data, tile_dashboard] = await Promise.all([
+      buildReferralAdminResponse(pool),
+      buildAdminAffiliateTileDashboard(pool),
+    ]);
+    return res.json({ message: "Referral reward progress reset", ...data, tile_dashboard });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("admin referral reset error:", err);

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import styles from "../Auth.module.css";
 import { registerUser, sendRegistrationOtp } from "../../../lib/auth";
 import coinImg from "../../../assets/copupcoin.png";
@@ -21,7 +21,9 @@ function getUsernameError(value) {
 
 export default function Register() {
   const nav = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const isAffiliateRegistration = location.pathname === "/affiliate-register";
   const urlReferralCode = useMemo(
     () =>
       String(
@@ -51,6 +53,7 @@ export default function Register() {
     password: "",
     otp: "",
     referralCode: urlReferralCode,
+    account_type: isAffiliateRegistration ? "affiliate" : "user",
   });
 
   useEffect(() => {
@@ -136,6 +139,7 @@ export default function Register() {
         password: form.password,
         otp: form.otp.trim(),
         referralCode: activeReferralCode,
+        account_type: form.account_type,
       });
 
       setMsg(data?.message || "Registered successfully.");
@@ -159,7 +163,7 @@ export default function Register() {
             </div>
             <h2 className={styles.modalTitle}>Account created successfully</h2>
             <p className={styles.modalText}>
-              Your CopupBid account has been created. You can now log in and start playing.
+              Your CopupBid {form.account_type === "affiliate" ? "affiliate" : "user"} account has been created. You can now log in.
             </p>
             <button
               type="button"
@@ -262,6 +266,21 @@ export default function Register() {
                 </div>
 
                 <div className={styles.field}>
+                  <div className={styles.label}>Account type</div>
+                  <select
+                    className={styles.input}
+                    value={form.account_type}
+                    onChange={onChange("account_type")}
+                  >
+                    <option value="user">User</option>
+                    <option value="affiliate">Affiliate</option>
+                  </select>
+                  <div className={styles.helper}>
+                    Affiliate accounts open the Affiliate Dashboard after login.
+                  </div>
+                </div>
+
+                <div className={styles.field}>
                   <div className={styles.label}>Email</div>
                   <input
                     className={styles.input}
@@ -353,6 +372,18 @@ export default function Register() {
                       autoComplete="new-password"
                     />
                   </div>
+                </div>
+
+                <div className={styles.field}>
+                  <div className={styles.label}>Account type</div>
+                  <select
+                    className={styles.input}
+                    value={form.account_type}
+                    onChange={onChange("account_type")}
+                  >
+                    <option value="user">User</option>
+                    <option value="affiliate">Affiliate</option>
+                  </select>
                 </div>
 
                 <div className={styles.field}>

@@ -2,7 +2,7 @@ import React from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { getStoredRole, getStoredToken } from "../lib/auth";
 
-export default function UserRoute() {
+export default function AffiliateRoute() {
   const loc = useLocation();
   const token = getStoredToken();
   const role = getStoredRole();
@@ -11,13 +11,12 @@ export default function UserRoute() {
     return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
   }
 
-  // user-only route
   if (role === "admin") {
     return <Navigate to="/admin-dashboard" replace />;
   }
 
-  if (role === "affiliate" && loc.pathname === "/dashboard") {
-    return <Navigate to="/affiliate-dashboard" replace />;
+  if (role !== "affiliate") {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <Outlet />;

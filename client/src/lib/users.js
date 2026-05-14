@@ -20,6 +20,17 @@ export async function getReferredUsers() {
   };
 }
 
+export async function getAffiliateTileDashboard() {
+  const { data } = await api.get("/users/affiliate-tiles");
+  return data;
+}
+
+export async function joinAffiliateTile(tileId) {
+  const { data } = await api.post(`/users/affiliate-tiles/${tileId}/join`);
+  if (data?.user) cacheUserProfile(data.user);
+  return data;
+}
+
 export async function getUserHeistAlerts() {
   const { data } = await api.get("/users/heist-alerts");
   return Array.isArray(data?.alerts) ? data.alerts : [];

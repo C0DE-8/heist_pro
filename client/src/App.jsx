@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Routes, Route } from "react-router-dom";
 import BackgroundMusic from "./components/BackgroundMusic/BackgroundMusic";
 import SEO from "./components/SEO/SEO";
 
@@ -24,6 +24,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications/AdminNotificati
 // Protected Routes
 import AdminRoute from "./routes/AdminRoute";
 import UserRoute from "./routes/UserRoute";
+import AffiliateRoute from "./routes/AffiliateRoute";
 
 // 404
 import NotFound from "./pages/NotFound/NotFound";
@@ -39,6 +40,9 @@ import ReferralJoinPage from "./pages/heists/ReferralJoinPage";
 
 import Trade from "./pages/Trade/Trade";
 import Affiliate from "./pages/Affiliate/Affiliate";
+import AffiliateDashboard from "./pages/Affiliate/AffiliateDashboard";
+import AffiliateHowItWorks from "./pages/Affiliate/AffiliateHowItWorks";
+import Referral from "./pages/Affiliate/Referral";
 import Winner from "./pages/Winner/Winner";
 import HowItWork from "./pages/Support/HowItWork";
 import Privacy from "./pages/Support/Privacy";
@@ -58,6 +62,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/affiliate-register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/heists/:id/ref/:code" element={<ReferralJoinPage />} />
@@ -104,17 +109,22 @@ export default function App() {
           <Route path="/trade" element={<Trade />} />
         </Route>
 
-
-        <Route element={<UserRoute />}>
-          <Route path="/affiliate" element={<Affiliate />} />
-        </Route>
-
         <Route element={<UserRoute />}>
           <Route path="/winners" element={<Winner />} />
         </Route>
 
         <Route element={<UserRoute />}>
           <Route path="/how-to-play" element={<HowItWork />} />
+        </Route>
+
+        {/* ================= AFFILIATE ROUTES (Protected) ================= */}
+        <Route element={<AffiliateRoute />}>
+          <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
+          <Route path="/affiliate/plans" element={<Affiliate />} />
+          <Route path="/affiliate/referral" element={<Referral />} />
+          <Route path="/affiliate/how-it-works" element={<AffiliateHowItWorks />} />
+          <Route path="/affiliate" element={<Navigate to="/affiliate/plans" replace />} />
+          <Route path="/referral" element={<Navigate to="/affiliate/referral" replace />} />
         </Route>
 
         {/* ================= ADMIN ROUTES (Protected) ================= */}

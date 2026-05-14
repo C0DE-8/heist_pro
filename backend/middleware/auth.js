@@ -86,6 +86,11 @@ const authenticateAdmin = (req, res, next) => {
   return res.status(403).json({ message: "Admin access required" });
 };
 
+const authenticateAffiliate = (req, res, next) => {
+  if (req.user && req.user.role === "affiliate") return next();
+  return res.status(403).json({ message: "Affiliate access required" });
+};
+
 const errorHandlingMiddleware = (err, req, res, next) => {
   console.error("error middleware:", err);
 
@@ -103,5 +108,6 @@ module.exports = {
   authenticateToken,
   optionalAuthenticateToken,
   authenticateAdmin,
+  authenticateAffiliate,
   errorHandlingMiddleware,
 };

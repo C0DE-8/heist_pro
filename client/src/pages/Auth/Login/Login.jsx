@@ -31,6 +31,7 @@ export default function Login() {
 
   const redirectByRole = (role) => {
     if (role === "admin") nav("/admin-dashboard", { replace: true });
+    else if (role === "affiliate") nav(location.state?.from || "/affiliate-dashboard", { replace: true });
     else {
       const pendingReferral = getPendingReferralJoin();
       nav(pendingReferral?.redirectTo || location.state?.from || "/dashboard", { replace: true });
@@ -66,7 +67,7 @@ export default function Login() {
           setCheckingSession(false);
           redirectByRole(session.role || storedRole || "user");
         }
-      } catch (e) {
+      } catch {
         // invalid token -> clear
         clearAuthSession();
         if (mounted) setCheckingSession(false);
@@ -110,7 +111,7 @@ export default function Login() {
       // ✅ verify token once (optional but prevents mismatch)
       try {
         await verifyStoredSession();
-      } catch (_) {
+      } catch {
         clearAuthSession();
         setErr("Login session could not be verified. Try again.");
         return;

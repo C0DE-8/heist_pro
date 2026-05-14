@@ -1,54 +1,37 @@
-// src/components/UserToolbar/UserToolbar.jsx
-
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  X,
-  LayoutGrid,
-  ShieldAlert,
-  TrendingUp,
-  Users,
-  Trophy,
-  HelpCircle,
-  LogOut,
-  UserRound,
+  BookOpen,
   Coins,
+  LayoutGrid,
+  LogOut,
   Target,
+  UserRound,
+  Users,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
-import styles from "./UserToolbar.module.css";
+import styles from "../UserToolbar/UserToolbar.module.css";
 import { imgUrl } from "../../lib/api";
 import { clearAuthSession, getStoredToken } from "../../lib/auth";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
-import { getUserProfile } from "../../lib/users";
 import { getSoundEnabled, setSoundEnabled } from "../../lib/sound";
+import { getUserProfile } from "../../lib/users";
 
-export default function UserToolbar() {
+export default function AffiliateToolbar() {
   const nav = useNavigate();
-
-  // ✅ token must be reactive (not useMemo), so UI updates instantly without refresh
   const [token, setToken] = useState(() => getStoredToken());
-
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [soundOn, setSoundOn] = useState(() => getSoundEnabled());
   const [hideCoins, setHideCoins] = useState(
     () => localStorage.getItem("copup_toolbar_hide_coins") === "1"
   );
-  const [hideTasks, setHideTasks] = useState(
-    () => localStorage.getItem("copup_toolbar_hide_tasks") === "1"
-  );
 
-  const displayName = profile?.full_name || profile?.username || "User";
-  const role = String(profile?.role || "").toLowerCase();
-  const isAffiliate = role === "affiliate";
+  const displayName = profile?.full_name || profile?.username || "Affiliate";
   const copPoints = Number(profile?.cop_point || 0);
-  const joinedHeists = Number(profileData?.stats?.heists?.joined_heists || 0);
-
-  // ✅ IMPORTANT: convert "uploads/xxx.jpg" -> "http://host/uploads/xxx.jpg"
   const profileImageSrc = useMemo(() => {
     const p = profile?.profile;
     return p ? imgUrl(p) : "";
@@ -62,69 +45,21 @@ export default function UserToolbar() {
   const logout = useCallback(() => {
     clearAuthSession();
     setProfile(null);
-    setProfileData(null);
     setOpen(false);
-
-    // ✅ update token state instantly
     setToken(null);
-
     nav("/login", { replace: true });
   }, [nav]);
 
-  const toggleSound = () => {
-    const next = !soundOn;
-    setSoundOn(next);
-    setSoundEnabled(next);
-  };
-
-  const toggleCoins = () => {
-    setHideCoins((prev) => {
-      const next = !prev;
-      localStorage.setItem("copup_toolbar_hide_coins", next ? "1" : "0");
-      return next;
-    });
-  };
-
-  const toggleTasks = () => {
-    setHideTasks((prev) => {
-      const next = !prev;
-      localStorage.setItem("copup_toolbar_hide_tasks", next ? "1" : "0");
-      return next;
-    });
-  };
-
-  // ✅ 1) keep token in sync (login/logout in same tab and other tabs)
-  useEffect(() => {
-    const syncToken = () => setToken(getStoredToken());
-
-    const onStorage = (e) => {
-      if (e.key === "token" || e.key === "accessToken") syncToken();
-    };
-
-    const onAuthChanged = () => syncToken();
-
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(COPUP_EVENTS.AUTH_CHANGED, onAuthChanged);
-
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(COPUP_EVENTS.AUTH_CHANGED, onAuthChanged);
-    };
-  }, []);
-
-  // ✅ 2) fetch profile (and reuse it for balance refresh)
   const fetchProfile = useCallback(async () => {
     const t = getStoredToken();
     if (!t) {
       setProfile(null);
-      setProfileData(null);
       return;
     }
 
     setLoading(true);
     try {
       const data = await getUserProfile();
-      setProfileData(data);
       setProfile(data?.user || null);
     } catch (err) {
       const code = err?.response?.status;
@@ -134,13 +69,24 @@ export default function UserToolbar() {
     }
   }, [logout]);
 
-  // ✅ initial load + when token changes
+  useEffect(() => {
+    const syncToken = () => setToken(getStoredToken());
+    const onStorage = (event) => {
+      if (event.key === "token" || event.key === "accessToken") syncToken();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(COPUP_EVENTS.AUTH_CHANGED, syncToken);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(COPUP_EVENTS.AUTH_CHANGED, syncToken);
+    };
+  }, []);
+
   useEffect(() => {
     if (!token) return;
     fetchProfile();
   }, [token, fetchProfile]);
 
-  // ✅ 3) listen for balance updates (buy/bid/heist) and refetch immediately
   useEffect(() => {
     const onBalance = () => {
       const cachedCopPoint = localStorage.getItem("copup_cop_point");
@@ -150,8 +96,6 @@ export default function UserToolbar() {
           cop_point: Number(cachedCopPoint) || 0,
         }));
       }
-
-      // real update from server (source of truth)
       fetchProfile();
     };
 
@@ -163,14 +107,16 @@ export default function UserToolbar() {
 
   return (
     <>
-      {/* Trigger Button */}
       <div className={styles.toolbarCluster}>
         <button
           type="button"
           className={`${styles.soundBtn} ${soundOn ? styles.soundBtnOn : ""}`}
-          onClick={toggleSound}
+          onClick={() => {
+            const next = !soundOn;
+            setSoundOn(next);
+            setSoundEnabled(next);
+          }}
           aria-label={soundOn ? "Turn background music off" : "Turn background music on"}
-          title={soundOn ? "Sound on" : "Sound off"}
         >
           {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </button>
@@ -180,23 +126,16 @@ export default function UserToolbar() {
             <button
               type="button"
               className={styles.coinBadge}
-              onClick={toggleCoins}
-              aria-label={hideCoins ? "Show coin balance" : "Hide coin balance"}
-              title={hideCoins ? "Show balance" : "Hide balance"}
+              onClick={() => {
+                setHideCoins((prev) => {
+                  const next = !prev;
+                  localStorage.setItem("copup_toolbar_hide_coins", next ? "1" : "0");
+                  return next;
+                });
+              }}
             >
               <Coins size={14} />
               {hideCoins ? "••••" : copPoints.toLocaleString()}
-            </button>
-
-            <button
-              type="button"
-              className={styles.taskBadge}
-              onClick={toggleTasks}
-              aria-label={hideTasks ? "Show joined heists" : "Hide joined heists"}
-              title={hideTasks ? "Show heists" : "Hide heists"}
-            >
-              <Target size={14} />
-              {hideTasks ? "••" : joinedHeists.toLocaleString()}
             </button>
           </div>
 
@@ -204,7 +143,7 @@ export default function UserToolbar() {
             type="button"
             className={styles.avatar}
             onClick={() => setOpen(true)}
-            aria-label="Open profile menu"
+            aria-label="Open affiliate menu"
           >
             {profileImageSrc ? (
               <img src={profileImageSrc} alt="Profile" className={styles.avatarImg} />
@@ -215,30 +154,23 @@ export default function UserToolbar() {
         </div>
       </div>
 
-      {/* Overlay */}
       <div
         className={`${styles.overlay} ${open ? styles.overlayOpen : ""}`}
         onClick={() => setOpen(false)}
       />
 
-      {/* Drawer */}
       <aside className={`${styles.drawer} ${open ? styles.drawerOpen : ""}`}>
         <div className={styles.drawerTop}>
-          <div className={styles.drawerTitle}>Copup Heist</div>
+          <div className={styles.drawerTitle}>Affiliate Hub</div>
           <button type="button" className={styles.iconBtn} onClick={() => setOpen(false)}>
             <X size={18} />
           </button>
         </div>
 
-        {/* Profile */}
         <div className={styles.profileBlock}>
           <div className={styles.profileAvatar}>
             {profileImageSrc ? (
-              <img
-                src={profileImageSrc}
-                alt="Profile"
-                className={styles.profileAvatarImg}
-              />
+              <img src={profileImageSrc} alt="Profile" className={styles.profileAvatarImg} />
             ) : (
               <UserRound size={18} />
             )}
@@ -246,7 +178,6 @@ export default function UserToolbar() {
 
           <div className={styles.profileText}>
             <div className={styles.profileName}>{loading ? "Loading..." : displayName}</div>
-
             <button className={styles.profileLink} onClick={() => go("/profile")}>
               View profile
             </button>
@@ -254,40 +185,25 @@ export default function UserToolbar() {
         </div>
 
         <div className={styles.section}>
-          <button className={styles.item} onClick={() => go(isAffiliate ? "/affiliate-dashboard" : "/dashboard")}>
+          <button className={styles.item} onClick={() => go("/affiliate-dashboard")}>
             <LayoutGrid size={16} /> Dashboard
           </button>
-
-          <button className={styles.item} onClick={() => go("/heist")}>
-            <ShieldAlert size={16} /> Heist
+          <button className={styles.item} onClick={() => go("/affiliate/plans")}>
+            <Target size={16} /> Plans
           </button>
-
-          <button className={styles.item} onClick={() => go("/trade")}>
-            <TrendingUp size={16} /> Trade
+          <button className={styles.item} onClick={() => go("/affiliate/referral")}>
+            <Users size={16} /> Referral
+          </button>
+          <button className={styles.item} onClick={() => go("/affiliate/how-it-works")}>
+            <BookOpen size={16} /> How it works
           </button>
         </div>
 
         <div className={styles.divider} />
 
         <div className={styles.section}>
-          {isAffiliate ? (
-            <React.Fragment>
-              <button className={styles.item} onClick={() => go("/affiliate-dashboard")}>
-                <Target size={16} /> Affiliate
-              </button>
-
-              <button className={styles.item} onClick={() => go("/affiliate/referral")}>
-                <Users size={16} /> Referral
-              </button>
-            </React.Fragment>
-          ) : null}
-
-          <button className={styles.item} onClick={() => go("/winners")}>
-            <Trophy size={16} /> Winners
-          </button>
-
-          <button className={styles.item} onClick={() => go("/how-to-play")}>
-            <HelpCircle size={16} /> How to play
+          <button className={styles.item} onClick={() => go("/account")}>
+            <Coins size={16} /> Wallet
           </button>
         </div>
 

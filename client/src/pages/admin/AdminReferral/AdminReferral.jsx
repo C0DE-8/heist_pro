@@ -4,8 +4,11 @@ import AdminNavbar from "../../../components/admin/Navbar";
 import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { useToast } from "../../../components/Toast/ToastContext";
 import {
+  createAffiliateTile,
+  deleteAffiliateTile,
   getAdminReferralSettings,
   resetAdminReferralSettings,
+  updateAffiliateTile,
   updateAdminReferralSettings,
 } from "../../../lib/adminReferral";
 import styles from "./AdminReferral.module.css";
@@ -30,6 +33,19 @@ function buildForm(settings) {
   };
 }
 
+function buildTileForm(tile) {
+  return {
+    id: tile?.id || null,
+    tile_level: Number(tile?.tile_level || 1),
+    name: tile?.name || "",
+    target_tickets: Number(tile?.target_tickets || 150),
+    reward_cop_points: Number(tile?.reward_cop_points || 65),
+    required_affiliates: Number(tile?.required_affiliates || 10),
+    plan_price_cop_points: Number(tile?.plan_price_cop_points || 0),
+    is_active: tile?.is_active === undefined ? true : Boolean(tile.is_active),
+  };
+}
+
 export default function AdminReferral() {
   const toast = useToast();
   const [data, setData] = useState(null);
@@ -37,12 +53,25 @@ export default function AdminReferral() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [savingTile, setSavingTile] = useState(false);
+  const [tileForm, setTileForm] = useState(buildTileForm(null));
   const [error, setError] = useState("");
   const [resetAlertOpen, setResetAlertOpen] = useState(false);
 
   const settings = data?.settings || null;
-  const summary = data?.summary || {};
+  const summary = useMemo(() => data?.summary || {}, [data?.summary]);
   const progress = Array.isArray(data?.progress) ? data.progress : [];
+  const tileDashboard = data?.tile_dashboard || {};
+  const tiles = Array.isArray(tileDashboard?.tiles) ? tileDashboard.tiles : [];
+  const tilePerformance = Array.isArray(tileDashboard?.affiliate_performance)
+    ? tileDashboard.affiliate_performance
+    : [];
+  const activeTiles = tiles.filter((tile) => tile.is_active);
+  const assignedAffiliates = tilePerformance.filter((item) => item.assigned_tile).length;
+  const estimatedTileRewards = tilePerformance.reduce(
+    (sum, item) => sum + Number(item.estimated_earning_cop_points || 0),
+    0
+  );
 
   const loadPage = useCallback(async () => {
     setLoading(true);
@@ -80,6 +109,11 @@ export default function AdminReferral() {
   const updateField = (field) => (event) => {
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateTileField = (field) => (event) => {
+    const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    setTileForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const toggleEnabled = () => {
@@ -129,6 +163,53 @@ export default function AdminReferral() {
     }
   };
 
+  const saveTile = async (event) => {
+    event.preventDefault();
+    setSavingTile(true);
+    try {
+      const payload = {
+        name: tileForm.name,
+        tile_level: Number(tileForm.tile_level || 1),
+        target_tickets: Number(tileForm.target_tickets || 0),
+        reward_cop_points: Number(tileForm.reward_cop_points || 0),
+        required_affiliates: Number(tileForm.required_affiliates || 0),
+        plan_price_cop_points: Number(tileForm.plan_price_cop_points || 0),
+        is_active: Boolean(tileForm.is_active),
+      };
+      const result = tileForm.id
+        ? await updateAffiliateTile(tileForm.id, payload)
+        : await createAffiliateTile(payload);
+
+      setData((prev) => ({ ...(prev || {}), tile_dashboard: result.tile_dashboard }));
+      setTileForm(buildTileForm(null));
+      toast.success(tileForm.id ? "Tile updated." : "Tile created.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to save affiliate tile.");
+    } finally {
+      setSavingTile(false);
+    }
+  };
+
+  const editTile = (tile) => {
+    setTileForm(buildTileForm(tile));
+    toast.info("Tile loaded for editing.");
+  };
+
+  const removeTile = async (tileId) => {
+    if (!tileId || savingTile) return;
+    setSavingTile(true);
+    try {
+      const result = await deleteAffiliateTile(tileId);
+      setData((prev) => ({ ...(prev || {}), tile_dashboard: result.tile_dashboard }));
+      if (Number(tileForm.id) === Number(tileId)) setTileForm(buildTileForm(null));
+      toast.success("Tile deleted.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to delete affiliate tile.");
+    } finally {
+      setSavingTile(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <AdminNavbar />
@@ -152,6 +233,266 @@ export default function AdminReferral() {
               <strong>{loading ? "..." : stat.value}</strong>
             </div>
           ))}
+        </section>
+
+        <section className={styles.tileOverview}>
+          <div>
+            <span>Active Tile plans</span>
+            <strong>{loading ? "..." : formatNum(activeTiles.length)}</strong>
+          </div>
+          <div>
+            <span>Assigned affiliates</span>
+            <strong>{loading ? "..." : formatNum(assignedAffiliates)}</strong>
+          </div>
+          <div>
+            <span>Estimated Tile rewards</span>
+            <strong>{loading ? "..." : `${formatNum(estimatedTileRewards)} CP`}</strong>
+          </div>
+          <div>
+            <span>Period</span>
+            <strong>{tileDashboard?.period?.label || "This month"}</strong>
+          </div>
+        </section>
+
+        <section className={styles.contentGrid}>
+          <article className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Affiliate Tiles</p>
+                <h2>{tileForm.id ? "Edit tile" : "Create tile"}</h2>
+              </div>
+              <span className={tileForm.is_active ? styles.liveBadge : styles.offBadge}>
+                <FaPowerOff />
+                {tileForm.is_active ? "Active" : "Off"}
+              </span>
+            </div>
+
+            <form className={styles.form} onSubmit={saveTile}>
+              <label>
+                <span>Tile level</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={tileForm.tile_level}
+                  onChange={updateTileField("tile_level")}
+                />
+              </label>
+
+              <label>
+                <span>Tile name</span>
+                <input
+                  type="text"
+                  value={tileForm.name}
+                  onChange={updateTileField("name")}
+                  placeholder="Street Scout"
+                  maxLength={120}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Required referred affiliates</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={tileForm.required_affiliates}
+                  onChange={updateTileField("required_affiliates")}
+                />
+              </label>
+
+              <label>
+                <span>Target tickets per month</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={tileForm.target_tickets}
+                  onChange={updateTileField("target_tickets")}
+                />
+              </label>
+
+              <label>
+                <span>Reward value (CP)</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={tileForm.reward_cop_points}
+                  onChange={updateTileField("reward_cop_points")}
+                />
+              </label>
+
+              <label>
+                <span>Plan price to join (CP)</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={tileForm.plan_price_cop_points}
+                  onChange={updateTileField("plan_price_cop_points")}
+                />
+              </label>
+
+              <div className={styles.switchRow}>
+                <span>
+                  <strong>Tile status</strong>
+                  <small>Inactive tiles stay saved but are not used for monthly earning estimates.</small>
+                </span>
+                <button
+                  type="button"
+                  className={tileForm.is_active ? styles.toggleOn : styles.toggleOff}
+                  onClick={() => setTileForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
+                  aria-pressed={Boolean(tileForm.is_active)}
+                >
+                  <span className={styles.toggleThumb} />
+                  <span>{tileForm.is_active ? "On" : "Off"}</span>
+                </button>
+              </div>
+
+              <div className={styles.actions}>
+                <button type="submit" className={styles.primaryBtn} disabled={savingTile}>
+                  <FaSave />
+                  <span>{savingTile ? "Saving..." : tileForm.id ? "Update tile" : "Create tile"}</span>
+                </button>
+                {tileForm.id ? (
+                  <button
+                    type="button"
+                    className={styles.softBtn}
+                    onClick={() => setTileForm(buildTileForm(null))}
+                    disabled={savingTile}
+                  >
+                    Cancel edit
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          </article>
+
+          <article className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Live Performance</p>
+                <h2>Tiles and earnings</h2>
+              </div>
+              <span className={styles.badge}>{tileDashboard?.period?.label || "This month"}</span>
+            </div>
+
+            <div className={styles.tileGrid}>
+              {loading ? (
+                <div className={styles.emptyState}>Loading tiles...</div>
+              ) : tiles.length ? (
+                <React.Fragment>
+                  {tiles.map((tile) => (
+                    <article
+                      className={`${styles.tileCard} ${tile.is_active ? styles.tileCardActive : ""}`}
+                      key={tile.id}
+                    >
+                      <div className={styles.tileCardHead}>
+                        <span>Level {formatNum(tile.tile_level)}</span>
+                        <h3>{tile.name}</h3>
+                        <em className={tile.is_active ? styles.donePill : styles.pendingPill}>
+                          {tile.is_active ? "Active" : "Inactive"}
+                        </em>
+                      </div>
+
+                      <div className={styles.tilePrice}>
+                        <strong>{formatNum(tile.plan_price_cop_points)} CP</strong>
+                        <span>Plan price</span>
+                      </div>
+
+                      <div className={styles.tileFacts}>
+                        <div>
+                          <span>Required affiliates</span>
+                          <strong>{formatNum(tile.required_affiliates)}</strong>
+                        </div>
+                        <div>
+                          <span>Ticket target</span>
+                          <strong>{formatNum(tile.target_tickets)}</strong>
+                        </div>
+                        <div>
+                          <span>Reward</span>
+                          <strong>{formatNum(tile.reward_cop_points)} CP</strong>
+                        </div>
+                        <div>
+                          <span>Assigned</span>
+                          <strong>
+                            {
+                              tilePerformance.filter(
+                                (item) => Number(item.assigned_tile?.id) === Number(tile.id)
+                              ).length
+                            }
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className={styles.actions}>
+                        <button type="button" className={styles.softBtn} onClick={() => editTile(tile)}>
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.dangerBtn}
+                          onClick={() => removeTile(tile.id)}
+                          disabled={savingTile}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </React.Fragment>
+              ) : (
+                <div className={styles.emptyState}>No affiliate tiles have been created yet.</div>
+              )}
+            </div>
+          </article>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHead}>
+            <div>
+              <p className={styles.kicker}>Affiliate Performance</p>
+              <h2>Current Tile assignments</h2>
+            </div>
+            <span className={styles.badge}>{formatNum(tilePerformance.length)} affiliates</span>
+          </div>
+
+          <div className={styles.performanceGrid}>
+            {loading ? (
+              <div className={styles.emptyState}>Loading affiliate performance...</div>
+            ) : tilePerformance.length ? (
+              tilePerformance.slice(0, 12).map((item) => (
+                <article className={styles.performanceCard} key={`affiliate-${item.user_id}`}>
+                  <div className={styles.rowTop}>
+                    <div>
+                      <strong>{item.full_name || item.username || `User #${item.user_id}`}</strong>
+                      <small>
+                        {item.assigned_tile
+                          ? `Level ${formatNum(item.assigned_tile.tile_level)} · ${item.assigned_tile.name}`
+                          : "No tile assigned"}
+                      </small>
+                    </div>
+                    <em className={item.assigned_tile ? styles.donePill : styles.pendingPill}>
+                      {formatNum(item.estimated_earning_cop_points)} CP
+                    </em>
+                  </div>
+                  <div className={styles.tileFacts}>
+                    <div>
+                      <span>Direct affiliates</span>
+                      <strong>{formatNum(item.stats?.direct_affiliates)}</strong>
+                    </div>
+                    <div>
+                      <span>Network tickets</span>
+                      <strong>{formatNum(item.stats?.network_tickets)}</strong>
+                    </div>
+                    <div>
+                      <span>Ticket value</span>
+                      <strong>{formatNum(item.stats?.network_ticket_value)} CP</strong>
+                    </div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className={styles.emptyState}>No affiliate performance yet.</div>
+            )}
+          </div>
         </section>
 
         <section className={styles.contentGrid}>

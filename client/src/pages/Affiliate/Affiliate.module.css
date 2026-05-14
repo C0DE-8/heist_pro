@@ -185,16 +185,50 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 0;
+  align-items: stretch;
+  max-width: 100%;
+  padding: 8px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.045)),
+    rgba(24, 27, 34, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.statsGrid::-webkit-scrollbar {
+  height: 8px;
+}
+
+.statsGrid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
 }
 
 .statsGrid > div {
-  min-height: 132px;
-  border-radius: 24px;
-  padding: 16px;
-  display: grid;
-  align-content: space-between;
+  min-width: 160px;
+  min-height: 108px;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  contain: layout paint;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.statsGrid > div + div {
+  border-left-color: rgba(255, 255, 255, 0.1);
 }
 
 .statsGrid svg {
@@ -212,6 +246,12 @@
   color: #ffffff;
   font-size: clamp(1.45rem, 4vw, 2rem);
   line-height: 1;
+}
+
+.statsGrid small {
+  color: rgba(186, 255, 199, 0.72);
+  font-size: 0.74rem;
+  font-weight: 850;
 }
 
 .sectionHead {
@@ -262,6 +302,170 @@
   gap: 14px;
   min-height: 280px;
   scroll-snap-align: start;
+}
+
+.simpleReferralViewport {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: 282px;
+  margin: 0 auto;
+  overflow: hidden;
+  padding: 6px 2px;
+  contain: layout paint;
+  isolation: isolate;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+}
+
+.simpleReferralTrack {
+  display: grid;
+  gap: 10px;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.simpleReferralTrackAnimated {
+  animation: referralFloat 28s linear infinite;
+  will-change: transform;
+}
+
+.simpleReferralViewport:hover .simpleReferralTrackAnimated {
+  animation-play-state: paused;
+}
+
+.simpleReferredCard {
+  min-height: 82px;
+  padding: 10px 14px 10px 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: 999px 24px 24px 999px;
+  background:
+    radial-gradient(circle at 8% 18%, rgba(57, 217, 138, 0.2), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05)),
+    rgba(24, 27, 34, 0.82);
+  color: #ffffff;
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition:
+    transform 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    background 0.22s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .simpleReferredCard:hover {
+    transform: translateY(-4px) scale(1.005);
+    border-color: rgba(57, 217, 138, 0.36);
+    background:
+      radial-gradient(circle at 8% 18%, rgba(57, 217, 138, 0.3), transparent 34%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.07)),
+      rgba(24, 27, 34, 0.92);
+    box-shadow:
+      0 18px 34px rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(57, 217, 138, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+}
+
+.simpleReferralContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.simpleAvatar {
+  width: 60px;
+  height: 60px;
+  flex: 0 0 60px;
+  border-radius: 999px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.34), transparent 28%),
+    linear-gradient(135deg, #14b87a, #4267ff);
+  display: grid;
+  place-items: center;
+  border: 3px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(57, 217, 138, 0.2), 0 8px 18px rgba(0, 0, 0, 0.22);
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.simpleDetails {
+  min-width: 0;
+}
+
+.simpleDetails h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.simpleDetails p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.76rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.simpleReferralAction {
+  min-width: 112px;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.simpleReferralAction span {
+  max-width: 132px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.72rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.simpleReferralAction strong {
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #16b87b, #3e63f1);
+  font-size: 0.7rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@keyframes referralFloat {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(0, calc(-50% - 5px), 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simpleReferralTrackAnimated {
+    animation: none;
+  }
 }
 
 .heistCard {
@@ -422,15 +626,55 @@
   border-radius: 28px;
   padding: 16px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
 }
 
 .taskCard {
-  border-radius: 22px;
-  padding: 15px;
+  border-radius: 24px;
+  padding: 20px;
   display: grid;
-  gap: 13px;
+  gap: 16px;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  contain: layout paint;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background:
+    radial-gradient(circle at 0 0, rgba(186, 255, 199, 0.11), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.045)),
+    rgba(24, 27, 34, 0.74);
+  transition:
+    transform 0.28s ease,
+    border-color 0.28s ease,
+    box-shadow 0.28s ease;
+}
+
+.taskCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(186, 255, 199, 0.85), rgba(120, 214, 255, 0.6), transparent);
+  opacity: 0.72;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .taskCard:hover {
+    transform: translateY(-8px);
+    border-color: rgba(186, 255, 199, 0.28);
+    box-shadow:
+      0 22px 46px rgba(0, 0, 0, 0.34),
+      0 0 20px rgba(51, 196, 182, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .taskCard {
+    transition: border-color 0.2s ease;
+  }
 }
 
 .taskTop {
@@ -438,23 +682,29 @@
 }
 
 .taskCard h3 {
-  font-size: 1rem;
+  font-size: 1.12rem;
+  line-height: 1.15;
 }
 
 .donePill {
   color: #dfffe5;
   background: rgba(186, 255, 199, 0.1);
+  border: 1px solid rgba(186, 255, 199, 0.18);
 }
 
 .openPill {
   color: #fde68a;
   background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.18);
 }
 
 .progressText {
   color: rgba(255, 255, 255, 0.72);
   font-size: 0.86rem;
   font-weight: 850;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .progressText strong {
@@ -477,6 +727,177 @@
 
 .taskCard small {
   color: rgba(255, 255, 255, 0.58);
+  line-height: 1.45;
+}
+
+.moneyNote {
+  display: block;
+  margin-top: 8px;
+  color: rgba(186, 255, 199, 0.74) !important;
+  font-weight: 850;
+}
+
+.activePlanCard {
+  grid-column: 1 / -1;
+  border-color: rgba(186, 255, 199, 0.22);
+  background:
+    radial-gradient(circle at 0 0, rgba(186, 255, 199, 0.18), transparent 36%),
+    linear-gradient(180deg, rgba(186, 255, 199, 0.12), rgba(255, 255, 255, 0.045)),
+    rgba(24, 27, 34, 0.78);
+}
+
+.planIntro {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+}
+
+.planCard {
+  min-height: 420px;
+  align-content: start;
+}
+
+.planCardActive {
+  border-color: rgba(186, 255, 199, 0.2);
+}
+
+.planCardActive::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 58px 58px 0 0;
+  border-color: #33c4b6 transparent transparent transparent;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.planCardActive::after {
+  content: "✓";
+  color: #ffffff;
+  position: absolute;
+  left: 10px;
+  top: 6px;
+  font-size: 1.25rem;
+  font-weight: 950;
+  text-shadow: 0 0 2px #37c5b6;
+}
+
+.planHeader {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-height: 118px;
+}
+
+.planLevel {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #d9fff2;
+  background: rgba(51, 196, 182, 0.12);
+  border: 1px solid rgba(51, 196, 182, 0.2);
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.planHeader h3 {
+  max-width: 100%;
+  font-size: clamp(1.55rem, 4vw, 2.2rem);
+  font-weight: 750;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.planPrice {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 90% 0, rgba(120, 214, 255, 0.16), transparent 36%),
+    rgba(255, 255, 255, 0.06);
+}
+
+.planPrice span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.planPrice strong {
+  color: #ffffff;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.planPrice small {
+  color: rgba(186, 255, 199, 0.74);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.planRule {
+  width: 100%;
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+  margin: 0;
+}
+
+.planFeatures {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+
+.planFeatures li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.35;
+}
+
+.planFeatures li::before {
+  content: "✓";
+  color: #33c4b6;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.planFeatures strong {
+  color: #ffffff;
+  margin-right: 3px;
+}
+
+.planFeatures span {
+  min-width: 0;
+  grid-column: 2;
+}
+
+.planFeatures small {
+  grid-column: 2;
+  color: rgba(186, 255, 199, 0.72);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.planDetails {
+  display: grid;
+  gap: 10px;
 }
 
 .emptyState {
@@ -489,7 +910,6 @@
 @media (max-width: 860px) {
   .hero,
   .accountGrid,
-  .statsGrid,
   .progressPanel {
     grid-template-columns: 1fr;
   }
@@ -533,4 +953,29 @@
     align-items: stretch;
     flex-direction: column;
   }
+
+  .simpleReferredCard {
+    grid-template-columns: 1fr;
+    border-radius: 28px;
+    padding: 12px;
+  }
+
+  .simpleAvatar {
+    width: 56px;
+    height: 56px;
+    flex-basis: 56px;
+    font-size: 0.94rem;
+  }
+
+  .simpleReferralAction {
+    width: 100%;
+    min-width: 0;
+    justify-items: start;
+  }
+
+  .simpleReferralAction span {
+    max-width: 100%;
+    text-align: left;
+  }
+
 }
