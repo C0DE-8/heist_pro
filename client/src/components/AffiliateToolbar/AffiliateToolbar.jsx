@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   LogOut,
   Target,
+  TrendingUp,
   UserRound,
   Users,
   Volume2,
@@ -193,6 +194,9 @@ export default function AffiliateToolbar() {
           </button>
           <button className={styles.item} onClick={() => go("/affiliate/referral")}>
             <Users size={16} /> Referral
+          </button>
+          <button className={styles.item} onClick={() => go("/affiliate/trade")}>
+            <TrendingUp size={16} /> Trade
           </button>
           <button className={styles.item} onClick={() => go("/affiliate/how-it-works")}>
             <BookOpen size={16} /> How it works

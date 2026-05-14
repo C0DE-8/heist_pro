@@ -9,6 +9,8 @@ const {
   ensureAffiliateTilesTable,
   parseTilePayload,
   buildAdminAffiliateTileDashboard,
+  buildAffiliatePayoutPreview,
+  processDueAffiliateTilePayouts,
 } = require("../services/affiliateTiles.service");
 
 const router = express.Router();
@@ -89,14 +91,20 @@ async function buildReferralAdminResponse(db) {
   };
 }
 
+async function buildFullAdminResponse(db) {
+  await ensureAffiliateTilesTable(db);
+  const payout_run = await processDueAffiliateTilePayouts(db);
+  const [data, tile_dashboard, payout_preview] = await Promise.all([
+    buildReferralAdminResponse(db),
+    buildAdminAffiliateTileDashboard(db),
+    buildAffiliatePayoutPreview(db),
+  ]);
+  return { ...data, tile_dashboard, payout_preview, payout_run };
+}
+
 router.get("/", async (req, res) => {
   try {
-    await ensureAffiliateTilesTable(pool);
-    const [data, tile_dashboard] = await Promise.all([
-      buildReferralAdminResponse(pool),
-      buildAdminAffiliateTileDashboard(pool),
-    ]);
-    return res.json({ ...data, tile_dashboard });
+    return res.json(await buildFullAdminResponse(pool));
   } catch (err) {
     console.error("admin referral get error:", err);
     return res.status(500).json({ message: "Error fetching referral reward settings" });
@@ -125,10 +133,12 @@ router.post("/tiles", async (req, res) => {
     );
 
     const tile_dashboard = await buildAdminAffiliateTileDashboard(pool);
+    const payout_preview = await buildAffiliatePayoutPreview(pool);
     return res.status(201).json({
       message: "Affiliate tile created",
       tile_id: result.insertId,
       tile_dashboard,
+      payout_preview,
     });
   } catch (err) {
     console.error("admin affiliate tile create error:", err);
@@ -166,7 +176,8 @@ router.patch("/tiles/:tileId", async (req, res) => {
     if (!result.affectedRows) return res.status(404).json({ message: "Affiliate tile not found" });
 
     const tile_dashboard = await buildAdminAffiliateTileDashboard(pool);
-    return res.json({ message: "Affiliate tile updated", tile_dashboard });
+    const payout_preview = await buildAffiliatePayoutPreview(pool);
+    return res.json({ message: "Affiliate tile updated", tile_dashboard, payout_preview });
   } catch (err) {
     console.error("admin affiliate tile update error:", err);
     return res.status(400).json({ message: err.message || "Error updating affiliate tile" });
@@ -183,7 +194,8 @@ router.delete("/tiles/:tileId", async (req, res) => {
     if (!result.affectedRows) return res.status(404).json({ message: "Affiliate tile not found" });
 
     const tile_dashboard = await buildAdminAffiliateTileDashboard(pool);
-    return res.json({ message: "Affiliate tile deleted", tile_dashboard });
+    const payout_preview = await buildAffiliatePayoutPreview(pool);
+    return res.json({ message: "Affiliate tile deleted", tile_dashboard, payout_preview });
   } catch (err) {
     console.error("admin affiliate tile delete error:", err);
     return res.status(500).json({ message: "Error deleting affiliate tile" });
@@ -244,14 +256,16 @@ router.patch("/", async (req, res) => {
 
     await conn.commit();
 
-    const [data, tile_dashboard] = await Promise.all([
+    const [data, tile_dashboard, payout_preview] = await Promise.all([
       buildReferralAdminResponse(pool),
       buildAdminAffiliateTileDashboard(pool),
+      buildAffiliatePayoutPreview(pool),
     ]);
     return res.json({
       message: "Referral reward settings updated",
       ...data,
       tile_dashboard,
+      payout_preview,
     });
   } catch (err) {
     if (conn) await conn.rollback();
@@ -281,11 +295,12 @@ router.post("/reset", async (req, res) => {
     );
 
     await conn.commit();
-    const [data, tile_dashboard] = await Promise.all([
+    const [data, tile_dashboard, payout_preview] = await Promise.all([
       buildReferralAdminResponse(pool),
       buildAdminAffiliateTileDashboard(pool),
+      buildAffiliatePayoutPreview(pool),
     ]);
-    return res.json({ message: "Referral reward progress reset", ...data, tile_dashboard });
+    return res.json({ message: "Referral reward progress reset", ...data, tile_dashboard, payout_preview });
   } catch (err) {
     if (conn) await conn.rollback();
     console.error("admin referral reset error:", err);

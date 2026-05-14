@@ -275,9 +275,7 @@ export default function Register() {
                     <option value="user">User</option>
                     <option value="affiliate">Affiliate</option>
                   </select>
-                  <div className={styles.helper}>
-                    Affiliate accounts open the Affiliate Dashboard after login.
-                  </div>
+                 
                 </div>
 
                 <div className={styles.field}>
@@ -313,7 +311,7 @@ export default function Register() {
                   <Link className={styles.link} to="/login">
                     I already have an account
                   </Link>
-                  <div className={styles.helper}>Next: enter OTP + password</div>
+                 
                 </div>
               </div>
             ) : (

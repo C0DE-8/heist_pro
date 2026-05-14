@@ -50,3 +50,28 @@ CREATE TABLE IF NOT EXISTS `affiliate_tile_memberships` (
     FOREIGN KEY (`tile_id`) REFERENCES `affiliate_tiles` (`id`)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `affiliate_tile_payouts` (
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `tile_id` int(11) NOT NULL,
+  `period_start` date NOT NULL,
+  `period_end` date NOT NULL,
+  `earned_cop_points` int(11) NOT NULL DEFAULT 0,
+  `status` enum('paid') NOT NULL DEFAULT 'paid',
+  `paid_by` int(11) DEFAULT NULL,
+  `paid_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_affiliate_tile_payout_period` (`user_id`, `tile_id`, `period_start`),
+  KEY `idx_affiliate_tile_payout_period` (`period_start`, `period_end`),
+  KEY `idx_affiliate_tile_payout_user` (`user_id`, `paid_at`),
+  CONSTRAINT `fk_affiliate_tile_payouts_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_affiliate_tile_payouts_tile`
+    FOREIGN KEY (`tile_id`) REFERENCES `affiliate_tiles` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_affiliate_tile_payouts_paid_by`
+    FOREIGN KEY (`paid_by`) REFERENCES `users` (`id`)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

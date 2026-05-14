@@ -208,6 +208,9 @@
 .pendingPill {
   background: rgba(250, 204, 21, 0.14);
   color: #fde68a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .liveBadge,
@@ -225,6 +228,75 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.paydayPanel {
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  border-radius: 28px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 0 0, rgba(34, 211, 238, 0.16), transparent 34%),
+    rgba(9, 18, 27, 0.82);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.paydayMain {
+  display: grid;
+  gap: 16px;
+}
+
+.workflowGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.workflowGrid div,
+.paydayAction {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 20px;
+  padding: 14px;
+  background: rgba(15, 23, 42, 0.72);
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.workflowGrid div {
+  min-width: 150px;
+}
+
+.workflowGrid svg {
+  color: #8de2ff;
+  font-size: 1.1rem;
+}
+
+.workflowGrid span,
+.paydayAction span,
+.paydayAction small {
+  color: rgba(226, 232, 240, 0.66);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.workflowGrid strong,
+.paydayAction strong {
+  color: #f8fafc;
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.paydayAction {
+  align-content: center;
 }
 
 .form {
@@ -496,6 +568,47 @@
   gap: 12px;
 }
 
+.listControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.listControls label {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 8px;
+}
+
+.listControls label span,
+.listControls div,
+.pagination span {
+  color: rgba(226, 232, 240, 0.68);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.listControls input {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  padding: 0 14px;
+  font: inherit;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .rowCard,
 .emptyState {
   border-radius: 20px;
@@ -539,7 +652,8 @@
 }
 
 @media (max-width: 920px) {
-  .contentGrid {
+  .contentGrid,
+  .paydayPanel {
     grid-template-columns: 1fr;
   }
 }
@@ -567,5 +681,14 @@
   .dangerBtn,
   .softBtn {
     width: 100%;
+  }
+
+  .pagination {
+    justify-content: stretch;
+  }
+
+  .pagination span {
+    width: 100%;
+    text-align: center;
   }
 }

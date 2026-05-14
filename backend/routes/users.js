@@ -8,6 +8,7 @@ const {
 } = require("../services/referralReward.service");
 const {
   buildUserAffiliateTileDashboard,
+  processDueAffiliateTilePayouts,
   joinAffiliateTile,
 } = require("../services/affiliateTiles.service");
 const {
@@ -208,6 +209,7 @@ router.delete("/push-token", authenticateToken, async (req, res) => {
 
 router.get("/affiliate-tiles", authenticateToken, authenticateAffiliate, async (req, res) => {
   try {
+    await processDueAffiliateTilePayouts(pool);
     const dashboard = await buildUserAffiliateTileDashboard(pool, req.user.userId);
     return res.json(dashboard);
   } catch (err) {

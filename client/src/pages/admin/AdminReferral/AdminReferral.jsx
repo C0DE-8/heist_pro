@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaExclamationTriangle, FaGift, FaPowerOff, FaRedoAlt, FaSave, FaUsers } from "react-icons/fa";
+import {
+  FaCalendarAlt,
+  FaCheckCircle,
+  FaClock,
+  FaExclamationTriangle,
+  FaGift,
+  FaPowerOff,
+  FaRedoAlt,
+  FaSave,
+  FaUsers,
+} from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
 import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { useToast } from "../../../components/Toast/ToastContext";
@@ -25,6 +35,17 @@ function formatDate(value) {
   return date.toLocaleString();
 }
 
+function formatShortDate(value) {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function buildForm(settings) {
   return {
     is_enabled: Boolean(settings?.is_enabled),
@@ -46,6 +67,8 @@ function buildTileForm(tile) {
   };
 }
 
+const AFFILIATE_PAGE_SIZE = 5;
+
 export default function AdminReferral() {
   const toast = useToast();
   const [data, setData] = useState(null);
@@ -55,6 +78,8 @@ export default function AdminReferral() {
   const [resetting, setResetting] = useState(false);
   const [savingTile, setSavingTile] = useState(false);
   const [tileForm, setTileForm] = useState(buildTileForm(null));
+  const [affiliateSearch, setAffiliateSearch] = useState("");
+  const [affiliatePage, setAffiliatePage] = useState(1);
   const [error, setError] = useState("");
   const [resetAlertOpen, setResetAlertOpen] = useState(false);
 
@@ -62,15 +87,42 @@ export default function AdminReferral() {
   const summary = useMemo(() => data?.summary || {}, [data?.summary]);
   const progress = Array.isArray(data?.progress) ? data.progress : [];
   const tileDashboard = data?.tile_dashboard || {};
+  const payoutPreview = data?.payout_preview || {};
   const tiles = Array.isArray(tileDashboard?.tiles) ? tileDashboard.tiles : [];
-  const tilePerformance = Array.isArray(tileDashboard?.affiliate_performance)
-    ? tileDashboard.affiliate_performance
-    : [];
+  const tilePerformance = useMemo(
+    () =>
+      Array.isArray(tileDashboard?.affiliate_performance)
+        ? tileDashboard.affiliate_performance
+        : [],
+    [tileDashboard?.affiliate_performance]
+  );
   const activeTiles = tiles.filter((tile) => tile.is_active);
   const assignedAffiliates = tilePerformance.filter((item) => item.assigned_tile).length;
   const estimatedTileRewards = tilePerformance.reduce(
     (sum, item) => sum + Number(item.estimated_earning_cop_points || 0),
     0
+  );
+  const filteredTilePerformance = useMemo(() => {
+    const query = affiliateSearch.trim().toLowerCase();
+    if (!query) return tilePerformance;
+    return tilePerformance.filter((item) => {
+      const values = [
+        item.full_name,
+        item.username,
+        item.email,
+        item.assigned_tile?.name,
+        item.assigned_tile?.tile_level ? `level ${item.assigned_tile.tile_level}` : "",
+      ];
+      return values.some((value) => String(value || "").toLowerCase().includes(query));
+    });
+  }, [affiliateSearch, tilePerformance]);
+  const affiliateTotalPages = Math.max(
+    1,
+    Math.ceil(filteredTilePerformance.length / AFFILIATE_PAGE_SIZE)
+  );
+  const pagedTilePerformance = filteredTilePerformance.slice(
+    (affiliatePage - 1) * AFFILIATE_PAGE_SIZE,
+    affiliatePage * AFFILIATE_PAGE_SIZE
   );
 
   const loadPage = useCallback(async () => {
@@ -91,6 +143,14 @@ export default function AdminReferral() {
   useEffect(() => {
     loadPage();
   }, [loadPage]);
+
+  useEffect(() => {
+    setAffiliatePage(1);
+  }, [affiliateSearch]);
+
+  useEffect(() => {
+    if (affiliatePage > affiliateTotalPages) setAffiliatePage(affiliateTotalPages);
+  }, [affiliatePage, affiliateTotalPages]);
 
   const stats = useMemo(
     () => [
@@ -180,7 +240,11 @@ export default function AdminReferral() {
         ? await updateAffiliateTile(tileForm.id, payload)
         : await createAffiliateTile(payload);
 
-      setData((prev) => ({ ...(prev || {}), tile_dashboard: result.tile_dashboard }));
+      setData((prev) => ({
+        ...(prev || {}),
+        tile_dashboard: result.tile_dashboard,
+        payout_preview: result.payout_preview || prev?.payout_preview,
+      }));
       setTileForm(buildTileForm(null));
       toast.success(tileForm.id ? "Tile updated." : "Tile created.");
     } catch (err) {
@@ -200,7 +264,11 @@ export default function AdminReferral() {
     setSavingTile(true);
     try {
       const result = await deleteAffiliateTile(tileId);
-      setData((prev) => ({ ...(prev || {}), tile_dashboard: result.tile_dashboard }));
+      setData((prev) => ({
+        ...(prev || {}),
+        tile_dashboard: result.tile_dashboard,
+        payout_preview: result.payout_preview || prev?.payout_preview,
+      }));
       if (Number(tileForm.id) === Number(tileId)) setTileForm(buildTileForm(null));
       toast.success("Tile deleted.");
     } catch (err) {
@@ -245,12 +313,63 @@ export default function AdminReferral() {
             <strong>{loading ? "..." : formatNum(assignedAffiliates)}</strong>
           </div>
           <div>
-            <span>Estimated Tile rewards</span>
+            <span>Farming month estimate</span>
             <strong>{loading ? "..." : `${formatNum(estimatedTileRewards)} CP`}</strong>
           </div>
           <div>
             <span>Period</span>
             <strong>{tileDashboard?.period?.label || "This month"}</strong>
+          </div>
+        </section>
+
+        <section className={styles.paydayPanel}>
+          <div className={styles.paydayMain}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Payday Calendar</p>
+                <h2>Affiliate monthly auto-payout workflow</h2>
+              </div>
+              <span className={payoutPreview?.pending_count ? styles.badge : styles.liveBadge}>
+                <FaCalendarAlt />
+                {payoutPreview?.pending_count ? "Processing due" : "Auto paid"}
+              </span>
+            </div>
+
+            <div className={styles.workflowGrid}>
+              <div>
+                <FaClock />
+                <span>Current month ends</span>
+                <strong>{formatShortDate(tileDashboard?.period?.month_end_at)}</strong>
+              </div>
+              <div>
+                <FaCalendarAlt />
+                <span>Payday opens</span>
+                <strong>{formatShortDate(tileDashboard?.period?.payout_opens_at)}</strong>
+              </div>
+              <div>
+                <FaCheckCircle />
+                <span>Completed month due</span>
+                <strong>{payoutPreview?.period?.label || "Previous month"}</strong>
+              </div>
+              <div>
+                <FaGift />
+                <span>Pending payout farming now</span>
+                <strong>{loading ? "..." : `${formatNum(estimatedTileRewards)} CP`}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.paydayAction}>
+            <span>Affiliates farming</span>
+            <strong>{loading ? "..." : formatNum(assignedAffiliates)}</strong>
+            <small>
+              Previous month auto-paid: {formatNum(payoutPreview?.paid_count)} affiliate(s),{" "}
+              {formatNum(payoutPreview?.paid_cop_points)} CP
+            </small>
+            <small>
+              Current farming estimate is paid after this month closes. The backend credits eligible affiliates, marks the month as
+              paid, and sends each affiliate an alert.
+            </small>
           </div>
         </section>
 
@@ -451,14 +570,29 @@ export default function AdminReferral() {
               <p className={styles.kicker}>Affiliate Performance</p>
               <h2>Current Tile assignments</h2>
             </div>
-            <span className={styles.badge}>{formatNum(tilePerformance.length)} affiliates</span>
+            <span className={styles.badge}>{formatNum(filteredTilePerformance.length)} affiliates</span>
+          </div>
+
+          <div className={styles.listControls}>
+            <label>
+              <span>Search affiliates</span>
+              <input
+                type="search"
+                value={affiliateSearch}
+                onChange={(event) => setAffiliateSearch(event.target.value)}
+                placeholder="Name, username, email, or tile"
+              />
+            </label>
+            <div>
+              Showing {loading ? "..." : `${formatNum(pagedTilePerformance.length)} of ${formatNum(filteredTilePerformance.length)}`}
+            </div>
           </div>
 
           <div className={styles.performanceGrid}>
             {loading ? (
               <div className={styles.emptyState}>Loading affiliate performance...</div>
-            ) : tilePerformance.length ? (
-              tilePerformance.slice(0, 12).map((item) => (
+            ) : filteredTilePerformance.length ? (
+              pagedTilePerformance.map((item) => (
                 <article className={styles.performanceCard} key={`affiliate-${item.user_id}`}>
                   <div className={styles.rowTop}>
                     <div>
@@ -483,16 +617,40 @@ export default function AdminReferral() {
                       <strong>{formatNum(item.stats?.network_tickets)}</strong>
                     </div>
                     <div>
-                      <span>Ticket value</span>
-                      <strong>{formatNum(item.stats?.network_ticket_value)} CP</strong>
+                      <span>Pending payout</span>
+                      <strong>{formatNum(item.estimated_earning_cop_points)} CP</strong>
                     </div>
                   </div>
                 </article>
               ))
             ) : (
-              <div className={styles.emptyState}>No affiliate performance yet.</div>
+              <div className={styles.emptyState}>No affiliate matches found.</div>
             )}
           </div>
+
+          {filteredTilePerformance.length > AFFILIATE_PAGE_SIZE ? (
+            <div className={styles.pagination}>
+              <button
+                type="button"
+                className={styles.softBtn}
+                onClick={() => setAffiliatePage((page) => Math.max(1, page - 1))}
+                disabled={affiliatePage <= 1}
+              >
+                Previous
+              </button>
+              <span>
+                Page {formatNum(affiliatePage)} of {formatNum(affiliateTotalPages)}
+              </span>
+              <button
+                type="button"
+                className={styles.softBtn}
+                onClick={() => setAffiliatePage((page) => Math.min(affiliateTotalPages, page + 1))}
+                disabled={affiliatePage >= affiliateTotalPages}
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
         </section>
 
         <section className={styles.contentGrid}>

@@ -1,3 +1,5 @@
+const { noticePayload, sendPushToUser } = require("./push.service");
+
 async function ensureAffiliateTilesTable(db) {
   await db.query(
     `CREATE TABLE IF NOT EXISTS affiliate_tiles (
@@ -55,6 +57,24 @@ async function ensureAffiliateTilesTable(db) {
     )`
   );
 
+  await db.query(
+    `CREATE TABLE IF NOT EXISTS affiliate_tile_payouts (
+      id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id int(11) NOT NULL,
+      tile_id int(11) NOT NULL,
+      period_start date NOT NULL,
+      period_end date NOT NULL,
+      earned_cop_points int(11) NOT NULL DEFAULT 0,
+      status enum('paid') NOT NULL DEFAULT 'paid',
+      paid_by int(11) DEFAULT NULL,
+      paid_at timestamp NOT NULL DEFAULT current_timestamp(),
+      PRIMARY KEY (id),
+      UNIQUE KEY uniq_affiliate_tile_payout_period (user_id, tile_id, period_start),
+      KEY idx_affiliate_tile_payout_period (period_start, period_end),
+      KEY idx_affiliate_tile_payout_user (user_id, paid_at)
+    )`
+  );
+
   const [[countRow]] = await db.query("SELECT COUNT(*) AS total FROM affiliate_tiles");
   if (!Number(countRow?.total || 0)) {
     await db.query(
@@ -65,13 +85,60 @@ async function ensureAffiliateTilesTable(db) {
   }
 }
 
+async function ensureUserNoticesTable(db) {
+  await db.query(
+    `CREATE TABLE IF NOT EXISTS user_notices (
+      id int(11) NOT NULL AUTO_INCREMENT,
+      user_id int(11) DEFAULT NULL,
+      type varchar(64) NOT NULL DEFAULT 'admin_notice',
+      title varchar(160) NOT NULL,
+      message text NOT NULL,
+      path varchar(255) DEFAULT '/dashboard',
+      priority enum('normal','important') NOT NULL DEFAULT 'important',
+      created_by int(11) DEFAULT NULL,
+      created_at timestamp NOT NULL DEFAULT current_timestamp(),
+      PRIMARY KEY (id),
+      KEY idx_user_notices_user_created (user_id, created_at),
+      KEY idx_user_notices_created_by (created_by)
+    )`
+  );
+}
+
 function currentMonthRange(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   return {
     start,
     end,
+    month_end_at: new Date(end.getTime() - 1),
+    payout_opens_at: end,
     label: start.toLocaleString("en", { month: "long", year: "numeric" }),
+  };
+}
+
+function previousMonthRange(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    start,
+    end,
+    month_end_at: new Date(end.getTime() - 1),
+    payout_opens_at: end,
+    label: start.toLocaleString("en", { month: "long", year: "numeric" }),
+  };
+}
+
+function dbDate(value) {
+  return value.toISOString().slice(0, 10);
+}
+
+function serializePeriod(range) {
+  return {
+    label: range.label,
+    start: range.start.toISOString(),
+    end: range.end.toISOString(),
+    month_end_at: range.month_end_at.toISOString(),
+    payout_opens_at: range.payout_opens_at.toISOString(),
   };
 }
 
@@ -269,24 +336,23 @@ async function buildUserAffiliateTileDashboard(db, userId) {
   const performance = buildTilePerformance(tiles, stats, memberships);
 
   return {
-    period,
+    period: serializePeriod(period),
     stats,
     ...performance,
   };
 }
 
-async function buildAdminAffiliateTileDashboard(db) {
-  const period = currentMonthRange();
+async function buildAdminAffiliateTileDashboard(db, period = currentMonthRange()) {
   const tiles = await listAffiliateTiles(db);
   const [affiliateRows] = await db.query(
     `SELECT DISTINCT
-       r.referrer_id AS user_id,
+       u.id AS user_id,
        u.username,
        u.full_name,
        u.email
-     FROM referrals r
-     JOIN users u ON u.id = r.referrer_id
-     ORDER BY r.referrer_id ASC`
+     FROM users u
+     WHERE u.role = 'affiliate'
+     ORDER BY u.id ASC`
   );
 
   const affiliatePerformance = [];
@@ -309,9 +375,164 @@ async function buildAdminAffiliateTileDashboard(db) {
   }
 
   return {
-    period,
+    period: serializePeriod(period),
     tiles,
     affiliate_performance: affiliatePerformance,
+  };
+}
+
+async function processDueAffiliateTilePayouts(db, { paidBy = null } = {}) {
+  await ensureAffiliateTilesTable(db);
+  const period = previousMonthRange();
+  if (Date.now() < period.payout_opens_at.getTime()) {
+    return {
+      processed: false,
+      reason: "not_open",
+      period: serializePeriod(period),
+      paid_count: 0,
+      paid_cop_points: 0,
+    };
+  }
+
+  if (typeof db.getConnection !== "function") {
+    throw new Error("processDueAffiliateTilePayouts requires a pool connection manager");
+  }
+
+  const preview = await buildAffiliatePayoutPreview(db, period);
+  if (!preview.pending_affiliates.length) {
+    return {
+      processed: true,
+      reason: "no_pending",
+      period: preview.period,
+      paid_count: 0,
+      paid_cop_points: 0,
+    };
+  }
+
+  const conn = await db.getConnection();
+  const paid = [];
+  try {
+    await conn.beginTransaction();
+    await ensureAffiliateTilesTable(conn);
+    await ensureUserNoticesTable(conn);
+
+    for (const item of preview.pending_affiliates) {
+      const amount = Number(item.earned_cop_points || 0);
+      if (!amount) continue;
+
+      const [insertResult] = await conn.query(
+        `INSERT IGNORE INTO affiliate_tile_payouts
+          (user_id, tile_id, period_start, period_end, earned_cop_points, paid_by)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          item.user_id,
+          item.tile_id,
+          dbDate(period.start),
+          dbDate(period.end),
+          amount,
+          paidBy,
+        ]
+      );
+
+      if (!insertResult.affectedRows) continue;
+
+      await conn.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
+        amount,
+        item.user_id,
+      ]);
+
+      const title = "Affiliate payout paid";
+      const message = `${amount.toLocaleString()} CopUpCoin was added for ${period.label} Tile earnings.`;
+      const [noticeResult] = await conn.query(
+        `INSERT INTO user_notices
+          (user_id, type, title, message, path, priority, created_by)
+         VALUES (?, 'affiliate_payout', ?, ?, '/affiliate-dashboard', 'important', ?)`,
+        [item.user_id, title, message, paidBy]
+      );
+
+      paid.push({
+        ...item,
+        notice_id: Number(noticeResult.insertId),
+      });
+    }
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  await Promise.allSettled(
+    paid.map((item) =>
+      sendPushToUser(
+        item.user_id,
+        noticePayload({
+          alertId: `affiliate-payout:${item.notice_id}`,
+          type: "affiliate_payout",
+          title: "Affiliate payout paid",
+          body: `${Number(item.earned_cop_points || 0).toLocaleString()} CopUpCoin was added to your balance.`,
+          path: "/affiliate-dashboard",
+        })
+      )
+    )
+  );
+
+  return {
+    processed: true,
+    reason: "paid",
+    period: serializePeriod(period),
+    paid_count: paid.length,
+    paid_cop_points: paid.reduce((sum, item) => sum + Number(item.earned_cop_points || 0), 0),
+  };
+}
+
+async function buildAffiliatePayoutPreview(db, period = previousMonthRange()) {
+  await ensureAffiliateTilesTable(db);
+  const dashboard = await buildAdminAffiliateTileDashboard(db, period);
+  const payable = dashboard.affiliate_performance.filter(
+    (item) => item.assigned_tile && Number(item.estimated_earning_cop_points || 0) > 0
+  );
+  const [paidRows] = await db.query(
+    `SELECT user_id, tile_id, earned_cop_points, paid_at
+     FROM affiliate_tile_payouts
+     WHERE period_start = ? AND period_end = ?`,
+    [dbDate(period.start), dbDate(period.end)]
+  );
+  const paidKeys = new Set(
+    paidRows.map((row) => `${Number(row.user_id)}:${Number(row.tile_id)}`)
+  );
+  const pending = payable.filter(
+    (item) => !paidKeys.has(`${Number(item.user_id)}:${Number(item.assigned_tile?.id)}`)
+  );
+
+  return {
+    period: serializePeriod(period),
+    is_open: Date.now() >= period.payout_opens_at.getTime(),
+    payable_count: payable.length,
+    pending_count: pending.length,
+    paid_count: paidRows.length,
+    payable_cop_points: payable.reduce(
+      (sum, item) => sum + Number(item.estimated_earning_cop_points || 0),
+      0
+    ),
+    pending_cop_points: pending.reduce(
+      (sum, item) => sum + Number(item.estimated_earning_cop_points || 0),
+      0
+    ),
+    paid_cop_points: paidRows.reduce((sum, row) => sum + Number(row.earned_cop_points || 0), 0),
+    pending_affiliates: pending.map((item) => ({
+      user_id: Number(item.user_id),
+      username: item.username,
+      full_name: item.full_name,
+      email: item.email,
+      tile_id: Number(item.assigned_tile.id),
+      tile_name: item.assigned_tile.name,
+      tile_level: Number(item.assigned_tile.tile_level || 1),
+      earned_cop_points: Number(item.estimated_earning_cop_points || 0),
+      stats: item.stats,
+    })),
   };
 }
 
@@ -396,7 +617,13 @@ module.exports = {
   ensureAffiliateTilesTable,
   parseTilePayload,
   listAffiliateTiles,
+  currentMonthRange,
+  previousMonthRange,
+  serializePeriod,
+  dbDate,
   buildUserAffiliateTileDashboard,
   buildAdminAffiliateTileDashboard,
+  buildAffiliatePayoutPreview,
+  processDueAffiliateTilePayouts,
   joinAffiliateTile,
 };

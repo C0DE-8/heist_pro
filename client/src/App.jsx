@@ -122,6 +122,7 @@ export default function App() {
           <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
           <Route path="/affiliate/plans" element={<Affiliate />} />
           <Route path="/affiliate/referral" element={<Referral />} />
+          <Route path="/affiliate/trade" element={<Trade />} />
           <Route path="/affiliate/how-it-works" element={<AffiliateHowItWorks />} />
           <Route path="/affiliate" element={<Navigate to="/affiliate/plans" replace />} />
           <Route path="/referral" element={<Navigate to="/affiliate/referral" replace />} />
