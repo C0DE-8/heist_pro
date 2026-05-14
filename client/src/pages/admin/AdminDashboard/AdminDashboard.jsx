@@ -5,6 +5,7 @@ import {
   FaCoins,
   FaFlask,
   FaGift,
+  FaBell,
   FaTrophy,
   FaUsers,
   FaWallet,
@@ -102,6 +103,14 @@ export default function AdminDashboard() {
         icon: <FaGift />,
         stat: `${formatNum(activityStats.affiliate_referrals)} referral joins`,
         tone: "purple",
+      },
+      {
+        title: "User Alerts",
+        text: "Send in-app notices and push alerts to one user or every active user.",
+        path: "/admin/notifications",
+        icon: <FaBell />,
+        stat: "Notices",
+        tone: "cyan",
       },
       {
         title: "Analytics",

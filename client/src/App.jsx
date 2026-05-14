@@ -18,6 +18,7 @@ import AdminProfile from "./pages/admin/AdminProfile/AdminProfile";
 import AdminUsers from "./pages/admin/AdminUsers/AdminUsers";
 import AdminAnalytics from "./pages/admin/AdminAnalytics/AdminAnalytics";
 import AdminReferral from "./pages/admin/AdminReferral/AdminReferral";
+import AdminNotifications from "./pages/admin/AdminNotifications/AdminNotifications";
 
 
 // Protected Routes
@@ -135,6 +136,10 @@ export default function App() {
 
         <Route element={<AdminRoute />}>
           <Route path="/admin/referral" element={<AdminReferral />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/notifications" element={<AdminNotifications />} />
         </Route>
 
 

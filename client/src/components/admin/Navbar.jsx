@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import styles from "./Navbar.module.css";
 import { getAdminProfile } from "../../lib/admin";
 import { clearAuthSession } from "../../lib/auth";
@@ -17,11 +17,11 @@ import {
   FaUserCog,
   FaSignOutAlt,
   FaGift,
+  FaBell,
 } from "react-icons/fa";
 
 export default function AdminNavbar({ admin: adminProp }) {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [loadedAdmin, setLoadedAdmin] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -33,6 +33,7 @@ export default function AdminNavbar({ admin: adminProp }) {
       { to: "/admin/users", label: "Users", icon: <FaUsers /> },
       { to: "/admin/analytics", label: "Analytics", icon: <FaChartLine /> },
       { to: "/admin/referral", label: "Referral", icon: <FaGift /> },
+      { to: "/admin/notifications", label: "Alerts", icon: <FaBell /> },
       { to: "/admin/heists", label: "Heists", icon: <FaFlask /> },
       { to: "/admin/transactions", label: "Transactions", icon: <FaWallet /> },
       { to: "/admin/coins", label: "Coins", icon: <FaCoins /> },
@@ -54,10 +55,6 @@ export default function AdminNavbar({ admin: adminProp }) {
       mounted = false;
     };
   }, [adminProp]);
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -154,7 +151,10 @@ export default function AdminNavbar({ admin: adminProp }) {
             <div className={styles.mobilePanelHead}>
               <button
                 className={styles.brandBtn}
-                onClick={() => navigate("/admin-dashboard")}
+                onClick={() => {
+                  setMenuOpen(false);
+                  navigate("/admin-dashboard");
+                }}
                 title="Admin Dashboard"
                 type="button"
               >
