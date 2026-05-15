@@ -1,5 +1,6 @@
 const { pool } = require("../conf/db");
 const { maybeStartCountdown, finalizeHeist } = require("../services/heist.service");
+const { maybeCreateAutoHeist } = require("../services/autoHeist.service");
 
 let timer = null;
 let running = false;
@@ -11,10 +12,28 @@ async function runHeistCronOnce() {
   try {
     await startEligibleCountdowns();
     await finalizeExpiredHeists();
+    await keepAutoHeistAvailable();
   } catch (err) {
     console.error("heist cron error:", err);
   } finally {
     running = false;
+  }
+}
+
+async function keepAutoHeistAvailable() {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await maybeCreateAutoHeist(conn);
+    await conn.commit();
+    if (result.created) {
+      console.log(`Auto heist created: ${result.heist_id}`);
+    }
+  } catch (err) {
+    await conn.rollback();
+    console.error("auto heist create error:", err);
+  } finally {
+    conn.release();
   }
 }
 

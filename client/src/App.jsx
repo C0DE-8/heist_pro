@@ -156,6 +156,9 @@ export default function App() {
 
          <Route element={<AdminRoute />}>
           <Route path="/admin/heists" element={<AdminHeists />} />
+          <Route path="/admin/heists/content-bank" element={<AdminHeists />} />
+          <Route path="/admin/heists/question-bank" element={<AdminHeists />} />
+          <Route path="/admin/heists/archive" element={<AdminHeists />} />
         </Route>
 
         <Route element={<AdminRoute />}>

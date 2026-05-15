@@ -14,9 +14,19 @@ import {
 } from "../../lib/heists";
 import styles from "./HeistPlay.module.css";
 
+const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
+
 function formatNum(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString() : "0";
+}
+
+function isJoinTimeLocked(heist) {
+  const endTime = heist?.countdown_ends_at || heist?.ends_at;
+  if (!endTime) return false;
+
+  const endMs = new Date(endTime).getTime();
+  return Number.isFinite(endMs) && endMs - Date.now() <= JOIN_LOCK_BEFORE_END_MS;
 }
 
 function getStoredUserId() {
@@ -574,6 +584,10 @@ export default function HeistPlay() {
   const isComplete = questions.length > 0 && answeredCount >= questions.length;
   const hasSubmittedAttempt = Boolean(previousResult?.result);
   const entryFee = heist?.ticket_price;
+  const maxUsers = Number(heist?.max_users || 0);
+  const totalParticipants = Number(heist?.total_participants || 0);
+  const isFull = !hasJoined && maxUsers > 0 && totalParticipants >= maxUsers;
+  const isJoinLocked = !hasJoined && (isFull || isJoinTimeLocked(heist));
   const sessionQuestionTarget = Number(heist?.questions_per_session || 0);
   const questionPoolCount = Number(heist?.total_questions || 0);
   const expectedQuestionCount =
@@ -592,7 +606,9 @@ export default function HeistPlay() {
           ? "Ready to submit"
           : hasSubmittedAttempt
           ? "Heist completed"
-          : hasJoined
+          : isJoinLocked
+              ? "Heist locked"
+              : hasJoined
               ? questionPoolCount
                 ? "Start the heist"
                 : "Question pool unavailable"
@@ -603,7 +619,9 @@ export default function HeistPlay() {
       ? "Submit your run to lock your leaderboard result."
       : hasSubmittedAttempt
         ? "You already submitted this heist. View your result."
-        : hasJoined
+        : isJoinLocked
+          ? "This heist is locked for joining."
+          : hasJoined
           ? questionPoolCount
             ? `Start to receive ${formatNum(expectedQuestionCount)} random question${expectedQuestionCount === 1 ? "" : "s"} from the pool.`
             : "You joined this heist, but there are no active questions yet."
@@ -744,6 +762,10 @@ export default function HeistPlay() {
 
   const joinAndLoadPlay = async () => {
     if (submissionId || saving || hasJoined) return;
+    if (isJoinLocked) {
+      toast.error(isFull ? "This heist is full." : "This heist is locked for joining.");
+      return;
+    }
     if (hasSubmittedAttempt) {
       navigate(`/heist/${id}/result`);
       return;
@@ -954,6 +976,9 @@ export default function HeistPlay() {
             <div className={`${styles.hudPill} ${styles.questionPill}`}>
               Questions <strong>{formatNum(answeredCount)} / {formatNum(questions.length)}</strong>
             </div>
+            <div className={`${styles.hudPill} ${styles.questionPill}`}>
+              Seats <strong>{maxUsers > 0 ? `${formatNum(totalParticipants)} / ${formatNum(maxUsers)}` : "Open"}</strong>
+            </div>
           </div>
         </section>
 
@@ -1088,7 +1113,7 @@ export default function HeistPlay() {
                   type="button"
                   className={`${styles.playCard} ${styles.trueCard}`}
                   onClick={joinAndLoadPlay}
-                  disabled={loading || saving}
+                  disabled={loading || saving || isJoinLocked}
                   style={{ "--tilt": "-1.5deg" }}
                 >
                   <span className={styles.cardCorner}>JOIN</span>
@@ -1096,9 +1121,13 @@ export default function HeistPlay() {
                   <span className={styles.cardGlyph}>+</span>
                   <div className={styles.cardBody}>
                     <span className={styles.cardTag}>Join</span>
-                    <h4 className={styles.cardTitle}>{saving ? "Joining..." : "Join Heist"}</h4>
+                    <h4 className={styles.cardTitle}>
+                      {isJoinLocked ? "Heist Locked" : saving ? "Joining..." : "Join Heist"}
+                    </h4>
                     <p className={styles.cardCopy}>
-                      Pay the ticket, then load the heist questions before starting.
+                      {isJoinLocked
+                        ? "Joining is closed for this heist."
+                        : "Pay the ticket, then load the heist questions before starting."}
                     </p>
                     <span className={styles.cardPrice}>{formatNum(entryFee)} CP ticket</span>
                   </div>

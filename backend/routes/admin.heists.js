@@ -1,11 +1,31 @@
 const express = require("express");
 const { pool } = require("../conf/db");
 const { authenticateToken, authenticateAdmin } = require("../middleware/auth");
-const { normalizeAnswer, finalizeHeist } = require("../services/heist.service");
+const {
+  ensureHeistMaxUsersColumn,
+  normalizeAnswer,
+  finalizeHeist,
+} = require("../services/heist.service");
+const {
+  ensureAutoHeistTables,
+  getAutoHeistSettings,
+  updateAutoHeistSettings,
+  maybeCreateAutoHeist,
+} = require("../services/autoHeist.service");
 
 const router = express.Router();
 
 router.use(authenticateToken, authenticateAdmin);
+router.use(async (req, res, next) => {
+  try {
+    await ensureHeistMaxUsersColumn(pool);
+    await ensureAutoHeistTables(pool);
+    next();
+  } catch (err) {
+    console.error("admin heist schema check error:", err);
+    res.status(500).json({ message: "Error preparing heist schema" });
+  }
+});
 
 function boolToTinyInt(value) {
   return value === true || value === 1 || value === "1" || value === "true" ? 1 : 0;
@@ -23,6 +43,30 @@ function normalizeDateTimeInput(value) {
 
   const normalized = raw.replace("T", " ");
   return normalized.length === 16 ? `${normalized}:00` : normalized;
+}
+
+function parseMinUsers(value) {
+  const minUsers = Number(value || 1);
+  if (!Number.isInteger(minUsers) || minUsers < 1) {
+    return { ok: false, message: "min_users must be 1 or greater" };
+  }
+  return { ok: true, value: minUsers };
+}
+
+function parseMaxUsers(value, minUsers) {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true, value: null };
+  }
+
+  const maxUsers = Number(value);
+  if (!Number.isInteger(maxUsers) || maxUsers < 0) {
+    return { ok: false, message: "max_users must be 0 or greater" };
+  }
+  if (maxUsers === 0) return { ok: true, value: null };
+  if (maxUsers < minUsers) {
+    return { ok: false, message: "max_users must be greater than or equal to min_users" };
+  }
+  return { ok: true, value: maxUsers };
 }
 
 async function getAssignedQuestionCount(conn, heistId) {
@@ -112,6 +156,7 @@ router.post("/", async (req, res) => {
       name,
       description,
       min_users,
+      max_users,
       ticket_price,
       prize_cop_points,
       questions_per_session,
@@ -123,6 +168,11 @@ router.post("/", async (req, res) => {
 
     if (!name) return res.status(400).json({ message: "Name is required" });
 
+    const minUsersParsed = parseMinUsers(min_users);
+    if (!minUsersParsed.ok) return res.status(400).json({ message: minUsersParsed.message });
+    const maxUsersParsed = parseMaxUsers(max_users, minUsersParsed.value);
+    if (!maxUsersParsed.ok) return res.status(400).json({ message: maxUsersParsed.message });
+
     const countToUse = Number(question_count ?? questions_per_session ?? 0);
     if (!Number.isInteger(countToUse) || countToUse < 0) {
       return res.status(400).json({ message: "Question count must be 0 or greater" });
@@ -133,14 +183,15 @@ router.post("/", async (req, res) => {
 
     const [result] = await conn.query(
       `INSERT INTO heist
-        (name, description, min_users, ticket_price,
+        (name, description, min_users, max_users, ticket_price,
          prize_cop_points, questions_per_session, countdown_duration_minutes,
          starts_at, ends_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         description || null,
-        Number(min_users || 1),
+        minUsersParsed.value,
+        maxUsersParsed.value,
         Number(ticket_price || 0),
         Number(prize_cop_points || 0),
         countToUse,
@@ -184,6 +235,7 @@ router.get("/", async (req, res) => {
          h.description,
          h.status,
          h.min_users,
+         h.max_users,
          h.ticket_price,
          h.prize_cop_points,
          h.total_questions,
@@ -216,14 +268,68 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Auto heist settings
+router.get("/auto-settings", async (req, res) => {
+  try {
+    const settings = await getAutoHeistSettings(pool);
+    return res.json({ settings });
+  } catch (err) {
+    console.error("admin auto heist settings error:", err);
+    return res.status(500).json({ message: "Error fetching auto heist settings" });
+  }
+});
+
+router.patch("/auto-settings", async (req, res) => {
+  try {
+    const result = await updateAutoHeistSettings(pool, req.body || {}, req.user.userId);
+    if (!result.ok) return res.status(400).json({ message: result.message });
+    return res.json({ message: "Auto heist settings updated", settings: result.value });
+  } catch (err) {
+    console.error("admin auto heist settings update error:", err);
+    return res.status(500).json({ message: "Error updating auto heist settings" });
+  }
+});
+
+router.post("/auto-settings/run", async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await maybeCreateAutoHeist(conn, {
+      forced: true,
+      adminId: req.user.userId,
+    });
+    await conn.commit();
+
+    if (!result.created) {
+      return res.status(400).json({ message: "Auto heist not created", reason: result.reason });
+    }
+
+    return res.status(201).json({ message: "Auto heist created", ...result });
+  } catch (err) {
+    await conn.rollback();
+    console.error("admin auto heist run error:", err);
+    return res.status(500).json({ message: "Error creating auto heist" });
+  } finally {
+    conn.release();
+  }
+});
+
 // Update heist
 router.patch("/:id", async (req, res) => {
   try {
     const heistId = Number(req.params.id);
     if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
 
+    const [[existingHeist]] = await pool.query(
+      "SELECT id, min_users, max_users FROM heist WHERE id = ? LIMIT 1",
+      [heistId]
+    );
+    if (!existingHeist) return res.status(404).json({ message: "Heist not found" });
+
     const updates = [];
     const params = [];
+    let nextMinUsers = Number(existingHeist.min_users || 1);
+    let nextMaxUsers = existingHeist.max_users === null ? null : Number(existingHeist.max_users || 0);
 
     if (req.body?.name !== undefined) {
       const name = String(req.body.name || "").trim();
@@ -239,12 +345,23 @@ router.patch("/:id", async (req, res) => {
     }
 
     if (req.body?.min_users !== undefined) {
-      const minUsers = Number(req.body.min_users);
-      if (!Number.isInteger(minUsers) || minUsers < 1) {
-        return res.status(400).json({ message: "min_users must be 1 or greater" });
-      }
+      const minUsersParsed = parseMinUsers(req.body.min_users);
+      if (!minUsersParsed.ok) return res.status(400).json({ message: minUsersParsed.message });
+      nextMinUsers = minUsersParsed.value;
       updates.push("min_users = ?");
-      params.push(minUsers);
+      params.push(nextMinUsers);
+    }
+
+    if (req.body?.max_users !== undefined) {
+      const maxUsersParsed = parseMaxUsers(req.body.max_users, nextMinUsers);
+      if (!maxUsersParsed.ok) return res.status(400).json({ message: maxUsersParsed.message });
+      nextMaxUsers = maxUsersParsed.value;
+      updates.push("max_users = ?");
+      params.push(nextMaxUsers);
+    }
+
+    if (nextMaxUsers !== null && nextMaxUsers < nextMinUsers) {
+      return res.status(400).json({ message: "max_users must be greater than or equal to min_users" });
     }
 
     if (req.body?.ticket_price !== undefined) {
@@ -310,6 +427,7 @@ router.patch("/:id", async (req, res) => {
          description,
          status,
          min_users,
+         max_users,
          ticket_price,
          prize_cop_points,
          total_questions,
@@ -328,6 +446,135 @@ router.patch("/:id", async (req, res) => {
   } catch (err) {
     console.error("admin update heist error:", err);
     return res.status(500).json({ message: "Error updating heist" });
+  }
+});
+
+// List heist name/description bank
+router.get("/content-bank", async (req, res) => {
+  try {
+    const [items] = await pool.query(
+      `SELECT
+         cb.id,
+         cb.name,
+         cb.description,
+         cb.is_active,
+         cb.created_by,
+         cb.created_at,
+         cb.updated_at,
+         u.username AS created_by_username,
+         u.full_name AS created_by_full_name
+       FROM heist_content_bank cb
+       LEFT JOIN users u ON u.id = cb.created_by
+       ORDER BY cb.is_active DESC, cb.created_at DESC, cb.id DESC`
+    );
+
+    const [[summary]] = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(CASE WHEN is_active = 1 THEN 1 END) AS active,
+         COUNT(CASE WHEN is_active = 0 THEN 1 END) AS inactive
+       FROM heist_content_bank`
+    );
+
+    return res.json({ items, summary });
+  } catch (err) {
+    console.error("admin heist content bank list error:", err);
+    return res.status(500).json({ message: "Error fetching heist content bank" });
+  }
+});
+
+// Add heist name/description bank item
+router.post("/content-bank", async (req, res) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+    const description = String(req.body?.description || "").trim();
+    if (!name) return res.status(400).json({ message: "Name is required" });
+    if (!description) return res.status(400).json({ message: "Description is required" });
+
+    const [result] = await pool.query(
+      `INSERT INTO heist_content_bank
+        (name, description, is_active, created_by)
+       VALUES (?, ?, ?, ?)`,
+      [name, description, boolToTinyInt(req.body?.is_active !== false), req.user.userId]
+    );
+
+    return res.status(201).json({
+      message: "Heist content saved",
+      item_id: result.insertId,
+    });
+  } catch (err) {
+    console.error("admin add heist content bank error:", err);
+    return res.status(500).json({ message: "Error saving heist content" });
+  }
+});
+
+// Update heist name/description bank item
+router.patch("/content-bank/:contentId", async (req, res) => {
+  try {
+    const contentId = Number(req.params.contentId);
+    if (!contentId) return res.status(400).json({ message: "Invalid content item" });
+
+    const updates = [];
+    const params = [];
+
+    if (req.body?.name !== undefined) {
+      const name = String(req.body.name || "").trim();
+      if (!name) return res.status(400).json({ message: "Name is required" });
+      updates.push("name = ?");
+      params.push(name);
+    }
+
+    if (req.body?.description !== undefined) {
+      const description = String(req.body.description || "").trim();
+      if (!description) return res.status(400).json({ message: "Description is required" });
+      updates.push("description = ?");
+      params.push(description);
+    }
+
+    if (req.body?.is_active !== undefined) {
+      updates.push("is_active = ?");
+      params.push(boolToTinyInt(req.body.is_active));
+    }
+
+    if (!updates.length) return res.status(400).json({ message: "No updates provided" });
+
+    params.push(contentId);
+    const [result] = await pool.query(
+      `UPDATE heist_content_bank SET ${updates.join(", ")} WHERE id = ?`,
+      params
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Content item not found" });
+
+    const [[item]] = await pool.query(
+      `SELECT id, name, description, is_active, created_by, created_at, updated_at
+       FROM heist_content_bank
+       WHERE id = ?
+       LIMIT 1`,
+      [contentId]
+    );
+
+    return res.json({ message: "Heist content updated", item });
+  } catch (err) {
+    console.error("admin update heist content bank error:", err);
+    return res.status(500).json({ message: "Error updating heist content" });
+  }
+});
+
+// Delete heist name/description bank item
+router.delete("/content-bank/:contentId", async (req, res) => {
+  try {
+    const contentId = Number(req.params.contentId);
+    if (!contentId) return res.status(400).json({ message: "Invalid content item" });
+
+    const [result] = await pool.query("DELETE FROM heist_content_bank WHERE id = ?", [
+      contentId,
+    ]);
+    if (!result.affectedRows) return res.status(404).json({ message: "Content item not found" });
+
+    return res.json({ message: "Heist content deleted" });
+  } catch (err) {
+    console.error("admin delete heist content bank error:", err);
+    return res.status(500).json({ message: "Error deleting heist content" });
   }
 });
 
@@ -606,6 +853,7 @@ router.get("/:id", async (req, res) => {
          h.description,
          h.status,
          h.min_users,
+         h.max_users,
          h.ticket_price,
          h.prize_cop_points,
          h.total_questions,

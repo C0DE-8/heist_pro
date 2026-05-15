@@ -158,6 +158,12 @@
   border-color: rgba(96, 165, 250, 0.46);
 }
 
+.fullState {
+  color: #fff7ed;
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
 .participants strong {
   color: #ffffff;
   font-size: 0.9rem;
@@ -295,7 +301,7 @@
 }
 
 .button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.72;
   transform: none;
 }

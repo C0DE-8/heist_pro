@@ -12,6 +12,8 @@ import {
 } from "../../lib/referralStorage";
 import styles from "./ReferralJoinPage.module.css";
 
+const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
+
 function formatNum(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString() : "0";
@@ -35,11 +37,19 @@ function isClosedStatus(status) {
   return value === "completed" || value === "cancelled";
 }
 
+function isJoinTimeLocked(heist) {
+  const endTime = heist?.countdown_ends_at || heist?.ends_at;
+  if (!endTime) return false;
+
+  const endMs = new Date(endTime).getTime();
+  return Number.isFinite(endMs) && endMs - Date.now() <= JOIN_LOCK_BEFORE_END_MS;
+}
+
 function getStoredUserId() {
   try {
     const user = JSON.parse(localStorage.getItem("user") || "null");
     return user?.id || user?.userId || null;
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -60,6 +70,10 @@ export default function ReferralJoinPage() {
   const heist = payload?.heist || null;
   const affiliate = payload?.affiliate || null;
   const closed = isClosedStatus(heist?.status);
+  const maxUsers = Number(heist?.max_users || 0);
+  const totalParticipants = Number(heist?.total_participants || 0);
+  const isFull = !alreadyJoined && maxUsers > 0 && totalParticipants >= maxUsers;
+  const isJoinLocked = !alreadyJoined && (isFull || isJoinTimeLocked(heist));
   const isOwnReferral = Boolean(
     token &&
       currentUserId &&
@@ -131,6 +145,11 @@ export default function ReferralJoinPage() {
       return;
     }
 
+    if (isJoinLocked) {
+      setError(isFull ? "This heist is full." : "This heist is locked for joining.");
+      return;
+    }
+
     if (isOwnReferral) {
       setError("You cannot use your own referral link.");
       return;
@@ -170,6 +189,7 @@ export default function ReferralJoinPage() {
     if (joining) return "Joining...";
     if (joined) return "Joined Successfully";
     if (alreadyJoined) return "Go to Heist";
+    if (isJoinLocked) return "Heist Locked";
     if (isOwnReferral) return "Own Referral Link";
     if (!token) return "Login to Join";
     return "Join Heist";
@@ -237,8 +257,10 @@ export default function ReferralJoinPage() {
                 </div>
                 <div>
                   <FiShield />
-                  <span>Ends</span>
-                  <strong>{formatDate(heist?.ends_at)}</strong>
+                  <span>Seats</span>
+                  <strong>
+                    {maxUsers > 0 ? `${formatNum(totalParticipants)} / ${formatNum(maxUsers)}` : "Open"}
+                  </strong>
                 </div>
               </div>
 
@@ -251,6 +273,14 @@ export default function ReferralJoinPage() {
               {isOwnReferral ? (
                 <div className={styles.notice}>
                   You cannot join this heist using your own referral link.
+                </div>
+              ) : null}
+
+              {isJoinLocked ? (
+                <div className={styles.notice}>
+                  {isFull
+                    ? "This heist has reached its maximum number of users."
+                    : "This heist is locked for joining."}
                 </div>
               ) : null}
 
@@ -273,7 +303,7 @@ export default function ReferralJoinPage() {
                   type="button"
                   className={styles.primaryBtn}
                   onClick={handleJoin}
-                  disabled={loading || joining || joined || closed || isOwnReferral}
+                  disabled={loading || joining || joined || closed || isOwnReferral || isJoinLocked}
                 >
                   {token ? <FiUserPlus /> : <FiLogIn />}
                   <span>{buttonText}</span>

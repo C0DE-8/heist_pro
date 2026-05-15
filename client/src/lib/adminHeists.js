@@ -55,6 +55,41 @@ export async function deleteAdminQuestionBankQuestion(questionId) {
   return data;
 }
 
+export async function getAdminHeistContentBank() {
+  const { data } = await api.get("/admin/heists/content-bank");
+  return data;
+}
+
+export async function createAdminHeistContent(payload) {
+  const { data } = await api.post("/admin/heists/content-bank", payload);
+  return data;
+}
+
+export async function updateAdminHeistContent(contentId, payload) {
+  const { data } = await api.patch(`/admin/heists/content-bank/${contentId}`, payload);
+  return data;
+}
+
+export async function deleteAdminHeistContent(contentId) {
+  const { data } = await api.delete(`/admin/heists/content-bank/${contentId}`);
+  return data;
+}
+
+export async function getAdminAutoHeistSettings() {
+  const { data } = await api.get("/admin/heists/auto-settings");
+  return data;
+}
+
+export async function updateAdminAutoHeistSettings(payload) {
+  const { data } = await api.patch("/admin/heists/auto-settings", payload);
+  return data;
+}
+
+export async function runAdminAutoHeist() {
+  const { data } = await api.post("/admin/heists/auto-settings/run");
+  return data;
+}
+
 export async function assignAdminHeistQuestions(heistId, questionCount) {
   const { data } = await api.post(`/admin/heists/${heistId}/questions/assign`, {
     question_count: questionCount,

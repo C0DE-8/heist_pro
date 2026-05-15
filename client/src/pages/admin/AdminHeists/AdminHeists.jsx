@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   FaChevronLeft,
   FaChevronRight,
@@ -17,17 +18,23 @@ import {
   addAdminQuestionBankQuestions,
   assignAdminHeistQuestions,
   createAdminAffiliateTask,
+  createAdminHeistContent,
   createAdminHeist,
   deleteAdminAffiliateTask,
+  deleteAdminHeistContent,
   deleteAdminHeistQuestion,
   deleteAdminQuestionBankQuestion,
   finalizeAdminHeist,
+  getAdminAutoHeistSettings,
   getAdminAffiliateTaskProgress,
   getAdminHeist,
+  getAdminHeistContentBank,
   getAdminAffiliateTasks,
   getAdminHeistQuestions,
   getAdminHeists,
   getAdminQuestionBank,
+  runAdminAutoHeist,
+  updateAdminAutoHeistSettings,
   updateAdminHeist,
   updateAdminAffiliateTask,
   updateAdminHeistStatus,
@@ -38,6 +45,7 @@ const EMPTY_HEIST = {
   name: "",
   description: "",
   min_users: "3",
+  max_users: "",
   ticket_price: "0",
   prize_cop_points: "0",
   questions_per_session: "0",
@@ -52,10 +60,26 @@ const EMPTY_QUESTION = {
   sort_order: "1",
 };
 
+const EMPTY_CONTENT = {
+  name: "",
+  description: "",
+  is_active: true,
+};
+
 const EMPTY_TASK = {
   required_joins: "1",
   reward_cop_points: "0",
   is_active: true,
+};
+
+const EMPTY_AUTO_HEIST = {
+  is_enabled: false,
+  min_users: "3",
+  max_users: "",
+  ticket_price: "0",
+  prize_cop_points: "0",
+  questions_per_session: "3",
+  countdown_duration_minutes: "10",
 };
 
 const HEISTS_PER_PAGE = 6;
@@ -112,12 +136,25 @@ function heistToForm(heist) {
     name: heist?.name || "",
     description: heist?.description || "",
     min_users: String(heist?.min_users ?? "1"),
+    max_users: heist?.max_users ? String(heist.max_users) : "",
     ticket_price: String(heist?.ticket_price ?? "0"),
     prize_cop_points: String(heist?.prize_cop_points ?? "0"),
     questions_per_session: String(heist?.questions_per_session ?? "0"),
     countdown_duration_minutes: String(heist?.countdown_duration_minutes ?? "10"),
     starts_at: toDateTimeLocalValue(heist?.starts_at),
     ends_at: toDateTimeLocalValue(heist?.ends_at),
+  };
+}
+
+function autoHeistToForm(settings) {
+  return {
+    is_enabled: Boolean(Number(settings?.is_enabled || 0)),
+    min_users: String(settings?.min_users ?? "1"),
+    max_users: settings?.max_users ? String(settings.max_users) : "",
+    ticket_price: String(settings?.ticket_price ?? "0"),
+    prize_cop_points: String(settings?.prize_cop_points ?? "0"),
+    questions_per_session: String(settings?.questions_per_session ?? "0"),
+    countdown_duration_minutes: String(settings?.countdown_duration_minutes ?? "10"),
   };
 }
 
@@ -130,8 +167,20 @@ function paginateRows(rows, page) {
   return rows.slice(start, start + HEISTS_PER_PAGE);
 }
 
+function normalizeMaxUsers(value) {
+  const maxUsers = Number(value || 0);
+  return Number.isFinite(maxUsers) && maxUsers > 0 ? maxUsers : null;
+}
+
+function formatCapacity(heist) {
+  const total = formatNum(heist?.total_participants);
+  const maxUsers = Number(heist?.max_users || 0);
+  return maxUsers > 0 ? `${total}/${formatNum(maxUsers)} players` : `${total} players`;
+}
+
 function AdminHeistsPage() {
   const toast = useToast();
+  const location = useLocation();
 
   const [heists, setHeists] = useState([]);
   const [detailHeist, setDetailHeist] = useState(null);
@@ -139,6 +188,8 @@ function AdminHeistsPage() {
   const [questions, setQuestions] = useState([]);
   const [questionBank, setQuestionBank] = useState([]);
   const [questionBankSummary, setQuestionBankSummary] = useState(null);
+  const [contentBank, setContentBank] = useState([]);
+  const [contentBankSummary, setContentBankSummary] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [progress, setProgress] = useState([]);
   const [participants, setParticipants] = useState([]);
@@ -149,6 +200,7 @@ function AdminHeistsPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [questionsModalOpen, setQuestionsModalOpen] = useState(false);
+  const [contentModalOpen, setContentModalOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
 
   const [createForm, setCreateForm] = useState(EMPTY_HEIST);
@@ -159,10 +211,23 @@ function AdminHeistsPage() {
     { ...EMPTY_QUESTION, sort_order: "3" },
   ]);
   const [taskForm, setTaskForm] = useState(EMPTY_TASK);
+  const [contentForm, setContentForm] = useState(EMPTY_CONTENT);
+  const [autoHeistForm, setAutoHeistForm] = useState(EMPTY_AUTO_HEIST);
   const [statusValue, setStatusValue] = useState("pending");
   const [sessionQuestionCount, setSessionQuestionCount] = useState("0");
   const [activePage, setActivePage] = useState(1);
   const [completedPage, setCompletedPage] = useState(1);
+  const pageMode = location.pathname.endsWith("/content-bank")
+    ? "content"
+    : location.pathname.endsWith("/question-bank")
+      ? "questions"
+      : location.pathname.endsWith("/archive")
+        ? "archive"
+        : "main";
+  const isMainPage = pageMode === "main";
+  const isContentPage = pageMode === "content";
+  const isQuestionBankPage = pageMode === "questions";
+  const isArchivePage = pageMode === "archive";
 
   const selectedHeist = useMemo(
     () => heists.find((heist) => Number(heist.id) === Number(selectedId)) || null,
@@ -241,6 +306,27 @@ function AdminHeistsPage() {
     }
   }, [toast]);
 
+  const loadContentBank = useCallback(async () => {
+    try {
+      const data = await getAdminHeistContentBank();
+      setContentBank(Array.isArray(data?.items) ? data.items : []);
+      setContentBankSummary(data?.summary || null);
+    } catch (err) {
+      console.error("Load heist content bank error:", err);
+      toast.error(err?.response?.data?.message || "Unable to load heist content bank.");
+    }
+  }, [toast]);
+
+  const loadAutoHeistSettings = useCallback(async () => {
+    try {
+      const data = await getAdminAutoHeistSettings();
+      setAutoHeistForm(autoHeistToForm(data?.settings));
+    } catch (err) {
+      console.error("Load auto heist settings error:", err);
+      toast.error(err?.response?.data?.message || "Unable to load auto heist settings.");
+    }
+  }, [toast]);
+
   const loadSelectedDetails = useCallback(async () => {
     if (!selectedId) {
       setDetailHeist(null);
@@ -276,7 +362,9 @@ function AdminHeistsPage() {
   useEffect(() => {
     loadHeists();
     loadQuestionBank();
-  }, [loadHeists, loadQuestionBank]);
+    loadContentBank();
+    loadAutoHeistSettings();
+  }, [loadHeists, loadQuestionBank, loadContentBank, loadAutoHeistSettings]);
 
   useEffect(() => {
     if (activeDetailHeist?.status) setStatusValue(activeDetailHeist.status);
@@ -310,6 +398,27 @@ function AdminHeistsPage() {
     setEditForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const updateContentForm = (event) => {
+    const { name, type, checked, value } = event.target;
+    setContentForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const updateAutoHeistForm = (event) => {
+    const { name, type, checked, value } = event.target;
+    setAutoHeistForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const applyContentTemplate = (mode, contentId) => {
+    const item = contentBank.find((entry) => Number(entry.id) === Number(contentId));
+    if (!item) return;
+    const updater = mode === "edit" ? setEditForm : setCreateForm;
+    updater((prev) => ({
+      ...prev,
+      name: item.name || "",
+      description: item.description || "",
+    }));
+  };
+
   const openEditModal = () => {
     if (!activeDetailHeist) return;
     setEditForm(heistToForm(activeDetailHeist));
@@ -329,6 +438,7 @@ function AdminHeistsPage() {
       const payload = {
         ...createForm,
         min_users: Number(createForm.min_users || 1),
+        max_users: normalizeMaxUsers(createForm.max_users),
         ticket_price: Number(createForm.ticket_price || 0),
         prize_cop_points: Number(createForm.prize_cop_points || 0),
         questions_per_session: Number(createForm.questions_per_session || 0),
@@ -365,6 +475,7 @@ function AdminHeistsPage() {
       await updateAdminHeist(selectedId, {
         ...editForm,
         min_users: Number(editForm.min_users || 1),
+        max_users: normalizeMaxUsers(editForm.max_users),
         ticket_price: Number(editForm.ticket_price || 0),
         prize_cop_points: Number(editForm.prize_cop_points || 0),
         questions_per_session: Number(editForm.questions_per_session || 0),
@@ -527,7 +638,98 @@ function AdminHeistsPage() {
     }
   };
 
+  const createContent = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    if (!contentForm.name.trim() || !contentForm.description.trim()) {
+      toast.warn("Name and description are required");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await createAdminHeistContent({
+        name: contentForm.name.trim(),
+        description: contentForm.description.trim(),
+        is_active: contentForm.is_active,
+      });
+      toast.success("Heist content saved");
+      setContentForm(EMPTY_CONTENT);
+      setContentModalOpen(false);
+      await loadContentBank();
+    } catch (err) {
+      console.error("Create heist content error:", err);
+      toast.error(err?.response?.data?.message || "Unable to save heist content.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteContent = async (item) => {
+    if (!item?.id || busy) return;
+    const ok = window.confirm("Delete this heist name and description from the bank?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await deleteAdminHeistContent(item.id);
+      toast.success("Heist content deleted");
+      await loadContentBank();
+    } catch (err) {
+      console.error("Delete heist content error:", err);
+      toast.error(err?.response?.data?.message || "Unable to delete heist content.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveAutoHeistSettings = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+
+    setBusy(true);
+    try {
+      const data = await updateAdminAutoHeistSettings({
+        is_enabled: autoHeistForm.is_enabled,
+        min_users: Number(autoHeistForm.min_users || 1),
+        max_users: normalizeMaxUsers(autoHeistForm.max_users),
+        ticket_price: Number(autoHeistForm.ticket_price || 0),
+        prize_cop_points: Number(autoHeistForm.prize_cop_points || 0),
+        questions_per_session: Number(autoHeistForm.questions_per_session || 0),
+        countdown_duration_minutes: Number(autoHeistForm.countdown_duration_minutes || 10),
+      });
+      setAutoHeistForm(autoHeistToForm(data?.settings));
+      toast.success("Auto heist settings saved");
+    } catch (err) {
+      console.error("Save auto heist settings error:", err);
+      toast.error(err?.response?.data?.message || "Unable to save auto heist settings.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runAutoHeistNow = async () => {
+    if (busy) return;
+
+    setBusy(true);
+    try {
+      const data = await runAdminAutoHeist();
+      toast.success(data?.heist_id ? `Auto heist created #${data.heist_id}` : "Auto heist created");
+      await Promise.all([loadHeists(), loadQuestionBank()]);
+      if (data?.heist_id) setSelectedId(data.heist_id);
+    } catch (err) {
+      console.error("Run auto heist error:", err);
+      const message = err?.response?.data?.reason
+        ? `${err.response.data.message}: ${err.response.data.reason}`
+        : err?.response?.data?.message || "Unable to create auto heist.";
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const unusedBankCount = Number(questionBankSummary?.unused || 0);
+  const activeContentCount = Number(contentBankSummary?.active || 0);
 
   const createTask = async (event) => {
     event.preventDefault();
@@ -622,14 +824,45 @@ function AdminHeistsPage() {
       <main className={styles.main}>
         <AdminPageHeader
           kicker="Admin Heists"
-          title="Heist control room"
-          description="Create True/False heists, assign unused bank questions, start countdowns, finalize winners, and track affiliate tasks."
+          title={
+            isContentPage
+              ? "Name and description bank"
+              : isQuestionBankPage
+                ? "Question bank"
+                : isArchivePage
+                  ? "Completed heists"
+                  : "Heist control room"
+          }
+          description={
+            isContentPage
+              ? "Manage reusable heist names and descriptions."
+              : isQuestionBankPage
+                ? "Manage reusable True/False questions for heists."
+                : isArchivePage
+                  ? "Review completed heists and past results."
+                  : "Create True/False heists, assign unused bank questions, start countdowns, finalize winners, and track affiliate tasks."
+          }
           onRefresh={loadHeists}
           refreshing={loading || busy}
           refreshingLabel="Loading..."
           error={error}
           onRetry={loadHeists}
         />
+
+        <nav className={styles.subNav} aria-label="Heist admin sections">
+          <NavLink to="/admin/heists" end className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
+            Manage heists
+          </NavLink>
+          <NavLink to="/admin/heists/content-bank" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
+            Name bank
+          </NavLink>
+          <NavLink to="/admin/heists/question-bank" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
+            Question bank
+          </NavLink>
+          <NavLink to="/admin/heists/archive" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
+            Archive
+          </NavLink>
+        </nav>
 
         <section className={styles.statsGrid}>
           <div>
@@ -652,8 +885,119 @@ function AdminHeistsPage() {
             <span>Unused bank</span>
             <strong>{formatNum(unusedBankCount)}</strong>
           </div>
+          <div>
+            <span>Content bank</span>
+            <strong>{formatNum(activeContentCount)}</strong>
+          </div>
         </section>
 
+        {isContentPage ? (
+          <section className={styles.detailPanel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Bank</p>
+                <h2>Name and description bank</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => setContentModalOpen(true)}
+                disabled={busy}
+              >
+                <FaPlus />
+                <span>Add content</span>
+              </button>
+            </div>
+
+            <div className={styles.metaGrid}>
+              <div><span>Total</span><strong>{formatNum(contentBankSummary?.total)}</strong></div>
+              <div><span>Active</span><strong>{formatNum(contentBankSummary?.active)}</strong></div>
+              <div><span>Inactive</span><strong>{formatNum(contentBankSummary?.inactive)}</strong></div>
+            </div>
+
+            <div className={styles.rowsWide}>
+              {contentBank.length ? (
+                contentBank.map((item) => (
+                  <div className={styles.dataRow} key={item.id}>
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>{item.description}</small>
+                    </span>
+                    <div className={styles.rowActions}>
+                      <em>{item.is_active ? "active" : "inactive"}</em>
+                      <button type="button" onClick={() => deleteContent(item)} disabled={busy}>
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className={styles.emptyState}>No saved heist content yet.</div>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {isQuestionBankPage ? (
+          <section className={styles.detailPanel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>Bank</p>
+                <h2>Question bank</h2>
+              </div>
+              <div className={styles.inlineActions}>
+                <button
+                  type="button"
+                  className={styles.primaryBtn}
+                  onClick={() => setQuestionsModalOpen(true)}
+                  disabled={busy}
+                >
+                  <FaPlus />
+                  <span>Add questions</span>
+                </button>
+                <button type="button" className={styles.softBtn} onClick={loadQuestionBank} disabled={busy}>
+                  Refresh bank
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.metaGrid}>
+              <div><span>Total</span><strong>{formatNum(questionBankSummary?.total)}</strong></div>
+              <div><span>Unused</span><strong>{formatNum(questionBankSummary?.unused)}</strong></div>
+              <div><span>Assigned</span><strong>{formatNum(questionBankSummary?.assigned)}</strong></div>
+            </div>
+
+            <div className={styles.rowsWide}>
+              {questionBank.length ? (
+                questionBank.map((question) => (
+                  <div className={styles.dataRow} key={question.id}>
+                    <span>
+                      <strong>{question.question_text}</strong>
+                      <small>
+                        {question.usage_status === "unused"
+                          ? "unused"
+                          : `assigned to ${question.heist_name || "heist"}`}
+                      </small>
+                    </span>
+                    <div className={styles.rowActions}>
+                      <em>{question.correct_answer}</em>
+                      {question.usage_status === "unused" ? (
+                        <button type="button" onClick={() => deleteBankQuestion(question)} disabled={busy}>
+                          <FaTrash />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className={styles.emptyState}>No bank questions yet.</div>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {isMainPage ? (
+          <>
         <section className={styles.workspace}>
           <section className={styles.mainPanel}>
             <div className={styles.panelHead}>
@@ -689,7 +1033,7 @@ function AdminHeistsPage() {
                       {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
                     </small>
                     <span className={styles.cardStats}>
-                      <em>{formatNum(heist.total_participants)} players</em>
+                      <em>{formatCapacity(heist)}</em>
                       <em>{formatNum(heist.total_submissions)} submissions</em>
                       <em>{formatTimerWindow(heist)}</em>
                     </span>
@@ -706,6 +1050,60 @@ function AdminHeistsPage() {
               onPageChange: setActivePage,
             })}
           </section>
+        </section>
+
+        <section className={styles.detailPanel}>
+          <div className={styles.panelHead}>
+            <div>
+              <p className={styles.kicker}>Automation</p>
+              <h2>Auto make heist</h2>
+            </div>
+            <label className={styles.switchField}>
+              <input
+                type="checkbox"
+                name="is_enabled"
+                checked={autoHeistForm.is_enabled}
+                onChange={updateAutoHeistForm}
+              />
+              <span>{autoHeistForm.is_enabled ? "On" : "Off"}</span>
+            </label>
+          </div>
+
+          <form className={styles.autoHeistForm} onSubmit={saveAutoHeistSettings}>
+            <label className={styles.field}>
+              <span>Min users</span>
+              <input type="number" name="min_users" min="1" value={autoHeistForm.min_users} onChange={updateAutoHeistForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Max users</span>
+              <input type="number" name="max_users" min="0" value={autoHeistForm.max_users} onChange={updateAutoHeistForm} placeholder="Blank for unlimited" />
+            </label>
+            <label className={styles.field}>
+              <span>Ticket CP</span>
+              <input type="number" name="ticket_price" min="0" value={autoHeistForm.ticket_price} onChange={updateAutoHeistForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Prize CP</span>
+              <input type="number" name="prize_cop_points" min="0" value={autoHeistForm.prize_cop_points} onChange={updateAutoHeistForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Questions per session</span>
+              <input type="number" name="questions_per_session" min="0" value={autoHeistForm.questions_per_session} onChange={updateAutoHeistForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Countdown minutes</span>
+              <input type="number" name="countdown_duration_minutes" min="1" value={autoHeistForm.countdown_duration_minutes} onChange={updateAutoHeistForm} />
+            </label>
+            <div className={styles.autoHeistActions}>
+              <button type="submit" className={styles.primaryBtn} disabled={busy}>
+                <FaSave />
+                <span>{busy ? "Saving..." : "Save auto heist"}</span>
+              </button>
+              <button type="button" className={styles.softBtn} onClick={runAutoHeistNow} disabled={busy}>
+                Make one now
+              </button>
+            </div>
+          </form>
         </section>
 
         {activeDetailHeist ? (
@@ -734,6 +1132,7 @@ function AdminHeistsPage() {
                 <div><span>Prize</span><strong>{formatNum(activeDetailHeist.prize_cop_points)} CP</strong></div>
                 <div><span>Ticket</span><strong>{formatNum(activeDetailHeist.ticket_price)} CP</strong></div>
                 <div><span>Min users</span><strong>{formatNum(activeDetailHeist.min_users)}</strong></div>
+                <div><span>Max users</span><strong>{activeDetailHeist.max_users ? formatNum(activeDetailHeist.max_users) : "Unlimited"}</strong></div>
                 <div><span>Participants</span><strong>{formatNum(activeDetailHeist.total_participants)}</strong></div>
                 <div><span>Joined only</span><strong>{formatNum(activeDetailHeist.joined_participants)}</strong></div>
                 <div><span>Submitted</span><strong>{formatNum(activeDetailHeist.submitted_participants)}</strong></div>
@@ -878,56 +1277,6 @@ function AdminHeistsPage() {
             <article className={styles.detailPanel}>
               <div className={styles.panelHead}>
                 <div>
-                  <p className={styles.kicker}>Bank</p>
-                  <h2>Question bank</h2>
-                </div>
-                <button
-                  type="button"
-                  className={styles.softBtn}
-                  onClick={loadQuestionBank}
-                  disabled={busy}
-                >
-                  Refresh bank
-                </button>
-              </div>
-
-              <div className={styles.metaGrid}>
-                <div><span>Total</span><strong>{formatNum(questionBankSummary?.total)}</strong></div>
-                <div><span>Unused</span><strong>{formatNum(questionBankSummary?.unused)}</strong></div>
-                <div><span>Assigned</span><strong>{formatNum(questionBankSummary?.assigned)}</strong></div>
-              </div>
-
-              <div className={styles.rows}>
-                {questionBank.length ? (
-                  questionBank.slice(0, 12).map((question) => (
-                    <div className={styles.dataRow} key={question.id}>
-                      <span>
-                        <strong>{question.question_text}</strong>
-                        <small>
-                          {question.usage_status === "unused"
-                            ? "unused"
-                            : `assigned to ${question.heist_name || "heist"}`}
-                        </small>
-                      </span>
-                      <div className={styles.rowActions}>
-                        <em>{question.correct_answer}</em>
-                        {question.usage_status === "unused" ? (
-                          <button type="button" onClick={() => deleteBankQuestion(question)} disabled={busy}>
-                            <FaTrash />
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className={styles.emptyState}>No bank questions yet.</div>
-                )}
-              </div>
-            </article>
-
-            <article className={styles.detailPanel}>
-              <div className={styles.panelHead}>
-                <div>
                   <p className={styles.kicker}>Affiliate</p>
                   <h2>Reward tasks</h2>
                 </div>
@@ -993,7 +1342,10 @@ function AdminHeistsPage() {
             </article>
           </section>
         ) : null}
+          </>
+        ) : null}
 
+        {isArchivePage ? (
         <section className={styles.workspace}>
           <section className={styles.mainPanel}>
             <div className={styles.panelHead}>
@@ -1021,7 +1373,7 @@ function AdminHeistsPage() {
                       {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
                     </small>
                     <span className={styles.cardStats}>
-                      <em>{formatNum(heist.total_participants)} players</em>
+                      <em>{formatCapacity(heist)}</em>
                       <em>{formatNum(heist.total_submissions)} submissions</em>
                       <em>{formatTimerWindow(heist)}</em>
                     </span>
@@ -1039,6 +1391,7 @@ function AdminHeistsPage() {
             })}
           </section>
         </section>
+        ) : null}
 
         <Modal
           open={createModalOpen}
@@ -1061,6 +1414,26 @@ function AdminHeistsPage() {
         >
           <form id="create-heist-form" className={`${styles.form} ${styles.modalForm}`} onSubmit={createHeist}>
             <label className={styles.field}>
+              <span>Use saved name and description</span>
+              <select
+                defaultValue=""
+                onChange={(event) => {
+                  applyContentTemplate("create", event.target.value);
+                  event.target.value = "";
+                }}
+              >
+                <option value="">Select from content bank</option>
+                {contentBank
+                  .filter((item) => item.is_active)
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className={styles.field}>
               <span>Name</span>
               <input name="name" value={createForm.name} onChange={updateCreateForm} placeholder="Weekend Heist" />
             </label>
@@ -1081,16 +1454,30 @@ function AdminHeistsPage() {
                 <input type="number" name="min_users" min="1" value={createForm.min_users} onChange={updateCreateForm} />
               </label>
               <label className={styles.field}>
-                <span>Ticket CP</span>
-                <input type="number" name="ticket_price" min="0" value={createForm.ticket_price} onChange={updateCreateForm} />
+                <span>Max users</span>
+                <input
+                  type="number"
+                  name="max_users"
+                  min="0"
+                  value={createForm.max_users}
+                  onChange={updateCreateForm}
+                  placeholder="0 or blank for unlimited"
+                />
               </label>
             </div>
 
             <div className={styles.twoCol}>
               <label className={styles.field}>
+                <span>Ticket CP</span>
+                <input type="number" name="ticket_price" min="0" value={createForm.ticket_price} onChange={updateCreateForm} />
+              </label>
+              <label className={styles.field}>
                 <span>Prize CP</span>
                 <input type="number" name="prize_cop_points" min="0" value={createForm.prize_cop_points} onChange={updateCreateForm} />
               </label>
+            </div>
+
+            <div className={styles.twoCol}>
               <label className={styles.field}>
                 <span>Questions per session</span>
                 <input
@@ -1151,6 +1538,26 @@ function AdminHeistsPage() {
         >
           <form id="edit-heist-form" className={`${styles.form} ${styles.modalForm}`} onSubmit={updateHeist}>
             <label className={styles.field}>
+              <span>Use saved name and description</span>
+              <select
+                defaultValue=""
+                onChange={(event) => {
+                  applyContentTemplate("edit", event.target.value);
+                  event.target.value = "";
+                }}
+              >
+                <option value="">Select from content bank</option>
+                {contentBank
+                  .filter((item) => item.is_active)
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className={styles.field}>
               <span>Name</span>
               <input name="name" value={editForm.name} onChange={updateEditForm} placeholder="Weekend Heist" />
             </label>
@@ -1171,16 +1578,30 @@ function AdminHeistsPage() {
                 <input type="number" name="min_users" min="1" value={editForm.min_users} onChange={updateEditForm} />
               </label>
               <label className={styles.field}>
-                <span>Ticket CP</span>
-                <input type="number" name="ticket_price" min="0" value={editForm.ticket_price} onChange={updateEditForm} />
+                <span>Max users</span>
+                <input
+                  type="number"
+                  name="max_users"
+                  min="0"
+                  value={editForm.max_users}
+                  onChange={updateEditForm}
+                  placeholder="0 or blank for unlimited"
+                />
               </label>
             </div>
 
             <div className={styles.twoCol}>
               <label className={styles.field}>
+                <span>Ticket CP</span>
+                <input type="number" name="ticket_price" min="0" value={editForm.ticket_price} onChange={updateEditForm} />
+              </label>
+              <label className={styles.field}>
                 <span>Prize CP</span>
                 <input type="number" name="prize_cop_points" min="0" value={editForm.prize_cop_points} onChange={updateEditForm} />
               </label>
+            </div>
+
+            <div className={styles.twoCol}>
               <label className={styles.field}>
                 <span>Questions per session</span>
                 <input
@@ -1217,6 +1638,55 @@ function AdminHeistsPage() {
                 <input type="datetime-local" name="ends_at" value={editForm.ends_at} onChange={updateEditForm} />
               </label>
             </div>
+          </form>
+        </Modal>
+
+        <Modal
+          open={contentModalOpen}
+          title="Add heist content"
+          subtitle="Save reusable heist names and descriptions for future heists."
+          size="md"
+          onClose={() => !busy && setContentModalOpen(false)}
+          disableClose={busy}
+          footer={
+            <>
+              <button type="button" className={styles.softBtn} onClick={() => setContentModalOpen(false)} disabled={busy}>
+                Cancel
+              </button>
+              <button type="submit" form="add-content-form" className={styles.primaryBtn} disabled={busy}>
+                Save content
+              </button>
+            </>
+          }
+        >
+          <form id="add-content-form" className={`${styles.form} ${styles.modalForm}`} onSubmit={createContent}>
+            <label className={styles.field}>
+              <span>Name</span>
+              <input
+                name="name"
+                value={contentForm.name}
+                onChange={updateContentForm}
+                placeholder="Weekend Heist"
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Description</span>
+              <textarea
+                name="description"
+                value={contentForm.description}
+                onChange={updateContentForm}
+                placeholder="Fast true/false run for CopUpCoin rewards."
+              />
+            </label>
+            <label className={styles.checkField}>
+              <input
+                type="checkbox"
+                name="is_active"
+                checked={contentForm.is_active}
+                onChange={updateContentForm}
+              />
+              <span>Active</span>
+            </label>
           </form>
         </Modal>
 

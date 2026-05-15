@@ -1,8 +1,38 @@
 const { noticePayload, sendPushToUser } = require("./push.service");
 
+let heistMaxUsersColumnReady = false;
+
 function normalizeAnswer(value) {
   const answer = String(value || "").trim().toLowerCase();
   return answer === "true" || answer === "false" ? answer : null;
+}
+
+async function ensureHeistMaxUsersColumn(db) {
+  if (heistMaxUsersColumnReady) return;
+
+  const [[databaseRow]] = await db.query("SELECT DATABASE() AS db_name");
+  const dbName = databaseRow?.db_name;
+  if (!dbName) throw new Error("Unable to detect database for heist schema check");
+
+  const [[column]] = await db.query(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'heist'
+       AND COLUMN_NAME = 'max_users'
+     LIMIT 1`,
+    [dbName]
+  );
+
+  if (!column) {
+    try {
+      await db.query("ALTER TABLE heist ADD COLUMN max_users int(11) DEFAULT NULL AFTER min_users");
+    } catch (err) {
+      if (err?.code !== "ER_DUP_FIELDNAME" && err?.errno !== 1060) throw err;
+    }
+  }
+
+  heistMaxUsersColumnReady = true;
 }
 
 function makeReferralCode() {
@@ -229,6 +259,7 @@ async function recordAffiliateTaskProgress(db, heistId, affiliateUserId) {
 }
 
 module.exports = {
+  ensureHeistMaxUsersColumn,
   normalizeAnswer,
   makeReferralCode,
   makeReferralLink,

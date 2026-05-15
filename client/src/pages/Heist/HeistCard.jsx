@@ -1,15 +1,24 @@
 import React from "react";
-import { FiEye, FiPlay, FiPlus } from "react-icons/fi";
+import { FiEye, FiLock, FiPlay, FiPlus } from "react-icons/fi";
 import styles from "./HeistCard.module.css";
 
 const DEFAULT_HEIST_IMAGE = "/assets/m2-foods.png";
+const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
 
 function formatNum(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString() : "0";
 }
 
-function getHeistUiState(heist) {
+function isJoinTimeLocked(heist) {
+  const endTime = heist?.countdown_ends_at || heist?.ends_at;
+  if (!endTime) return false;
+
+  const endMs = new Date(endTime).getTime();
+  return Number.isFinite(endMs) && endMs - Date.now() <= JOIN_LOCK_BEFORE_END_MS;
+}
+
+function getHeistUiState(heist, isLocked) {
   const hasSubmitted =
     Number(heist?.has_submitted) === 1 ||
     heist?.has_submitted === true ||
@@ -38,6 +47,16 @@ function getHeistUiState(heist) {
     };
   }
 
+  if (isLocked) {
+    return {
+      label: "Locked",
+      stateLabel: "Locked",
+      icon: FiLock,
+      tone: styles.fullState,
+      disabled: true,
+    };
+  }
+
   return {
     label: "Join",
     stateLabel: "Join first",
@@ -49,10 +68,14 @@ function getHeistUiState(heist) {
 export default function HeistCard({ heist, onAction, isBusy }) {
   const imageSrc = heist?.image || DEFAULT_HEIST_IMAGE;
   const title = heist?.name || "Heist";
-  const participantTarget = Math.max(0, Number(heist?.min_users || 0) - 1);
+  const totalParticipants = Number(heist?.total_participants || 0);
+  const maxUsers = Number(heist?.max_users || 0);
+  const hasMaxUsers = maxUsers > 0;
+  const isFull = hasMaxUsers && totalParticipants >= maxUsers;
+  const isLocked = isFull || isJoinTimeLocked(heist);
   const description =
     heist?.description || "Answer true or false questions, beat the clock, and climb the ranks.";
-  const action = getHeistUiState(heist);
+  const action = getHeistUiState(heist, isLocked);
   const ActionIcon = action.icon;
 
   const handleImageError = (event) => {
@@ -75,10 +98,6 @@ export default function HeistCard({ heist, onAction, isBusy }) {
         <div className={styles.topRow}>
           <span className={styles.status}>{heist?.status || "pending"}</span>
           <span className={`${styles.userState} ${action.tone}`}>{action.stateLabel}</span>
-          <span className={styles.participants}>
-            <strong>{formatNum(participantTarget)}</strong>
-            <span>min users</span>
-          </span>
         </div>
 
         <div className={styles.middle}>
@@ -102,7 +121,7 @@ export default function HeistCard({ heist, onAction, isBusy }) {
             type="button"
             className={styles.button}
             onClick={() => onAction?.(heist)}
-            disabled={isBusy}
+            disabled={isBusy || action.disabled}
           >
             <ActionIcon />
             <span>{isBusy ? "Please wait" : action.label}</span>

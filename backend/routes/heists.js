@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../conf/db");
 const { authenticateToken, optionalAuthenticateToken } = require("../middleware/auth");
 const {
+  ensureHeistMaxUsersColumn,
   normalizeAnswer,
   makeReferralCode,
   makeReferralLink,
@@ -15,11 +16,47 @@ const { applyReferralRewardJoin } = require("../services/referralReward.service"
 const router = express.Router();
 
 const PUBLIC_HEIST_FIELDS = `
-  id, name, description, min_users, ticket_price,
+  id, name, description, min_users, max_users, ticket_price,
   total_questions, questions_per_session, prize_cop_points, status,
   countdown_duration_minutes, countdown_started_at, countdown_ends_at,
   starts_at, ends_at
 `;
+
+const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
+
+router.use(async (req, res, next) => {
+  try {
+    await ensureHeistMaxUsersColumn(pool);
+    next();
+  } catch (err) {
+    console.error("heist schema check error:", err);
+    res.status(500).json({ message: "Error preparing heist schema" });
+  }
+});
+
+function participantCountField(alias = "h") {
+  return `(SELECT COUNT(*)
+           FROM heist_participants hp_count
+           WHERE hp_count.heist_id = ${alias}.id
+             AND hp_count.status IN ('joined', 'submitted')) AS total_participants`;
+}
+
+function isHeistFull(heist, participantCount) {
+  const maxUsers = Number(heist?.max_users || 0);
+  return maxUsers > 0 && Number(participantCount || 0) >= maxUsers;
+}
+
+function getJoinLockReason(heist) {
+  const endTime = heist?.countdown_ends_at || heist?.ends_at;
+  if (!endTime) return null;
+
+  const endMs = new Date(endTime).getTime();
+  if (Number.isNaN(endMs)) return null;
+  if (endMs - Date.now() <= JOIN_LOCK_BEFORE_END_MS) {
+    return "Heist is locked for joining";
+  }
+  return null;
+}
 
 function countdownHasEnded(heist) {
   return heist?.countdown_ends_at && new Date(heist.countdown_ends_at).getTime() <= Date.now();
@@ -184,6 +221,7 @@ router.get("/available", optionalAuthenticateToken, async (req, res) => {
       ? await pool.query(
           `SELECT
              h.${PUBLIC_HEIST_FIELDS.replace(/\s+/g, " ").trim().replace(/, /g, ", h.")},
+             ${participantCountField("h")},
              COALESCE(us.has_joined, 0) AS has_joined,
              COALESCE(us.has_started, 0) AS has_started,
              COALESCE(us.has_submitted, 0) AS has_submitted,
@@ -209,10 +247,12 @@ router.get("/available", optionalAuthenticateToken, async (req, res) => {
           [userId]
         )
       : await pool.query(
-          `SELECT ${PUBLIC_HEIST_FIELDS}
-           FROM heist
-           WHERE status IN ('pending', 'hold', 'started')
-           ORDER BY created_at DESC`
+          `SELECT
+             h.${PUBLIC_HEIST_FIELDS.replace(/\s+/g, " ").trim().replace(/, /g, ", h.")},
+             ${participantCountField("h")}
+           FROM heist h
+           WHERE h.status IN ('pending', 'hold', 'started')
+           ORDER BY h.created_at DESC`
         );
     return res.json({ heists: rows });
   } catch (err) {
@@ -254,9 +294,11 @@ router.get("/:id", async (req, res) => {
     if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
 
     const [rows] = await pool.query(
-      `SELECT ${PUBLIC_HEIST_FIELDS}
-       FROM heist
-       WHERE id = ?
+      `SELECT
+         h.${PUBLIC_HEIST_FIELDS.replace(/\s+/g, " ").trim().replace(/, /g, ", h.")},
+         ${participantCountField("h")}
+       FROM heist h
+       WHERE h.id = ?
        LIMIT 1`,
       [heistId]
     );
@@ -285,7 +327,7 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
     await conn.beginTransaction();
 
     const [[heist]] = await conn.query(
-      `SELECT id, status, ticket_price, winner_user_id, countdown_ends_at
+      `SELECT id, status, max_users, ticket_price, winner_user_id, countdown_ends_at, ends_at
        FROM heist
        WHERE id = ?
        LIMIT 1 FOR UPDATE`,
@@ -308,6 +350,23 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
     if (existing.length) {
       await conn.rollback();
       return res.status(400).json({ message: "Already joined" });
+    }
+
+    const joinLockReason = getJoinLockReason(heist);
+    if (joinLockReason) {
+      await conn.rollback();
+      return res.status(400).json({ message: joinLockReason });
+    }
+
+    const [[participantCount]] = await conn.query(
+      `SELECT COUNT(*) AS total
+       FROM heist_participants
+       WHERE heist_id = ? AND status IN ('joined', 'submitted')`,
+      [heistId]
+    );
+    if (isHeistFull(heist, participantCount?.total)) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Heist is full" });
     }
 
     const [[user]] = await conn.query(
@@ -420,9 +479,12 @@ router.get("/:id/play", authenticateToken, async (req, res) => {
     if (!participant) return res.status(403).json({ message: "Join heist first" });
 
     const [[heist]] = await pool.query(
-      `SELECT ${PUBLIC_HEIST_FIELDS}, winner_user_id
-       FROM heist
-       WHERE id = ?
+      `SELECT
+         h.${PUBLIC_HEIST_FIELDS.replace(/\s+/g, " ").trim().replace(/, /g, ", h.")},
+         ${participantCountField("h")},
+         h.winner_user_id
+       FROM heist h
+       WHERE h.id = ?
        LIMIT 1`,
       [heistId]
     );
@@ -800,11 +862,14 @@ router.get("/:id/ref/:code", async (req, res) => {
          h.id AS heist_id,
          h.name,
          h.description,
+         h.max_users,
          h.ticket_price,
          h.prize_cop_points,
          h.status,
+         h.countdown_ends_at,
          h.starts_at,
-         h.ends_at
+         h.ends_at,
+         ${participantCountField("h")}
        FROM affiliate_user_links a
        JOIN heist h ON h.id = a.heist_id
        JOIN users u ON u.id = a.affiliate_user_id
@@ -827,9 +892,12 @@ router.get("/:id/ref/:code", async (req, res) => {
         id: row.heist_id,
         name: row.name,
         description: row.description,
+        max_users: row.max_users,
+        total_participants: row.total_participants,
         ticket_price: row.ticket_price,
         prize_cop_points: row.prize_cop_points,
         status: row.status,
+        countdown_ends_at: row.countdown_ends_at,
         starts_at: row.starts_at,
         ends_at: row.ends_at,
       },

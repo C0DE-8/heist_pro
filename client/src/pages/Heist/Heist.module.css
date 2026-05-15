@@ -175,6 +175,10 @@
   justify-content: space-between;
 }
 
+.mutedSkeleton {
+  opacity: 0.74;
+}
+
 .heistSkeleton::before {
   content: "";
   position: absolute;
@@ -183,6 +187,39 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 22%),
     radial-gradient(circle at 50% 104%, rgba(123, 92, 255, 0.22), transparent 44%);
   pointer-events: none;
+}
+
+.emptySkeletonMessage {
+  position: absolute;
+  z-index: 3;
+  left: 18px;
+  right: 18px;
+  bottom: 92px;
+  border: 1px solid rgba(186, 255, 199, 0.18);
+  border-radius: 20px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(10, 13, 25, 0.86), rgba(10, 13, 25, 0.66)),
+    rgba(186, 255, 199, 0.08);
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  display: grid;
+  gap: 6px;
+}
+
+.emptySkeletonMessage strong {
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.emptySkeletonMessage span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .skeletonGlow {

@@ -11,6 +11,8 @@ import {
 import HeistCard from "./HeistCard";
 import styles from "./Heist.module.css";
 
+const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
+
 function formatNum(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString() : "0";
@@ -25,9 +27,22 @@ function getReferralCode(searchParams) {
   );
 }
 
-function HeistCardSkeleton() {
+function isHeistFull(heist) {
+  const maxUsers = Number(heist?.max_users || 0);
+  return maxUsers > 0 && Number(heist?.total_participants || 0) >= maxUsers;
+}
+
+function isJoinTimeLocked(heist) {
+  const endTime = heist?.countdown_ends_at || heist?.ends_at;
+  if (!endTime) return false;
+
+  const endMs = new Date(endTime).getTime();
+  return Number.isFinite(endMs) && endMs - Date.now() <= JOIN_LOCK_BEFORE_END_MS;
+}
+
+function HeistCardSkeleton({ muted = false, children } = {}) {
   return (
-    <article className={styles.heistSkeleton} aria-hidden="true">
+    <article className={`${styles.heistSkeleton} ${muted ? styles.mutedSkeleton : ""}`} aria-hidden={!children}>
       <div className={styles.skeletonGlow} />
       <div className={styles.skeletonTop}>
         <span />
@@ -42,7 +57,23 @@ function HeistCardSkeleton() {
         <span />
         <span />
       </div>
+      {children}
     </article>
+  );
+}
+
+function EmptyHeistFallback() {
+  return (
+    <>
+      <HeistCardSkeleton muted>
+        <div className={styles.emptySkeletonMessage}>
+          <strong>No available heists yet.</strong>
+          <span>Check back soon or refresh to load new heists.</span>
+        </div>
+      </HeistCardSkeleton>
+      <HeistCardSkeleton muted />
+      <HeistCardSkeleton muted />
+    </>
   );
 }
 
@@ -120,6 +151,16 @@ export default function Heist() {
       return;
     }
 
+    if (isHeistFull(heist)) {
+      toast.error("This heist is full.");
+      return;
+    }
+
+    if (isJoinTimeLocked(heist)) {
+      toast.error("This heist is locked for joining.");
+      return;
+    }
+
     handleJoin(heist);
   };
 
@@ -170,7 +211,7 @@ export default function Heist() {
               />
             ))
           ) : (
-            <div className={styles.emptyState}>No available heists yet.</div>
+            <EmptyHeistFallback />
           )}
         </section>
       </main>
