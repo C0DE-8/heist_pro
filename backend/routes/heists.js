@@ -3,6 +3,9 @@ const { pool } = require("../conf/db");
 const { authenticateToken, optionalAuthenticateToken } = require("../middleware/auth");
 const {
   ensureHeistMaxUsersColumn,
+  ensureHeistDemoSubmissionsTable,
+  ensureHeistDemoUsersTable,
+  ensureHeistWinnerDemoColumn,
   normalizeAnswer,
   makeReferralCode,
   makeReferralLink,
@@ -27,6 +30,9 @@ const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
 router.use(async (req, res, next) => {
   try {
     await ensureHeistMaxUsersColumn(pool);
+    await ensureHeistDemoUsersTable(pool);
+    await ensureHeistDemoSubmissionsTable(pool);
+    await ensureHeistWinnerDemoColumn(pool);
     next();
   } catch (err) {
     console.error("heist schema check error:", err);
@@ -270,13 +276,16 @@ router.get("/completed", async (req, res) => {
          h.description,
          h.prize_cop_points,
          h.winner_user_id,
-         u.username AS winner_username,
-         u.full_name AS winner_full_name,
+         h.winner_demo_submission_id,
+         COALESCE(u.username, demoWinner.display_name) AS winner_username,
+         COALESCE(u.full_name, demoWinner.display_name) AS winner_full_name,
+         CASE WHEN h.winner_demo_submission_id IS NULL THEN 0 ELSE 1 END AS winner_is_demo,
          h.status,
          h.countdown_ends_at,
          h.updated_at
        FROM heist h
        LEFT JOIN users u ON u.id = h.winner_user_id
+       LEFT JOIN heist_demo_submissions demoWinner ON demoWinner.id = h.winner_demo_submission_id
        WHERE h.status = 'completed'
        ORDER BY h.updated_at DESC`
     );
@@ -722,20 +731,46 @@ router.get("/:id/leaderboard", async (req, res) => {
     const [rows] = await pool.query(
       `SELECT
          ROW_NUMBER() OVER (
-           ORDER BY hs.correct_count DESC, hs.total_time_seconds ASC, hs.submitted_at ASC
+           ORDER BY ranked.correct_count DESC, ranked.total_time_seconds ASC, ranked.submitted_at ASC, ranked.source_order ASC
          ) AS rank,
-         u.username,
-         hs.correct_count,
-         hs.wrong_count,
-         hs.unanswered_count,
-         hs.score_percent,
-         hs.total_time_seconds,
-         hs.submitted_at
-       FROM heist_submissions hs
-       JOIN users u ON u.id = hs.user_id
-       WHERE hs.heist_id = ? AND hs.status = 'submitted'
-       ORDER BY hs.correct_count DESC, hs.total_time_seconds ASC, hs.submitted_at ASC`,
-      [heistId]
+         ranked.username,
+         ranked.is_demo,
+         ranked.correct_count,
+         ranked.wrong_count,
+         ranked.unanswered_count,
+         ranked.score_percent,
+         ranked.total_time_seconds,
+         ranked.submitted_at
+       FROM (
+         SELECT
+           u.username,
+           0 AS is_demo,
+           hs.correct_count,
+           hs.wrong_count,
+           hs.unanswered_count,
+           hs.score_percent,
+           hs.total_time_seconds,
+           hs.submitted_at,
+           0 AS source_order
+         FROM heist_submissions hs
+         JOIN users u ON u.id = hs.user_id
+         WHERE hs.heist_id = ? AND hs.status = 'submitted'
+         UNION ALL
+         SELECT
+           hds.display_name AS username,
+           1 AS is_demo,
+           hds.correct_count,
+           hds.wrong_count,
+           hds.unanswered_count,
+           hds.score_percent,
+           hds.total_time_seconds,
+           hds.submitted_at,
+           1 AS source_order
+         FROM heist_demo_submissions hds
+         WHERE hds.heist_id = ?
+       ) ranked
+       ORDER BY ranked.correct_count DESC, ranked.total_time_seconds ASC, ranked.submitted_at ASC, ranked.source_order ASC`,
+      [heistId, heistId]
     );
 
     return res.json({ leaderboard: rows });
@@ -763,18 +798,27 @@ router.get("/:id/result", authenticateToken, async (req, res) => {
     if (!result) return res.status(404).json({ message: "Result not found" });
 
     const [[heist]] = await pool.query(
-      `SELECT h.status, h.winner_user_id, h.prize_cop_points, u.username AS winner_username
+      `SELECT
+         h.status,
+         h.winner_user_id,
+         h.winner_demo_submission_id,
+         h.prize_cop_points,
+         COALESCE(u.username, demoWinner.display_name) AS winner_username,
+         CASE WHEN h.winner_demo_submission_id IS NULL THEN 0 ELSE 1 END AS winner_is_demo
        FROM heist h
        LEFT JOIN users u ON u.id = h.winner_user_id
+       LEFT JOIN heist_demo_submissions demoWinner ON demoWinner.id = h.winner_demo_submission_id
        WHERE h.id = ?
        LIMIT 1`,
       [heistId]
     );
 
     const response = { result };
-    if (heist?.status === "completed" && heist.winner_user_id) {
+    if (heist?.status === "completed" && (heist.winner_user_id || heist.winner_demo_submission_id)) {
       response.winner = {
         user_id: heist.winner_user_id,
+        demo_submission_id: heist.winner_demo_submission_id,
+        is_demo: Boolean(Number(heist.winner_is_demo)),
         username: heist.winner_username,
         prize_cop_points: heist.prize_cop_points,
       };

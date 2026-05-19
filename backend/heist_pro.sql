@@ -311,6 +311,7 @@ CREATE TABLE `heist` (
   `status` enum('pending','hold','started','completed','cancelled') NOT NULL DEFAULT 'pending',
   `submissions_locked` tinyint(1) NOT NULL DEFAULT 0,
   `winner_user_id` int(11) DEFAULT NULL,
+  `winner_demo_submission_id` bigint(20) UNSIGNED DEFAULT NULL,
   `countdown_started_at` datetime DEFAULT NULL,
   `countdown_duration_minutes` int(11) NOT NULL DEFAULT 10,
   `countdown_ends_at` datetime DEFAULT NULL,
@@ -325,12 +326,12 @@ CREATE TABLE `heist` (
 -- Dumping data for table `heist`
 --
 
-INSERT INTO `heist` (`id`, `name`, `description`, `min_users`, `max_users`, `ticket_price`, `total_questions`, `questions_per_session`, `prize_cop_points`, `status`, `submissions_locked`, `winner_user_id`, `countdown_started_at`, `countdown_duration_minutes`, `countdown_ends_at`, `starts_at`, `ends_at`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, NULL, 50, 10, 0, 200, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-21 19:23:16'),
-(2, 'weekend heist', 'for the road as we go ', 2, NULL, 20, 4, 2, 30, 'completed', 1, 3, '2026-04-21 12:18:51', 2, '2026-04-21 12:28:51', NULL, NULL, 1, '2026-04-17 17:49:02', '2026-04-21 20:37:54'),
-(3, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, NULL, 100, 10, 0, 5000, 'pending', 0, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50'),
-(4, 'Wealth', 'true false', 3, NULL, 0, 3, 3, 0, 'pending', 0, NULL, NULL, 10, NULL, NULL, NULL, 1, '2026-04-22 12:46:14', '2026-04-22 12:46:14'),
-(5, 'Health & Beauty', 'fixed my soul', 1, NULL, 2, 2, 2, 1, 'completed', 1, 5, '2026-04-27 16:47:10', 10, '2026-04-27 16:57:10', NULL, NULL, 1, '2026-04-22 12:48:43', '2026-04-27 23:57:28');
+INSERT INTO `heist` (`id`, `name`, `description`, `min_users`, `max_users`, `ticket_price`, `total_questions`, `questions_per_session`, `prize_cop_points`, `status`, `submissions_locked`, `winner_user_id`, `winner_demo_submission_id`, `countdown_started_at`, `countdown_duration_minutes`, `countdown_ends_at`, `starts_at`, `ends_at`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, NULL, 50, 10, 0, 200, 'pending', 0, NULL, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-21 19:23:16'),
+(2, 'weekend heist', 'for the road as we go ', 2, NULL, 20, 4, 2, 30, 'completed', 1, 3, NULL, '2026-04-21 12:18:51', 2, '2026-04-21 12:28:51', NULL, NULL, 1, '2026-04-17 17:49:02', '2026-04-21 20:37:54'),
+(3, 'General Knowledge Heist 001', 'Answer all True or False questions. Winner is ranked by highest correct answers, then fastest time.', 3, NULL, 100, 10, 0, 5000, 'pending', 0, NULL, NULL, NULL, 20, NULL, NULL, NULL, 1, '2026-04-17 07:42:52', '2026-04-17 13:00:50'),
+(4, 'Wealth', 'true false', 3, NULL, 0, 3, 3, 0, 'pending', 0, NULL, NULL, NULL, 10, NULL, NULL, NULL, 1, '2026-04-22 12:46:14', '2026-04-22 12:46:14'),
+(5, 'Health & Beauty', 'fixed my soul', 1, NULL, 2, 2, 2, 1, 'completed', 1, 5, NULL, '2026-04-27 16:47:10', 10, '2026-04-27 16:57:10', NULL, NULL, 1, '2026-04-22 12:48:43', '2026-04-27 23:57:28');
 
 -- --------------------------------------------------------
 
@@ -349,6 +350,51 @@ CREATE TABLE `heist_content_bank` (
   PRIMARY KEY (`id`),
   KEY `idx_heist_content_bank_active_created` (`is_active`, `created_at`),
   KEY `idx_heist_content_bank_created_by` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `heist_demo_users`
+--
+
+CREATE TABLE `heist_demo_users` (
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `display_name` varchar(120) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_heist_demo_users_display_name` (`display_name`),
+  KEY `idx_heist_demo_users_active_created` (`is_active`, `created_at`),
+  KEY `idx_heist_demo_users_created_by` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `heist_demo_submissions`
+--
+
+CREATE TABLE `heist_demo_submissions` (
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `heist_id` int(11) NOT NULL,
+  `demo_user_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `display_name` varchar(120) NOT NULL,
+  `correct_count` int(11) NOT NULL DEFAULT 0,
+  `wrong_count` int(11) NOT NULL DEFAULT 0,
+  `unanswered_count` int(11) NOT NULL DEFAULT 0,
+  `score_percent` decimal(5,2) NOT NULL DEFAULT 0.00,
+  `total_time_seconds` int(11) NOT NULL DEFAULT 0,
+  `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_heist_demo_submissions_rank` (`heist_id`, `correct_count`, `total_time_seconds`, `submitted_at`),
+  KEY `idx_heist_demo_submissions_demo_user` (`demo_user_id`),
+  KEY `idx_heist_demo_submissions_created_by` (`created_by`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -882,6 +928,7 @@ ALTER TABLE `heist`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_heist_status` (`status`),
   ADD KEY `idx_heist_winner_user` (`winner_user_id`),
+  ADD KEY `idx_heist_winner_demo` (`winner_demo_submission_id`),
   ADD KEY `idx_heist_created_by` (`created_by`);
 
 --

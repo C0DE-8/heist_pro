@@ -1,6 +1,9 @@
 const { noticePayload, sendPushToUser } = require("./push.service");
 
 let heistMaxUsersColumnReady = false;
+let heistDemoSubmissionsTableReady = false;
+let heistWinnerDemoColumnReady = false;
+let heistDemoUsersTableReady = false;
 
 function normalizeAnswer(value) {
   const answer = String(value || "").trim().toLowerCase();
@@ -33,6 +36,145 @@ async function ensureHeistMaxUsersColumn(db) {
   }
 
   heistMaxUsersColumnReady = true;
+}
+
+async function ensureHeistDemoSubmissionsTable(db) {
+  if (heistDemoSubmissionsTableReady) return;
+
+  await db.query(
+    `CREATE TABLE IF NOT EXISTS heist_demo_submissions (
+      id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+      heist_id int(11) NOT NULL,
+      demo_user_id bigint(20) UNSIGNED DEFAULT NULL,
+      display_name varchar(120) NOT NULL,
+      correct_count int(11) NOT NULL DEFAULT 0,
+      wrong_count int(11) NOT NULL DEFAULT 0,
+      unanswered_count int(11) NOT NULL DEFAULT 0,
+      score_percent decimal(5,2) NOT NULL DEFAULT 0.00,
+      total_time_seconds int(11) NOT NULL DEFAULT 0,
+      submitted_at datetime NOT NULL DEFAULT current_timestamp(),
+      created_by int(11) DEFAULT NULL,
+      created_at timestamp NOT NULL DEFAULT current_timestamp(),
+      updated_at timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+      PRIMARY KEY (id),
+      KEY idx_heist_demo_submissions_rank (heist_id, correct_count, total_time_seconds, submitted_at),
+      KEY idx_heist_demo_submissions_demo_user (demo_user_id),
+      KEY idx_heist_demo_submissions_created_by (created_by)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+
+  const [[databaseRow]] = await db.query("SELECT DATABASE() AS db_name");
+  const dbName = databaseRow?.db_name;
+  if (!dbName) throw new Error("Unable to detect database for heist schema check");
+
+  const [[column]] = await db.query(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'heist_demo_submissions'
+       AND COLUMN_NAME = 'demo_user_id'
+     LIMIT 1`,
+    [dbName]
+  );
+
+  if (!column) {
+    try {
+      await db.query(
+        "ALTER TABLE heist_demo_submissions ADD COLUMN demo_user_id bigint(20) UNSIGNED DEFAULT NULL AFTER heist_id"
+      );
+    } catch (err) {
+      if (err?.code !== "ER_DUP_FIELDNAME" && err?.errno !== 1060) throw err;
+    }
+  }
+
+  const [[index]] = await db.query(
+    `SELECT INDEX_NAME
+     FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'heist_demo_submissions'
+       AND INDEX_NAME = 'idx_heist_demo_submissions_demo_user'
+     LIMIT 1`,
+    [dbName]
+  );
+
+  if (!index) {
+    try {
+      await db.query("ALTER TABLE heist_demo_submissions ADD KEY idx_heist_demo_submissions_demo_user (demo_user_id)");
+    } catch (err) {
+      if (err?.code !== "ER_DUP_KEYNAME" && err?.errno !== 1061) throw err;
+    }
+  }
+
+  heistDemoSubmissionsTableReady = true;
+}
+
+async function ensureHeistDemoUsersTable(db) {
+  if (heistDemoUsersTableReady) return;
+
+  await db.query(
+    `CREATE TABLE IF NOT EXISTS heist_demo_users (
+      id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+      display_name varchar(120) NOT NULL,
+      is_active tinyint(1) NOT NULL DEFAULT 1,
+      created_by int(11) DEFAULT NULL,
+      created_at timestamp NOT NULL DEFAULT current_timestamp(),
+      updated_at timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+      PRIMARY KEY (id),
+      UNIQUE KEY uniq_heist_demo_users_display_name (display_name),
+      KEY idx_heist_demo_users_active_created (is_active, created_at),
+      KEY idx_heist_demo_users_created_by (created_by)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+
+  heistDemoUsersTableReady = true;
+}
+
+async function ensureHeistWinnerDemoColumn(db) {
+  if (heistWinnerDemoColumnReady) return;
+
+  const [[databaseRow]] = await db.query("SELECT DATABASE() AS db_name");
+  const dbName = databaseRow?.db_name;
+  if (!dbName) throw new Error("Unable to detect database for heist schema check");
+
+  const [[column]] = await db.query(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'heist'
+       AND COLUMN_NAME = 'winner_demo_submission_id'
+     LIMIT 1`,
+    [dbName]
+  );
+
+  if (!column) {
+    try {
+      await db.query(
+        "ALTER TABLE heist ADD COLUMN winner_demo_submission_id bigint(20) UNSIGNED DEFAULT NULL AFTER winner_user_id"
+      );
+    } catch (err) {
+      if (err?.code !== "ER_DUP_FIELDNAME" && err?.errno !== 1060) throw err;
+    }
+  }
+
+  const [[index]] = await db.query(
+    `SELECT INDEX_NAME
+     FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'heist'
+       AND INDEX_NAME = 'idx_heist_winner_demo'
+     LIMIT 1`,
+    [dbName]
+  );
+
+  if (!index) {
+    try {
+      await db.query("ALTER TABLE heist ADD KEY idx_heist_winner_demo (winner_demo_submission_id)");
+    } catch (err) {
+      if (err?.code !== "ER_DUP_KEYNAME" && err?.errno !== 1061) throw err;
+    }
+  }
+
+  heistWinnerDemoColumnReady = true;
 }
 
 function makeReferralCode() {
@@ -107,7 +249,7 @@ async function maybeStartCountdown(db, heistId) {
 
 async function finalizeHeist(db, heistId) {
   const [[heist]] = await db.query(
-    `SELECT id, prize_cop_points, status, submissions_locked, winner_user_id
+    `SELECT id, prize_cop_points, status, submissions_locked, winner_user_id, winner_demo_submission_id
      FROM heist
      WHERE id = ?
      LIMIT 1 FOR UPDATE`,
@@ -122,20 +264,48 @@ async function finalizeHeist(db, heistId) {
     return {
       found: true,
       already_completed: true,
-      winner: heist.winner_user_id ? { user_id: heist.winner_user_id } : null,
+      winner: heist.winner_user_id
+        ? { user_id: heist.winner_user_id }
+        : heist.winner_demo_submission_id
+          ? { demo_submission_id: heist.winner_demo_submission_id, is_demo: true }
+          : null,
       awarded_points: 0,
     };
   }
 
   const [[winner]] = await db.query(
-    `SELECT hs.id AS submission_id, hs.user_id, u.username,
-            hs.correct_count, hs.total_time_seconds, hs.submitted_at
-     FROM heist_submissions hs
-     JOIN users u ON u.id = hs.user_id
-     WHERE hs.heist_id = ? AND hs.status = 'submitted'
-     ORDER BY hs.correct_count DESC, hs.total_time_seconds ASC, hs.submitted_at ASC
+    `SELECT ranked.*
+     FROM (
+       SELECT
+         hs.id AS submission_id,
+         NULL AS demo_submission_id,
+         hs.user_id,
+         u.username,
+         0 AS is_demo,
+         hs.correct_count,
+         hs.total_time_seconds,
+         hs.submitted_at,
+         0 AS source_order
+       FROM heist_submissions hs
+       JOIN users u ON u.id = hs.user_id
+       WHERE hs.heist_id = ? AND hs.status = 'submitted'
+       UNION ALL
+       SELECT
+         NULL AS submission_id,
+         hds.id AS demo_submission_id,
+         NULL AS user_id,
+         hds.display_name AS username,
+         1 AS is_demo,
+         hds.correct_count,
+         hds.total_time_seconds,
+         hds.submitted_at,
+         1 AS source_order
+       FROM heist_demo_submissions hds
+       WHERE hds.heist_id = ?
+     ) ranked
+     ORDER BY ranked.correct_count DESC, ranked.total_time_seconds ASC, ranked.submitted_at ASC, ranked.source_order ASC
      LIMIT 1`,
-    [heistId]
+    [heistId, heistId]
   );
 
   if (!winner) {
@@ -146,40 +316,51 @@ async function finalizeHeist(db, heistId) {
     return { found: true, winner: null, awarded_points: 0 };
   }
 
-  await db.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
-    heist.prize_cop_points,
-    winner.user_id,
-  ]);
+  if (Number(winner.is_demo)) {
+    await db.query(
+      `UPDATE heist
+       SET winner_user_id = NULL, winner_demo_submission_id = ?, status = 'completed', submissions_locked = 1
+       WHERE id = ?`,
+      [winner.demo_submission_id, heistId]
+    );
+  } else {
+    await db.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
+      heist.prize_cop_points,
+      winner.user_id,
+    ]);
 
-  await db.query(
-    `UPDATE heist
-     SET winner_user_id = ?, status = 'completed', submissions_locked = 1
-     WHERE id = ?`,
-    [winner.user_id, heistId]
-  );
+    await db.query(
+      `UPDATE heist
+       SET winner_user_id = ?, winner_demo_submission_id = NULL, status = 'completed', submissions_locked = 1
+       WHERE id = ?`,
+      [winner.user_id, heistId]
+    );
 
-  sendPushToUser(
-    winner.user_id,
-    noticePayload({
-      alertId: `heist:${heistId}:winner`,
-      type: "winner",
-      title: "You won a heist",
-      body: `You won ${Number(heist.prize_cop_points || 0).toLocaleString()} CopUpCoin.`,
-      path: `/heist/${heistId}/result`,
-    })
-  ).catch((pushErr) => console.error("heist winner push error:", pushErr.message));
+    sendPushToUser(
+      winner.user_id,
+      noticePayload({
+        alertId: `heist:${heistId}:winner`,
+        type: "winner",
+        title: "You won a heist",
+        body: `You won ${Number(heist.prize_cop_points || 0).toLocaleString()} CopUpCoin.`,
+        path: `/heist/${heistId}/result`,
+      })
+    ).catch((pushErr) => console.error("heist winner push error:", pushErr.message));
+  }
 
   return {
     found: true,
     winner: {
       user_id: winner.user_id,
+      demo_submission_id: winner.demo_submission_id,
       username: winner.username,
+      is_demo: Boolean(Number(winner.is_demo)),
       submission_id: winner.submission_id,
       correct_count: winner.correct_count,
       total_time_seconds: winner.total_time_seconds,
       submitted_at: winner.submitted_at,
     },
-    awarded_points: heist.prize_cop_points,
+    awarded_points: Number(winner.is_demo) ? 0 : heist.prize_cop_points,
   };
 }
 
@@ -260,6 +441,9 @@ async function recordAffiliateTaskProgress(db, heistId, affiliateUserId) {
 
 module.exports = {
   ensureHeistMaxUsersColumn,
+  ensureHeistDemoSubmissionsTable,
+  ensureHeistDemoUsersTable,
+  ensureHeistWinnerDemoColumn,
   normalizeAnswer,
   makeReferralCode,
   makeReferralLink,

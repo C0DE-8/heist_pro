@@ -3,6 +3,9 @@ const { pool } = require("../conf/db");
 const { authenticateToken, authenticateAdmin } = require("../middleware/auth");
 const {
   ensureHeistMaxUsersColumn,
+  ensureHeistDemoSubmissionsTable,
+  ensureHeistDemoUsersTable,
+  ensureHeistWinnerDemoColumn,
   normalizeAnswer,
   finalizeHeist,
 } = require("../services/heist.service");
@@ -19,6 +22,9 @@ router.use(authenticateToken, authenticateAdmin);
 router.use(async (req, res, next) => {
   try {
     await ensureHeistMaxUsersColumn(pool);
+    await ensureHeistDemoUsersTable(pool);
+    await ensureHeistDemoSubmissionsTable(pool);
+    await ensureHeistWinnerDemoColumn(pool);
     await ensureAutoHeistTables(pool);
     next();
   } catch (err) {
@@ -67,6 +73,30 @@ function parseMaxUsers(value, minUsers) {
     return { ok: false, message: "max_users must be greater than or equal to min_users" };
   }
   return { ok: true, value: maxUsers };
+}
+
+function parseNonNegativeInt(value, field) {
+  const number = Number(value || 0);
+  if (!Number.isInteger(number) || number < 0) {
+    return { ok: false, message: `${field} must be 0 or greater` };
+  }
+  return { ok: true, value: number };
+}
+
+function normalizeDemoSubmittedAt(value) {
+  const normalized = normalizeDateTimeInput(value);
+  if (normalized === undefined || normalized === null) return new Date();
+  return normalized;
+}
+
+function calculateDemoScore({ correctCount, wrongCount, unansweredCount, fallbackTotal }) {
+  const total = Number(fallbackTotal || 0) || correctCount + wrongCount + unansweredCount;
+  if (!total) return 0;
+  return Number(((correctCount / total) * 100).toFixed(2));
+}
+
+function cleanDemoDisplayName(value) {
+  return String(value || "").trim().slice(0, 120);
 }
 
 async function getAssignedQuestionCount(conn, heistId) {
@@ -247,17 +277,22 @@ router.get("/", async (req, res) => {
          h.starts_at,
          h.ends_at,
          h.winner_user_id,
+         h.winner_demo_submission_id,
          h.created_at,
-         winner.username AS winner_username,
-         winner.full_name AS winner_full_name,
+         COALESCE(winner.username, demoWinner.display_name) AS winner_username,
+         COALESCE(winner.full_name, demoWinner.display_name) AS winner_full_name,
+         CASE WHEN h.winner_demo_submission_id IS NULL THEN 0 ELSE 1 END AS winner_is_demo,
          COUNT(DISTINCT hp.id) AS total_participants,
          COUNT(DISTINCT hs.id) AS total_submissions,
+         COUNT(DISTINCT hds.id) AS total_demo_submissions,
          COUNT(DISTINCT CASE WHEN hp.status = 'joined' THEN hp.id END) AS joined_participants,
          COUNT(DISTINCT CASE WHEN hp.status = 'submitted' THEN hp.id END) AS submitted_participants
        FROM heist h
        LEFT JOIN users winner ON winner.id = h.winner_user_id
+       LEFT JOIN heist_demo_submissions demoWinner ON demoWinner.id = h.winner_demo_submission_id
        LEFT JOIN heist_participants hp ON hp.heist_id = h.id
        LEFT JOIN heist_submissions hs ON hs.heist_id = h.id AND hs.status = 'submitted'
+       LEFT JOIN heist_demo_submissions hds ON hds.heist_id = h.id
        GROUP BY h.id
        ORDER BY h.created_at DESC`
     );
@@ -287,6 +322,107 @@ router.patch("/auto-settings", async (req, res) => {
   } catch (err) {
     console.error("admin auto heist settings update error:", err);
     return res.status(500).json({ message: "Error updating auto heist settings" });
+  }
+});
+
+// Reusable marketing demo users
+router.get("/demo-users", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+         du.id,
+         du.display_name,
+         du.is_active,
+         du.created_by,
+         du.created_at,
+         du.updated_at,
+         COUNT(hds.id) AS heist_count
+       FROM heist_demo_users du
+       LEFT JOIN heist_demo_submissions hds ON hds.demo_user_id = du.id
+       GROUP BY du.id
+       ORDER BY du.is_active DESC, du.display_name ASC`
+    );
+
+    return res.json({ demo_users: rows });
+  } catch (err) {
+    console.error("admin demo user bank list error:", err);
+    return res.status(500).json({ message: "Error fetching demo users" });
+  }
+});
+
+router.post("/demo-users", async (req, res) => {
+  try {
+    const displayName = cleanDemoDisplayName(req.body?.display_name || req.body?.name);
+    if (!displayName) return res.status(400).json({ message: "display_name is required" });
+
+    const [result] = await pool.query(
+      `INSERT INTO heist_demo_users (display_name, is_active, created_by)
+       VALUES (?, ?, ?)`,
+      [displayName, boolToTinyInt(req.body?.is_active !== false), req.user.userId]
+    );
+
+    const [[demoUser]] = await pool.query(
+      `SELECT id, display_name, is_active, created_by, created_at, updated_at
+       FROM heist_demo_users
+       WHERE id = ?
+       LIMIT 1`,
+      [result.insertId]
+    );
+
+    return res.status(201).json({ message: "Demo user saved", demo_user: demoUser });
+  } catch (err) {
+    if (err?.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "A demo user with this name already exists" });
+    }
+    console.error("admin demo user bank create error:", err);
+    return res.status(500).json({ message: "Error saving demo user" });
+  }
+});
+
+router.patch("/demo-users/:demoUserId", async (req, res) => {
+  try {
+    const demoUserId = Number(req.params.demoUserId);
+    if (!demoUserId) return res.status(400).json({ message: "Invalid demo user" });
+
+    const updates = [];
+    const params = [];
+
+    if (req.body?.display_name !== undefined || req.body?.name !== undefined) {
+      const displayName = cleanDemoDisplayName(req.body?.display_name || req.body?.name);
+      if (!displayName) return res.status(400).json({ message: "display_name is required" });
+      updates.push("display_name = ?");
+      params.push(displayName);
+    }
+
+    if (req.body?.is_active !== undefined) {
+      updates.push("is_active = ?");
+      params.push(boolToTinyInt(req.body.is_active));
+    }
+
+    if (!updates.length) return res.status(400).json({ message: "No updates provided" });
+
+    params.push(demoUserId);
+    const [result] = await pool.query(
+      `UPDATE heist_demo_users SET ${updates.join(", ")} WHERE id = ?`,
+      params
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Demo user not found" });
+
+    const [[demoUser]] = await pool.query(
+      `SELECT id, display_name, is_active, created_by, created_at, updated_at
+       FROM heist_demo_users
+       WHERE id = ?
+       LIMIT 1`,
+      [demoUserId]
+    );
+
+    return res.json({ message: "Demo user updated", demo_user: demoUser });
+  } catch (err) {
+    if (err?.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "A demo user with this name already exists" });
+    }
+    console.error("admin demo user bank update error:", err);
+    return res.status(500).json({ message: "Error updating demo user" });
   }
 });
 
@@ -867,19 +1003,24 @@ router.get("/:id", async (req, res) => {
          h.created_at,
          h.updated_at,
          h.winner_user_id,
+         h.winner_demo_submission_id,
          creator.username AS created_by_username,
          creator.full_name AS created_by_full_name,
-         winner.username AS winner_username,
-         winner.full_name AS winner_full_name,
+         COALESCE(winner.username, demoWinner.display_name) AS winner_username,
+         COALESCE(winner.full_name, demoWinner.display_name) AS winner_full_name,
+         CASE WHEN h.winner_demo_submission_id IS NULL THEN 0 ELSE 1 END AS winner_is_demo,
          COUNT(DISTINCT hp.id) AS total_participants,
          COUNT(DISTINCT hs.id) AS total_submissions,
+         COUNT(DISTINCT hds.id) AS total_demo_submissions,
          COUNT(DISTINCT CASE WHEN hp.status = 'joined' THEN hp.id END) AS joined_participants,
          COUNT(DISTINCT CASE WHEN hp.status = 'submitted' THEN hp.id END) AS submitted_participants
        FROM heist h
        LEFT JOIN users creator ON creator.id = h.created_by
        LEFT JOIN users winner ON winner.id = h.winner_user_id
+       LEFT JOIN heist_demo_submissions demoWinner ON demoWinner.id = h.winner_demo_submission_id
        LEFT JOIN heist_participants hp ON hp.heist_id = h.id
        LEFT JOIN heist_submissions hs ON hs.heist_id = h.id AND hs.status = 'submitted'
+       LEFT JOIN heist_demo_submissions hds ON hds.heist_id = h.id
        WHERE h.id = ?
        GROUP BY h.id
        LIMIT 1`,
@@ -923,7 +1064,16 @@ router.get("/:id", async (req, res) => {
       [heistId]
     );
 
-    return res.json({ heist, participants });
+    const [demoSubmissions] = await pool.query(
+      `SELECT id, heist_id, demo_user_id, display_name, correct_count, wrong_count, unanswered_count,
+              score_percent, total_time_seconds, submitted_at, created_at, updated_at
+       FROM heist_demo_submissions
+       WHERE heist_id = ?
+       ORDER BY correct_count DESC, total_time_seconds ASC, submitted_at ASC, id ASC`,
+      [heistId]
+    );
+
+    return res.json({ heist, participants, demo_submissions: demoSubmissions });
   } catch (err) {
     console.error("admin heist detail error:", err);
     return res.status(500).json({ message: "Error fetching heist details" });
@@ -971,6 +1121,146 @@ router.delete("/:id/questions/:questionId", async (req, res) => {
     return res.status(500).json({ message: "Error deleting question" });
   } finally {
     if (conn) conn.release();
+  }
+});
+
+// List demo leaderboard users
+router.get("/:id/demo-users", async (req, res) => {
+  try {
+    const heistId = Number(req.params.id);
+    if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+
+    const [rows] = await pool.query(
+      `SELECT id, heist_id, demo_user_id, display_name, correct_count, wrong_count, unanswered_count,
+              score_percent, total_time_seconds, submitted_at, created_at, updated_at
+       FROM heist_demo_submissions
+       WHERE heist_id = ?
+       ORDER BY correct_count DESC, total_time_seconds ASC, submitted_at ASC, id ASC`,
+      [heistId]
+    );
+
+    return res.json({ demo_users: rows });
+  } catch (err) {
+    console.error("admin demo users list error:", err);
+    return res.status(500).json({ message: "Error fetching demo users" });
+  }
+});
+
+// Add demo leaderboard user
+router.post("/:id/demo-users", async (req, res) => {
+  try {
+    const heistId = Number(req.params.id);
+    if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+
+    const demoUserId = Number(req.body?.demo_user_id || 0);
+    let displayName = cleanDemoDisplayName(req.body?.display_name || req.body?.name);
+
+    if (demoUserId) {
+      const [[demoUser]] = await pool.query(
+        "SELECT id, display_name, is_active FROM heist_demo_users WHERE id = ? LIMIT 1",
+        [demoUserId]
+      );
+      if (!demoUser) return res.status(404).json({ message: "Demo user not found" });
+      if (!Number(demoUser.is_active)) return res.status(400).json({ message: "Demo user is inactive" });
+      displayName = demoUser.display_name;
+    }
+
+    if (!displayName) return res.status(400).json({ message: "Select or create a demo user first" });
+
+    const correctParsed = parseNonNegativeInt(req.body?.correct_count, "correct_count");
+    if (!correctParsed.ok) return res.status(400).json({ message: correctParsed.message });
+    const wrongParsed = parseNonNegativeInt(req.body?.wrong_count, "wrong_count");
+    if (!wrongParsed.ok) return res.status(400).json({ message: wrongParsed.message });
+    const unansweredParsed = parseNonNegativeInt(req.body?.unanswered_count, "unanswered_count");
+    if (!unansweredParsed.ok) return res.status(400).json({ message: unansweredParsed.message });
+    const timeParsed = parseNonNegativeInt(req.body?.total_time_seconds, "total_time_seconds");
+    if (!timeParsed.ok) return res.status(400).json({ message: timeParsed.message });
+
+    const submittedAt = normalizeDemoSubmittedAt(req.body?.submitted_at);
+    if (submittedAt === false) return res.status(400).json({ message: "submitted_at must be a valid date" });
+
+    const [[heist]] = await pool.query(
+      `SELECT h.id, h.total_questions, COUNT(hq.id) AS assigned_questions
+       FROM heist h
+       LEFT JOIN heist_questions hq ON hq.heist_id = h.id AND hq.is_active = 1
+       WHERE h.id = ?
+       GROUP BY h.id
+       LIMIT 1`,
+      [heistId]
+    );
+    if (!heist) return res.status(404).json({ message: "Heist not found" });
+
+    const questionLimit = Number(heist.assigned_questions || heist.total_questions || 0);
+    if (questionLimit <= 0) {
+      return res.status(400).json({ message: "Assign questions to this heist before adding demo users" });
+    }
+
+    const answerTotal = correctParsed.value + wrongParsed.value + unansweredParsed.value;
+    if (answerTotal > questionLimit) {
+      return res.status(400).json({
+        message: `Demo answers cannot be more than the ${questionLimit} question(s) assigned to this heist`,
+      });
+    }
+
+    const scorePercent = calculateDemoScore({
+      correctCount: correctParsed.value,
+      wrongCount: wrongParsed.value,
+      unansweredCount: unansweredParsed.value,
+      fallbackTotal: questionLimit,
+    });
+
+    const [result] = await pool.query(
+      `INSERT INTO heist_demo_submissions
+        (heist_id, demo_user_id, display_name, correct_count, wrong_count, unanswered_count,
+         score_percent, total_time_seconds, submitted_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        heistId,
+        demoUserId || null,
+        displayName,
+        correctParsed.value,
+        wrongParsed.value,
+        unansweredParsed.value,
+        scorePercent,
+        timeParsed.value,
+        submittedAt,
+        req.user.userId,
+      ]
+    );
+
+    const [[demoUser]] = await pool.query(
+      `SELECT id, heist_id, demo_user_id, display_name, correct_count, wrong_count, unanswered_count,
+              score_percent, total_time_seconds, submitted_at, created_at, updated_at
+       FROM heist_demo_submissions
+       WHERE id = ?
+       LIMIT 1`,
+      [result.insertId]
+    );
+
+    return res.status(201).json({ message: "Demo user added", demo_user: demoUser });
+  } catch (err) {
+    console.error("admin demo user add error:", err);
+    return res.status(500).json({ message: "Error adding demo user" });
+  }
+});
+
+// Delete demo leaderboard user
+router.delete("/:id/demo-users/:demoId", async (req, res) => {
+  try {
+    const heistId = Number(req.params.id);
+    const demoId = Number(req.params.demoId);
+    if (!heistId || !demoId) return res.status(400).json({ message: "Invalid demo user" });
+
+    const [result] = await pool.query(
+      "DELETE FROM heist_demo_submissions WHERE id = ? AND heist_id = ?",
+      [demoId, heistId]
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Demo user not found" });
+
+    return res.json({ message: "Demo user deleted" });
+  } catch (err) {
+    console.error("admin demo user delete error:", err);
+    return res.status(500).json({ message: "Error deleting demo user" });
   }
 });
 

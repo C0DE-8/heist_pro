@@ -90,10 +90,35 @@ export async function runAdminAutoHeist() {
   return data;
 }
 
+export async function getAdminDemoUsers() {
+  const { data } = await api.get("/admin/heists/demo-users");
+  return data;
+}
+
+export async function createAdminDemoUser(payload) {
+  const { data } = await api.post("/admin/heists/demo-users", payload);
+  return data;
+}
+
+export async function updateAdminDemoUser(demoUserId, payload) {
+  const { data } = await api.patch(`/admin/heists/demo-users/${demoUserId}`, payload);
+  return data;
+}
+
 export async function assignAdminHeistQuestions(heistId, questionCount) {
   const { data } = await api.post(`/admin/heists/${heistId}/questions/assign`, {
     question_count: questionCount,
   });
+  return data;
+}
+
+export async function createAdminHeistDemoUser(heistId, payload) {
+  const { data } = await api.post(`/admin/heists/${heistId}/demo-users`, payload);
+  return data;
+}
+
+export async function deleteAdminHeistDemoUser(heistId, demoId) {
+  const { data } = await api.delete(`/admin/heists/${heistId}/demo-users/${demoId}`);
   return data;
 }
 

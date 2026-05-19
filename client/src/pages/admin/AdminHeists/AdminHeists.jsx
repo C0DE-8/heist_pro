@@ -18,15 +18,19 @@ import {
   addAdminQuestionBankQuestions,
   assignAdminHeistQuestions,
   createAdminAffiliateTask,
+  createAdminDemoUser,
+  createAdminHeistDemoUser,
   createAdminHeistContent,
   createAdminHeist,
   deleteAdminAffiliateTask,
+  deleteAdminHeistDemoUser,
   deleteAdminHeistContent,
   deleteAdminHeistQuestion,
   deleteAdminQuestionBankQuestion,
   finalizeAdminHeist,
   getAdminAutoHeistSettings,
   getAdminAffiliateTaskProgress,
+  getAdminDemoUsers,
   getAdminHeist,
   getAdminHeistContentBank,
   getAdminAffiliateTasks,
@@ -37,6 +41,7 @@ import {
   updateAdminAutoHeistSettings,
   updateAdminHeist,
   updateAdminAffiliateTask,
+  updateAdminDemoUser,
   updateAdminHeistStatus,
 } from "../../../lib/adminHeists";
 import styles from "./AdminHeists.module.css";
@@ -80,6 +85,16 @@ const EMPTY_AUTO_HEIST = {
   prize_cop_points: "0",
   questions_per_session: "3",
   countdown_duration_minutes: "10",
+};
+
+const EMPTY_DEMO_USER = {
+  demo_user_id: "",
+  display_name: "",
+  correct_count: "0",
+  wrong_count: "0",
+  unanswered_count: "0",
+  total_time_seconds: "60",
+  submitted_at: "",
 };
 
 const HEISTS_PER_PAGE = 6;
@@ -193,6 +208,8 @@ function AdminHeistsPage() {
   const [tasks, setTasks] = useState([]);
   const [progress, setProgress] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [demoUsers, setDemoUsers] = useState([]);
+  const [demoUserBank, setDemoUserBank] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -213,6 +230,8 @@ function AdminHeistsPage() {
   const [taskForm, setTaskForm] = useState(EMPTY_TASK);
   const [contentForm, setContentForm] = useState(EMPTY_CONTENT);
   const [autoHeistForm, setAutoHeistForm] = useState(EMPTY_AUTO_HEIST);
+  const [demoUserForm, setDemoUserForm] = useState(EMPTY_DEMO_USER);
+  const [demoBankName, setDemoBankName] = useState("");
   const [statusValue, setStatusValue] = useState("pending");
   const [sessionQuestionCount, setSessionQuestionCount] = useState("0");
   const [activePage, setActivePage] = useState(1);
@@ -238,6 +257,19 @@ function AdminHeistsPage() {
     if (Number(detailHeist?.id) === Number(selectedId)) return detailHeist;
     return selectedHeist;
   }, [detailHeist, selectedHeist, selectedId]);
+
+  const demoQuestionLimit = useMemo(
+    () => Math.max(Number(activeDetailHeist?.total_questions || 0), questions.length),
+    [activeDetailHeist?.total_questions, questions.length]
+  );
+
+  const demoAnswerTotal = useMemo(
+    () =>
+      Number(demoUserForm.correct_count || 0) +
+      Number(demoUserForm.wrong_count || 0) +
+      Number(demoUserForm.unanswered_count || 0),
+    [demoUserForm.correct_count, demoUserForm.wrong_count, demoUserForm.unanswered_count]
+  );
 
   const totals = useMemo(
     () => ({
@@ -327,6 +359,16 @@ function AdminHeistsPage() {
     }
   }, [toast]);
 
+  const loadDemoUserBank = useCallback(async () => {
+    try {
+      const data = await getAdminDemoUsers();
+      setDemoUserBank(Array.isArray(data?.demo_users) ? data.demo_users : []);
+    } catch (err) {
+      console.error("Load demo user bank error:", err);
+      toast.error(err?.response?.data?.message || "Unable to load demo users.");
+    }
+  }, [toast]);
+
   const loadSelectedDetails = useCallback(async () => {
     if (!selectedId) {
       setDetailHeist(null);
@@ -334,6 +376,7 @@ function AdminHeistsPage() {
       setTasks([]);
       setProgress([]);
       setParticipants([]);
+      setDemoUsers([]);
       return;
     }
 
@@ -351,6 +394,7 @@ function AdminHeistsPage() {
       setTasks(Array.isArray(taskData?.tasks) ? taskData.tasks : []);
       setProgress(Array.isArray(progressData?.progress) ? progressData.progress : []);
       setParticipants(Array.isArray(heistData?.participants) ? heistData.participants : []);
+      setDemoUsers(Array.isArray(heistData?.demo_submissions) ? heistData.demo_submissions : []);
     } catch (err) {
       console.error("Load heist details error:", err);
       toast.error(err?.response?.data?.message || "Unable to load heist details.");
@@ -364,7 +408,8 @@ function AdminHeistsPage() {
     loadQuestionBank();
     loadContentBank();
     loadAutoHeistSettings();
-  }, [loadHeists, loadQuestionBank, loadContentBank, loadAutoHeistSettings]);
+    loadDemoUserBank();
+  }, [loadHeists, loadQuestionBank, loadContentBank, loadAutoHeistSettings, loadDemoUserBank]);
 
   useEffect(() => {
     if (activeDetailHeist?.status) setStatusValue(activeDetailHeist.status);
@@ -388,6 +433,14 @@ function AdminHeistsPage() {
     setCompletedPage((current) => Math.min(current, completedPageCount));
   }, [completedPageCount]);
 
+  useEffect(() => {
+    if (!isArchivePage || !completedHeists.length) return;
+    const selectedIsCompleted = completedHeists.some(
+      (heist) => Number(heist.id) === Number(selectedId)
+    );
+    if (!selectedIsCompleted) setSelectedId(completedHeists[0].id);
+  }, [completedHeists, isArchivePage, selectedId]);
+
   const updateCreateForm = (event) => {
     const { name, value } = event.target;
     setCreateForm((prev) => ({ ...prev, [name]: value }));
@@ -406,6 +459,21 @@ function AdminHeistsPage() {
   const updateAutoHeistForm = (event) => {
     const { name, type, checked, value } = event.target;
     setAutoHeistForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const updateDemoUserForm = (event) => {
+    const { name, value } = event.target;
+    setDemoUserForm((prev) => {
+      if (name === "demo_user_id") {
+        const selectedDemoUser = demoUserBank.find((user) => Number(user.id) === Number(value));
+        return {
+          ...prev,
+          demo_user_id: value,
+          display_name: selectedDemoUser?.display_name || "",
+        };
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   const applyContentTemplate = (mode, contentId) => {
@@ -620,6 +688,124 @@ function AdminHeistsPage() {
     }
   };
 
+  const createDemoUser = async (event) => {
+    event.preventDefault();
+    if (!selectedId || busy) return;
+    if (!demoUserForm.demo_user_id) {
+      toast.warn("Select a demo user first.");
+      return;
+    }
+    if (demoQuestionLimit <= 0) {
+      toast.warn("Assign questions to this heist before adding demo players.");
+      return;
+    }
+    if (demoAnswerTotal > demoQuestionLimit) {
+      toast.warn(`Demo answers cannot be more than ${demoQuestionLimit} question(s).`);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await createAdminHeistDemoUser(selectedId, {
+        demo_user_id: Number(demoUserForm.demo_user_id),
+        display_name: demoUserForm.display_name.trim(),
+        correct_count: Number(demoUserForm.correct_count || 0),
+        wrong_count: Number(demoUserForm.wrong_count || 0),
+        unanswered_count: Number(demoUserForm.unanswered_count || 0),
+        total_time_seconds: Number(demoUserForm.total_time_seconds || 0),
+        submitted_at: demoUserForm.submitted_at || null,
+      });
+      toast.success("Demo player added");
+      setDemoUserForm(EMPTY_DEMO_USER);
+      await loadSelectedDetails();
+    } catch (err) {
+      console.error("Create demo player error:", err);
+      toast.error(err?.response?.data?.message || "Unable to add demo player.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createDemoBankUser = async () => {
+    const displayName = demoBankName.trim();
+    if (!displayName || busy) return;
+
+    setBusy(true);
+    try {
+      const data = await createAdminDemoUser({ display_name: displayName });
+      toast.success("Demo user saved");
+      setDemoBankName("");
+      await loadDemoUserBank();
+      if (data?.demo_user?.id) {
+        setDemoUserForm((prev) => ({
+          ...prev,
+          demo_user_id: String(data.demo_user.id),
+          display_name: data.demo_user.display_name,
+        }));
+      }
+    } catch (err) {
+      console.error("Create demo bank user error:", err);
+      toast.error(err?.response?.data?.message || "Unable to save demo user.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleDemoBankUser = async (demoUser) => {
+    if (!demoUser?.id || busy) return;
+
+    setBusy(true);
+    try {
+      await updateAdminDemoUser(demoUser.id, { is_active: !Number(demoUser.is_active) });
+      toast.success("Demo user updated");
+      await loadDemoUserBank();
+    } catch (err) {
+      console.error("Update demo bank user error:", err);
+      toast.error(err?.response?.data?.message || "Unable to update demo user.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const renameDemoBankUser = async (demoUser) => {
+    if (!demoUser?.id || busy) return;
+    const nextName = window.prompt("Update demo user name", demoUser.display_name);
+    if (nextName === null) return;
+    const displayName = nextName.trim();
+    if (!displayName || displayName === demoUser.display_name) return;
+
+    setBusy(true);
+    try {
+      await updateAdminDemoUser(demoUser.id, { display_name: displayName });
+      toast.success("Demo user renamed");
+      await loadDemoUserBank();
+      await loadSelectedDetails();
+    } catch (err) {
+      console.error("Rename demo bank user error:", err);
+      toast.error(err?.response?.data?.message || "Unable to rename demo user.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteDemoUser = async (demoUser) => {
+    if (!selectedId || !demoUser?.id || busy) return;
+    const ok = window.confirm("Delete this demo leaderboard player?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await deleteAdminHeistDemoUser(selectedId, demoUser.id);
+      toast.success("Demo player deleted");
+      await loadSelectedDetails();
+    } catch (err) {
+      console.error("Delete demo player error:", err);
+      toast.error(err?.response?.data?.message || "Unable to delete demo player.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const deleteBankQuestion = async (question) => {
     if (!question?.id || busy) return;
     const ok = window.confirm("Delete this unused bank question?");
@@ -817,6 +1003,123 @@ function AdminHeistsPage() {
       </div>
     );
   };
+
+  const renderDemoPlayersPanel = () => (
+    <article className={styles.detailPanel}>
+      <div className={styles.panelHead}>
+        <div>
+          <p className={styles.kicker}>Marketing</p>
+          <h2>Demo leaderboard players</h2>
+        </div>
+        <span className={styles.status}>{formatNum(demoUsers.length)} demo</span>
+      </div>
+
+      <form className={styles.demoUserForm} onSubmit={createDemoUser}>
+        <label className={styles.field}>
+          <span>Demo user</span>
+          <select
+            name="demo_user_id"
+            value={demoUserForm.demo_user_id}
+            onChange={updateDemoUserForm}
+          >
+            <option value="">Select demo user</option>
+            {demoUserBank
+              .filter((demoUser) => Number(demoUser.is_active))
+              .map((demoUser) => (
+                <option value={demoUser.id} key={demoUser.id}>
+                  {demoUser.display_name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className={styles.field}>
+          <span>Add to list</span>
+          <input
+            value={demoBankName}
+            onChange={(event) => setDemoBankName(event.target.value)}
+            placeholder="Maya Stone"
+          />
+        </label>
+        <button type="button" className={styles.softBtn} onClick={createDemoBankUser} disabled={busy || !demoBankName.trim()}>
+          <FaPlus />
+          <span>Save user</span>
+        </button>
+        <label className={styles.field}>
+          <span>Correct</span>
+          <input type="number" name="correct_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.correct_count} onChange={updateDemoUserForm} />
+        </label>
+        <label className={styles.field}>
+          <span>Wrong</span>
+          <input type="number" name="wrong_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.wrong_count} onChange={updateDemoUserForm} />
+        </label>
+        <label className={styles.field}>
+          <span>Unanswered</span>
+          <input type="number" name="unanswered_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.unanswered_count} onChange={updateDemoUserForm} />
+        </label>
+        <label className={styles.field}>
+          <span>Time seconds</span>
+          <input type="number" name="total_time_seconds" min="0" value={demoUserForm.total_time_seconds} onChange={updateDemoUserForm} />
+        </label>
+        <label className={styles.field}>
+          <span>Submitted at</span>
+          <input type="datetime-local" name="submitted_at" value={demoUserForm.submitted_at} onChange={updateDemoUserForm} />
+        </label>
+        <button type="submit" className={styles.primaryBtn} disabled={busy || !selectedId || !demoUserForm.demo_user_id || demoQuestionLimit <= 0 || demoAnswerTotal > demoQuestionLimit}>
+          <FaPlus />
+          <span>Add to heist</span>
+        </button>
+      </form>
+      <p className={styles.softNote}>
+        {demoQuestionLimit > 0
+          ? `${formatNum(demoAnswerTotal)} of ${formatNum(demoQuestionLimit)} question slots used for this demo player.`
+          : "Assign questions before adding demo players."}
+      </p>
+
+      <div className={styles.rows}>
+        {demoUserBank.length ? (
+          <div className={styles.demoBankStrip}>
+            {demoUserBank.slice(0, 8).map((demoUser) => (
+              <span className={styles.demoChipGroup} key={demoUser.id}>
+                <button
+                  type="button"
+                  className={Number(demoUser.is_active) ? styles.demoChip : styles.demoChipOff}
+                  onClick={() => toggleDemoBankUser(demoUser)}
+                  disabled={busy}
+                  title={Number(demoUser.is_active) ? "Click to hide from picker" : "Click to show in picker"}
+                >
+                  {demoUser.display_name}
+                </button>
+                <button type="button" className={styles.iconMiniBtn} onClick={() => renameDemoBankUser(demoUser)} disabled={busy}>
+                  <FaEdit />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {demoUsers.length ? (
+          demoUsers.map((demoUser) => (
+            <div className={styles.dataRow} key={demoUser.id}>
+              <span>
+                <strong>{demoUser.display_name}</strong>
+                <small>
+                  {formatNum(demoUser.correct_count)} correct · {formatNum(demoUser.wrong_count)} wrong · {formatNum(demoUser.total_time_seconds)}s
+                </small>
+                <small>Submitted {formatDate(demoUser.submitted_at)}</small>
+              </span>
+              <div className={styles.rowActions}>
+                <em>demo</em>
+                <button type="button" onClick={() => deleteDemoUser(demoUser)} disabled={busy}>
+                  <FaTrash />
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className={styles.emptyState}>No demo players yet.</div>
+        )}
+      </div>
+    </article>
+  );
 
   return (
     <div className={styles.page}>
@@ -1034,7 +1337,8 @@ function AdminHeistsPage() {
                     </small>
                     <span className={styles.cardStats}>
                       <em>{formatCapacity(heist)}</em>
-                      <em>{formatNum(heist.total_submissions)} submissions</em>
+                      <em>users {formatNum(heist.total_submissions)}</em>
+                      <em>demo {formatNum(heist.total_demo_submissions)}</em>
                       <em>{formatTimerWindow(heist)}</em>
                     </span>
                   </button>
@@ -1134,6 +1438,7 @@ function AdminHeistsPage() {
                 <div><span>Min users</span><strong>{formatNum(activeDetailHeist.min_users)}</strong></div>
                 <div><span>Max users</span><strong>{activeDetailHeist.max_users ? formatNum(activeDetailHeist.max_users) : "Unlimited"}</strong></div>
                 <div><span>Participants</span><strong>{formatNum(activeDetailHeist.total_participants)}</strong></div>
+                <div><span>Demo users</span><strong>{formatNum(activeDetailHeist.total_demo_submissions)}</strong></div>
                 <div><span>Joined only</span><strong>{formatNum(activeDetailHeist.joined_participants)}</strong></div>
                 <div><span>Submitted</span><strong>{formatNum(activeDetailHeist.submitted_participants)}</strong></div>
                 <div><span>Assigned questions</span><strong>{formatNum(activeDetailHeist.total_questions)}</strong></div>
@@ -1232,6 +1537,8 @@ function AdminHeistsPage() {
                 )}
               </div>
             </article>
+
+            {renderDemoPlayersPanel()}
 
             <article className={styles.detailPanel}>
               <div className={styles.panelHead}>
@@ -1346,51 +1653,63 @@ function AdminHeistsPage() {
         ) : null}
 
         {isArchivePage ? (
-        <section className={styles.workspace}>
-          <section className={styles.mainPanel}>
-            <div className={styles.panelHead}>
-              <div>
-                <p className={styles.kicker}>Archive</p>
-                <h2>Completed Heists</h2>
-              </div>
-              <span className={styles.status}>{formatNum(completedHeists.length)} completed</span>
-            </div>
+          <>
+            <section className={styles.workspace}>
+              <section className={styles.mainPanel}>
+                <div className={styles.panelHead}>
+                  <div>
+                    <p className={styles.kicker}>Archive</p>
+                    <h2>Completed Heists</h2>
+                  </div>
+                  <span className={styles.status}>{formatNum(completedHeists.length)} completed</span>
+                </div>
 
-            <div className={styles.heistGrid}>
-              {loading ? (
-                <div className={styles.emptyState}>Loading completed heists...</div>
-              ) : completedHeists.length ? (
-                pagedCompletedHeists.map((heist) => (
-                  <button
-                    type="button"
-                    key={heist.id}
-                    className={`${styles.heistCard} ${Number(selectedId) === Number(heist.id) ? styles.selectedCard : ""}`}
-                    onClick={() => setSelectedId(heist.id)}
-                  >
-                    <span className={styles.status}>{heist.status}</span>
-                    <strong>{heist.name}</strong>
-                    <small>
-                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
-                    </small>
-                    <span className={styles.cardStats}>
-                      <em>{formatCapacity(heist)}</em>
-                      <em>{formatNum(heist.total_submissions)} submissions</em>
-                      <em>{formatTimerWindow(heist)}</em>
-                    </span>
-                  </button>
-                ))
-              ) : (
-                <div className={styles.emptyState}>No completed heists yet.</div>
-              )}
-            </div>
-            {renderPagination({
-              page: completedPage,
-              pageCount: completedPageCount,
-              total: completedHeists.length,
-              onPageChange: setCompletedPage,
-            })}
-          </section>
-        </section>
+                <div className={styles.heistGrid}>
+                  {loading ? (
+                    <div className={styles.emptyState}>Loading completed heists...</div>
+                  ) : completedHeists.length ? (
+                    pagedCompletedHeists.map((heist) => (
+                      <button
+                        type="button"
+                        key={heist.id}
+                        className={`${styles.heistCard} ${Number(selectedId) === Number(heist.id) ? styles.selectedCard : ""}`}
+                        onClick={() => setSelectedId(heist.id)}
+                      >
+                        <span className={styles.status}>{heist.status}</span>
+                        <strong>{heist.name}</strong>
+                        <small>
+                          {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
+                        </small>
+                        <span className={styles.cardStats}>
+                          <em>{formatCapacity(heist)}</em>
+                          <em>users {formatNum(heist.total_submissions)}</em>
+                          <em>demo {formatNum(heist.total_demo_submissions)}</em>
+                          <em>{formatTimerWindow(heist)}</em>
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className={styles.emptyState}>No completed heists yet.</div>
+                  )}
+                </div>
+                {renderPagination({
+                  page: completedPage,
+                  pageCount: completedPageCount,
+                  total: completedHeists.length,
+                  onPageChange: setCompletedPage,
+                })}
+              </section>
+            </section>
+            {activeDetailHeist?.status === "completed" ? (
+              <section className={styles.detailGrid}>
+                {renderDemoPlayersPanel()}
+              </section>
+            ) : completedHeists.length ? (
+              <section className={styles.detailPanel}>
+                <div className={styles.emptyState}>Select a completed heist to add demo leaderboard players.</div>
+              </section>
+            ) : null}
+          </>
         ) : null}
 
         <Modal
