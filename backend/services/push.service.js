@@ -94,6 +94,12 @@ function buildMessage(token, payload) {
     if (value !== undefined && value !== null) data[key] = String(value);
   });
 
+  const clickPath = data.path || "/dashboard";
+  const frontendBaseUrl = String(process.env.FRONTEND_BASE_URL || "https://copupbid.top").replace(
+    /\/+$/g,
+    ""
+  );
+
   return {
     token,
     notification: {
@@ -109,6 +115,19 @@ function buildMessage(token, payload) {
         color: "#39D98A",
         sound: "default",
         clickAction: "OPEN_NOTICE",
+      },
+    },
+    webpush: {
+      notification: {
+        title: payload.title,
+        body: payload.body,
+        icon: "/copupcoin.png",
+        badge: "/copupcoin.png",
+        requireInteraction: Boolean(payload.requireInteraction),
+        data,
+      },
+      fcmOptions: {
+        link: clickPath.startsWith("http") ? clickPath : `${frontendBaseUrl}${clickPath}`,
       },
     },
   };

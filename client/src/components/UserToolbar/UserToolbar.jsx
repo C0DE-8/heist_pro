@@ -16,6 +16,7 @@ import {
   Target,
   Volume2,
   VolumeX,
+  Bell,
 } from "lucide-react";
 import styles from "./UserToolbar.module.css";
 import { imgUrl } from "../../lib/api";
@@ -23,6 +24,11 @@ import { clearAuthSession, getStoredToken } from "../../lib/auth";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
 import { getUserProfile } from "../../lib/users";
 import { getSoundEnabled, setSoundEnabled } from "../../lib/sound";
+import {
+  canUseWebPush,
+  enableWebPushNotifications,
+  getWebPushStatus,
+} from "../../lib/webPushNotifications";
 
 export default function UserToolbar() {
   const nav = useNavigate();
@@ -41,6 +47,9 @@ export default function UserToolbar() {
   const [hideTasks, setHideTasks] = useState(
     () => localStorage.getItem("copup_toolbar_hide_tasks") === "1"
   );
+  const [webPushStatus, setWebPushStatus] = useState(() => getWebPushStatus());
+  const [enablingAlerts, setEnablingAlerts] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
 
   const displayName = profile?.full_name || profile?.username || "User";
   const role = String(profile?.role || "").toLowerCase();
@@ -91,6 +100,23 @@ export default function UserToolbar() {
       localStorage.setItem("copup_toolbar_hide_tasks", next ? "1" : "0");
       return next;
     });
+  };
+
+  const enableBrowserAlerts = async () => {
+    setEnablingAlerts(true);
+    setAlertMessage("");
+
+    try {
+      await enableWebPushNotifications();
+      setWebPushStatus("granted");
+      setAlertMessage("Browser alerts are on.");
+    } catch (err) {
+      const nextStatus = getWebPushStatus();
+      setWebPushStatus(nextStatus);
+      setAlertMessage(err?.message || "Unable to enable browser alerts.");
+    } finally {
+      setEnablingAlerts(false);
+    }
   };
 
   // ✅ 1) keep token in sync (login/logout in same tab and other tabs)
@@ -254,6 +280,28 @@ export default function UserToolbar() {
         </div>
 
         <div className={styles.section}>
+          <button
+            className={styles.item}
+            onClick={enableBrowserAlerts}
+            disabled={enablingAlerts || webPushStatus === "granted" || !canUseWebPush()}
+            title={
+              webPushStatus === "unsupported"
+                ? "This browser does not support web push alerts"
+                : webPushStatus === "not_configured"
+                  ? "Firebase web push is not configured"
+                  : "Enable browser alerts"
+            }
+          >
+            <Bell size={16} />
+            {webPushStatus === "granted"
+              ? "Alerts enabled"
+              : enablingAlerts
+                ? "Enabling alerts..."
+                : "Enable alerts"}
+          </button>
+
+          {alertMessage ? <p className={styles.alertHint}>{alertMessage}</p> : null}
+
           <button className={styles.item} onClick={() => go(isAffiliate ? "/affiliate-dashboard" : "/dashboard")}>
             <LayoutGrid size={16} /> Dashboard
           </button>
