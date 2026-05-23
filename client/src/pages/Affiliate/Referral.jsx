@@ -78,6 +78,7 @@ export default function Referral() {
     ? profileData.affiliate_task_progress
     : [];
   const user = profileData?.user || null;
+  const isAffiliate = String(user?.role || "").toLowerCase() === "affiliate";
   const userReferralCode = String(user?.referral_code || "").trim();
   const userReferralLink = String(user?.referral_link || "").trim();
 
@@ -237,9 +238,13 @@ export default function Referral() {
 
       <main className={styles.main}>
         <div className={styles.topBar}>
-          <button type="button" className={styles.backBtn} onClick={() => navigate("/affiliate-dashboard")}>
+          <button
+            type="button"
+            className={styles.backBtn}
+            onClick={() => navigate(isAffiliate ? "/affiliate-dashboard" : "/dashboard")}
+          >
             <FiArrowLeft />
-            <span>Affiliate Dashboard</span>
+            <span>{isAffiliate ? "Affiliate Dashboard" : "Dashboard"}</span>
           </button>
 
           <button

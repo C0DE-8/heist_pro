@@ -9,8 +9,9 @@ const DEFAULT_TRADE_PIN = "0000";
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
-  if (req.user?.role !== "user") {
-    return res.status(403).json({ message: "User access required" });
+  const role = String(req.user?.role || "").toLowerCase();
+  if (!["user", "affiliate"].includes(role)) {
+    return res.status(403).json({ message: "User or affiliate access required" });
   }
   return next();
 });
@@ -120,7 +121,7 @@ router.post("/send", async (req, res) => {
     const [[recipientLookup]] = await conn.query(
       `SELECT id
        FROM users
-       WHERE wallet_address = ? AND role = 'user'
+       WHERE wallet_address = ? AND role IN ('user', 'affiliate')
        LIMIT 1`,
       [walletAddress]
     );

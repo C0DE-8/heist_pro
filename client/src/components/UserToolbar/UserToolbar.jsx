@@ -323,12 +323,12 @@ export default function UserToolbar() {
               <button className={styles.item} onClick={() => go("/affiliate-dashboard")}>
                 <Target size={16} /> Affiliate
               </button>
-
-              <button className={styles.item} onClick={() => go("/affiliate/referral")}>
-                <Users size={16} /> Referral
-              </button>
             </React.Fragment>
           ) : null}
+
+          <button className={styles.item} onClick={() => go("/referral")}>
+            <Users size={16} /> Referral
+          </button>
 
           <button className={styles.item} onClick={() => go("/winners")}>
             <Trophy size={16} /> Winners

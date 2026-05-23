@@ -110,6 +110,10 @@ export default function App() {
         </Route>
 
         <Route element={<UserRoute />}>
+          <Route path="/referral" element={<Referral />} />
+        </Route>
+
+        <Route element={<UserRoute />}>
           <Route path="/winners" element={<Winner />} />
         </Route>
 
@@ -125,7 +129,6 @@ export default function App() {
           <Route path="/affiliate/trade" element={<Trade />} />
           <Route path="/affiliate/how-it-works" element={<AffiliateHowItWorks />} />
           <Route path="/affiliate" element={<Navigate to="/affiliate/plans" replace />} />
-          <Route path="/referral" element={<Navigate to="/affiliate/referral" replace />} />
         </Route>
 
         {/* ================= ADMIN ROUTES (Protected) ================= */}
