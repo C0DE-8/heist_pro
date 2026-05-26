@@ -251,7 +251,7 @@
 }
 
 .helpPanel {
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 44px 1fr auto auto;
 }
 
 @media (max-width: 820px) {

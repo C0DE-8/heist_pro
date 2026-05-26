@@ -6,6 +6,7 @@ import {
   FiCreditCard,
   FiDownload,
   FiHelpCircle,
+  FiMonitor,
   FiTarget,
   FiUsers,
   FiZap,
@@ -70,6 +71,10 @@ export default function HowItWork() {
             <button type="button" className={styles.primaryBtn} onClick={() => navigate("/heist")}>
               <FiTarget />
               <span>Open Heists</span>
+            </button>
+            <button type="button" className={styles.ghostBtn} onClick={() => navigate("/heist-demo")}>
+              <FiMonitor />
+              <span>Try Demo Heist</span>
             </button>
             <button type="button" className={styles.ghostBtn} onClick={copySummary}>
               <FiCopy />
@@ -221,6 +226,10 @@ export default function HowItWork() {
           <button type="button" className={styles.primaryBtn} onClick={() => navigate("/account")}>
             <FiCreditCard />
             <span>Open Account</span>
+          </button>
+          <button type="button" className={styles.ghostBtn} onClick={() => navigate("/heist-demo")}>
+            <FiMonitor />
+            <span>Demo Heist</span>
           </button>
         </section>
       </main>

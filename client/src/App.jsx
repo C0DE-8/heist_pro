@@ -33,6 +33,7 @@ import Profile from "./pages/Profile/Profile";
 import PaymentResult from "./pages/PaymentResult/PaymentResult";
 import ComingSoon from "./pages/ComingSoon/ComingSoon";
 import Heist from "./pages/Heist/Heist";
+import HeistDemo from "./pages/Heist/HeistDemo";
 import HeistPlay from "./pages/Heist/HeistPlay";
 import HeistResult from "./pages/Heist/HeistResult";
 import HeistLeaderboard from "./pages/Heist/HeistLeaderboard";
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/support" element={<Support />} />
+        <Route path="/heist-demo" element={<HeistDemo />} />
 
         {/* ================= USER ROUTES (Protected) ================= */}
 
