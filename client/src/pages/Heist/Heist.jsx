@@ -258,8 +258,8 @@ export default function Heist() {
           </div>
           <div className={styles.promoCopy}>
             <span>Promo code</span>
-            <strong>CopUp Jr balance: {promoBalance === null ? "..." : formatNum(promoBalance)}</strong>
-            <p>CopUp Jr is only used to join heists and cannot be withdrawn.</p>
+            <strong>Gift CopUp Coin balance: {promoBalance === null ? "..." : formatNum(promoBalance)}</strong>
+            <p>Gift CopUp Coin is only used to join heists and cannot be withdrawn.</p>
           </div>
           <form className={styles.promoForm} onSubmit={handleRedeemPromo}>
             <input
