@@ -20,7 +20,8 @@
 .emptyState,
 .errorBox,
 .playPanel,
-.resultPanel {
+.resultPanel,
+.promoPanel {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045)),
@@ -499,11 +500,78 @@
 }
 
 .playPanel,
-.resultPanel {
+.resultPanel,
+.promoPanel {
   border-radius: 24px;
   padding: 18px;
   display: grid;
   gap: 14px;
+}
+
+.promoPanel {
+  grid-template-columns: auto minmax(0, 1fr) minmax(260px, 360px);
+  align-items: center;
+}
+
+.promoIcon {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: rgba(186, 255, 199, 0.11);
+  color: #baffc7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.promoCopy {
+  min-width: 0;
+}
+
+.promoCopy span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.promoCopy strong {
+  display: block;
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.promoCopy p {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.66);
+  line-height: 1.45;
+}
+
+.promoForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.promoForm input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+  font: inherit;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.promoForm input:focus {
+  border-color: rgba(186, 255, 199, 0.36);
+  box-shadow: 0 0 0 4px rgba(186, 255, 199, 0.08);
 }
 
 .questionList {
@@ -1281,7 +1349,9 @@
   .hero,
   .statsGrid,
   .heistList,
-  .completedList {
+  .completedList,
+  .promoPanel,
+  .promoForm {
     grid-template-columns: 1fr;
   }
 

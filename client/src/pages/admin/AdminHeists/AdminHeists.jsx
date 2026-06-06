@@ -22,11 +22,14 @@ import {
   createAdminHeistDemoUser,
   createAdminHeistContent,
   createAdminHeist,
+  createAdminPromoCode,
   deleteAdminAffiliateTask,
   deleteAdminHeistDemoUser,
   deleteAdminHeistContent,
   deleteAdminHeistQuestion,
+  deleteAdminPromoCode,
   deleteAdminQuestionBankQuestion,
+  expireAdminPromoCode,
   finalizeAdminHeist,
   getAdminAutoHeistSettings,
   getAdminAffiliateTaskProgress,
@@ -36,6 +39,7 @@ import {
   getAdminAffiliateTasks,
   getAdminHeistQuestions,
   getAdminHeists,
+  getAdminPromoCodes,
   getAdminQuestionBank,
   runAdminAutoHeist,
   updateAdminAutoHeistSettings,
@@ -43,6 +47,7 @@ import {
   updateAdminAffiliateTask,
   updateAdminDemoUser,
   updateAdminHeistStatus,
+  updateAdminPromoCode,
 } from "../../../lib/adminHeists";
 import styles from "./AdminHeists.module.css";
 
@@ -85,6 +90,14 @@ const EMPTY_AUTO_HEIST = {
   prize_cop_points: "0",
   questions_per_session: "3",
   countdown_duration_minutes: "10",
+};
+
+const EMPTY_PROMO_CODE = {
+  code: "",
+  copup_jr_amount: "1",
+  max_redemptions: "",
+  expires_at: "",
+  is_active: true,
 };
 
 const EMPTY_DEMO_USER = {
@@ -210,6 +223,8 @@ function AdminHeistsPage() {
   const [participants, setParticipants] = useState([]);
   const [demoUsers, setDemoUsers] = useState([]);
   const [demoUserBank, setDemoUserBank] = useState([]);
+  const [promoCodes, setPromoCodes] = useState([]);
+  const [promoSummary, setPromoSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -230,6 +245,7 @@ function AdminHeistsPage() {
   const [taskForm, setTaskForm] = useState(EMPTY_TASK);
   const [contentForm, setContentForm] = useState(EMPTY_CONTENT);
   const [autoHeistForm, setAutoHeistForm] = useState(EMPTY_AUTO_HEIST);
+  const [promoForm, setPromoForm] = useState(EMPTY_PROMO_CODE);
   const [demoUserForm, setDemoUserForm] = useState(EMPTY_DEMO_USER);
   const [demoBankName, setDemoBankName] = useState("");
   const [statusValue, setStatusValue] = useState("pending");
@@ -240,12 +256,15 @@ function AdminHeistsPage() {
     ? "content"
     : location.pathname.endsWith("/question-bank")
       ? "questions"
-      : location.pathname.endsWith("/archive")
-        ? "archive"
-        : "main";
+      : location.pathname.endsWith("/promo-codes")
+        ? "promo"
+        : location.pathname.endsWith("/archive")
+          ? "archive"
+          : "main";
   const isMainPage = pageMode === "main";
   const isContentPage = pageMode === "content";
   const isQuestionBankPage = pageMode === "questions";
+  const isPromoPage = pageMode === "promo";
   const isArchivePage = pageMode === "archive";
 
   const selectedHeist = useMemo(
@@ -359,6 +378,17 @@ function AdminHeistsPage() {
     }
   }, [toast]);
 
+  const loadPromoCodes = useCallback(async () => {
+    try {
+      const data = await getAdminPromoCodes();
+      setPromoCodes(Array.isArray(data?.codes) ? data.codes : []);
+      setPromoSummary(data?.summary || null);
+    } catch (err) {
+      console.error("Load promo codes error:", err);
+      toast.error(err?.response?.data?.message || "Unable to load promo codes.");
+    }
+  }, [toast]);
+
   const loadDemoUserBank = useCallback(async () => {
     try {
       const data = await getAdminDemoUsers();
@@ -409,7 +439,8 @@ function AdminHeistsPage() {
     loadContentBank();
     loadAutoHeistSettings();
     loadDemoUserBank();
-  }, [loadHeists, loadQuestionBank, loadContentBank, loadAutoHeistSettings, loadDemoUserBank]);
+    loadPromoCodes();
+  }, [loadHeists, loadQuestionBank, loadContentBank, loadAutoHeistSettings, loadDemoUserBank, loadPromoCodes]);
 
   useEffect(() => {
     if (activeDetailHeist?.status) setStatusValue(activeDetailHeist.status);
@@ -459,6 +490,14 @@ function AdminHeistsPage() {
   const updateAutoHeistForm = (event) => {
     const { name, type, checked, value } = event.target;
     setAutoHeistForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const updatePromoForm = (event) => {
+    const { name, type, checked, value } = event.target;
+    setPromoForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : name === "code" ? value.toUpperCase() : value,
+    }));
   };
 
   const updateDemoUserForm = (event) => {
@@ -916,6 +955,122 @@ function AdminHeistsPage() {
 
   const unusedBankCount = Number(questionBankSummary?.unused || 0);
   const activeContentCount = Number(contentBankSummary?.active || 0);
+  const activePromoCount = Number(promoSummary?.active || 0);
+
+  const createPromoCode = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    if (!promoForm.code.trim()) {
+      toast.warn("Promo code is required");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await createAdminPromoCode({
+        code: promoForm.code.trim(),
+        copup_jr_amount: Number(promoForm.copup_jr_amount || 0),
+        max_redemptions: promoForm.max_redemptions ? Number(promoForm.max_redemptions) : null,
+        expires_at: promoForm.expires_at || null,
+        is_active: promoForm.is_active,
+      });
+      toast.success("Promo code created");
+      setPromoForm(EMPTY_PROMO_CODE);
+      await loadPromoCodes();
+    } catch (err) {
+      console.error("Create promo code error:", err);
+      toast.error(err?.response?.data?.message || "Unable to create promo code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const editPromoCode = async (promoCode) => {
+    if (!promoCode?.id || busy) return;
+    const code = window.prompt("Promo code", promoCode.code);
+    if (code === null) return;
+    const amount = window.prompt("CopUp Jr amount", String(promoCode.copup_jr_amount || 1));
+    if (amount === null) return;
+    const maxRedemptions = window.prompt(
+      "Max redemptions, blank for unlimited",
+      promoCode.max_redemptions === null ? "" : String(promoCode.max_redemptions || "")
+    );
+    if (maxRedemptions === null) return;
+    const expiresAt = window.prompt(
+      "Expires at as YYYY-MM-DD HH:mm, blank for no expiry",
+      promoCode.expires_at ? String(promoCode.expires_at).slice(0, 16).replace("T", " ") : ""
+    );
+    if (expiresAt === null) return;
+
+    setBusy(true);
+    try {
+      await updateAdminPromoCode(promoCode.id, {
+        code: code.trim(),
+        copup_jr_amount: Number(amount || 0),
+        max_redemptions: maxRedemptions.trim() ? Number(maxRedemptions) : null,
+        expires_at: expiresAt.trim() || null,
+      });
+      toast.success("Promo code updated");
+      await loadPromoCodes();
+    } catch (err) {
+      console.error("Update promo code error:", err);
+      toast.error(err?.response?.data?.message || "Unable to update promo code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const togglePromoCode = async (promoCode) => {
+    if (!promoCode?.id || busy) return;
+
+    setBusy(true);
+    try {
+      await updateAdminPromoCode(promoCode.id, { is_active: !Number(promoCode.is_active) });
+      toast.success("Promo code updated");
+      await loadPromoCodes();
+    } catch (err) {
+      console.error("Toggle promo code error:", err);
+      toast.error(err?.response?.data?.message || "Unable to update promo code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const expirePromoCode = async (promoCode) => {
+    if (!promoCode?.id || busy) return;
+    const ok = window.confirm("Expire this promo code now?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await expireAdminPromoCode(promoCode.id);
+      toast.success("Promo code expired");
+      await loadPromoCodes();
+    } catch (err) {
+      console.error("Expire promo code error:", err);
+      toast.error(err?.response?.data?.message || "Unable to expire promo code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deletePromoCode = async (promoCode) => {
+    if (!promoCode?.id || busy) return;
+    const ok = window.confirm("Delete this promo code?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await deleteAdminPromoCode(promoCode.id);
+      toast.success("Promo code deleted");
+      await loadPromoCodes();
+    } catch (err) {
+      console.error("Delete promo code error:", err);
+      toast.error(err?.response?.data?.message || "Unable to delete promo code.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const createTask = async (event) => {
     event.preventDefault();
@@ -1132,18 +1287,22 @@ function AdminHeistsPage() {
               ? "Name and description bank"
               : isQuestionBankPage
                 ? "Question bank"
-                : isArchivePage
-                  ? "Completed heists"
-                  : "Heist control room"
+                : isPromoPage
+                  ? "Promo codes"
+                  : isArchivePage
+                    ? "Completed heists"
+                    : "Heist control room"
           }
           description={
             isContentPage
               ? "Manage reusable heist names and descriptions."
               : isQuestionBankPage
                 ? "Manage reusable True/False questions for heists."
-                : isArchivePage
-                  ? "Review completed heists and past results."
-                  : "Create True/False heists, assign unused bank questions, start countdowns, finalize winners, and track affiliate tasks."
+                : isPromoPage
+                  ? "Create CopUp Jr promo codes for heist-only entry credits."
+                  : isArchivePage
+                    ? "Review completed heists and past results."
+                    : "Create True/False heists, assign unused bank questions, start countdowns, finalize winners, and track affiliate tasks."
           }
           onRefresh={loadHeists}
           refreshing={loading || busy}
@@ -1161,6 +1320,9 @@ function AdminHeistsPage() {
           </NavLink>
           <NavLink to="/admin/heists/question-bank" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
             Question bank
+          </NavLink>
+          <NavLink to="/admin/heists/promo-codes" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
+            Promo codes
           </NavLink>
           <NavLink to="/admin/heists/archive" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
             Archive
@@ -1191,6 +1353,10 @@ function AdminHeistsPage() {
           <div>
             <span>Content bank</span>
             <strong>{formatNum(activeContentCount)}</strong>
+          </div>
+          <div>
+            <span>Promo codes</span>
+            <strong>{formatNum(activePromoCount)}</strong>
           </div>
         </section>
 
@@ -1294,6 +1460,92 @@ function AdminHeistsPage() {
                 ))
               ) : (
                 <div className={styles.emptyState}>No bank questions yet.</div>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {isPromoPage ? (
+          <section className={styles.detailPanel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.kicker}>CopUp Jr</p>
+                <h2>Promo codes</h2>
+              </div>
+              <button type="button" className={styles.softBtn} onClick={loadPromoCodes} disabled={busy}>
+                Refresh codes
+              </button>
+            </div>
+
+            <div className={styles.metaGrid}>
+              <div><span>Total</span><strong>{formatNum(promoSummary?.total)}</strong></div>
+              <div><span>Active</span><strong>{formatNum(promoSummary?.active)}</strong></div>
+              <div><span>Redemptions</span><strong>{formatNum(promoSummary?.redemptions)}</strong></div>
+            </div>
+
+            <form className={styles.promoForm} onSubmit={createPromoCode}>
+              <label className={styles.field}>
+                <span>Code</span>
+                <input name="code" value={promoForm.code} onChange={updatePromoForm} placeholder="HEISTJR" />
+              </label>
+              <label className={styles.field}>
+                <span>CopUp Jr amount</span>
+                <input type="number" name="copup_jr_amount" min="1" value={promoForm.copup_jr_amount} onChange={updatePromoForm} />
+              </label>
+              <label className={styles.field}>
+                <span>Max uses</span>
+                <input type="number" name="max_redemptions" min="1" value={promoForm.max_redemptions} onChange={updatePromoForm} placeholder="Unlimited" />
+              </label>
+              <label className={styles.field}>
+                <span>Expires at</span>
+                <input type="datetime-local" name="expires_at" value={promoForm.expires_at} onChange={updatePromoForm} />
+              </label>
+              <label className={styles.checkField}>
+                <input type="checkbox" name="is_active" checked={promoForm.is_active} onChange={updatePromoForm} />
+                <span>Active</span>
+              </label>
+              <button type="submit" className={styles.primaryBtn} disabled={busy}>
+                <FaPlus />
+                <span>Create code</span>
+              </button>
+            </form>
+
+            <div className={styles.rowsWide}>
+              {promoCodes.length ? (
+                promoCodes.map((promoCode) => {
+                  const expired = promoCode.expires_at && new Date(promoCode.expires_at).getTime() <= Date.now();
+                  const maxUses = promoCode.max_redemptions ? formatNum(promoCode.max_redemptions) : "Unlimited";
+                  return (
+                    <div className={styles.dataRow} key={promoCode.id}>
+                      <span>
+                        <strong>{promoCode.code}</strong>
+                        <small>
+                          {formatNum(promoCode.copup_jr_amount)} CopUp Jr · {formatNum(promoCode.redemption_count)} / {maxUses} used
+                        </small>
+                        <small>
+                          {promoCode.expires_at ? `Expires ${formatDate(promoCode.expires_at)}` : "No expiry"} · created {formatDate(promoCode.created_at)}
+                        </small>
+                      </span>
+                      <div className={styles.rowActions}>
+                        <em>{Number(promoCode.is_active) && !expired ? "active" : expired ? "expired" : "inactive"}</em>
+                        <button type="button" onClick={() => editPromoCode(promoCode)} disabled={busy}>
+                          <FaEdit />
+                        </button>
+                        <button type="button" onClick={() => togglePromoCode(promoCode)} disabled={busy}>
+                          {Number(promoCode.is_active) ? "Disable" : "Enable"}
+                        </button>
+                        <button type="button" onClick={() => expirePromoCode(promoCode)} disabled={busy || expired}>
+                          Expire
+                        </button>
+                        <button type="button" onClick={() => deletePromoCode(promoCode)} disabled={busy}>
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className={styles.emptyState}>No promo codes yet.</div>
               )}
             </div>
           </section>

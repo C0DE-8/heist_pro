@@ -21,6 +21,16 @@ export async function joinHeist(id, referralCode) {
   return data;
 }
 
+export async function getCopupJrBalance() {
+  const { data } = await api.get("/heists/promo-balance");
+  return data;
+}
+
+export async function redeemPromoCode(code) {
+  const { data } = await api.post("/heists/promo-codes/redeem", { code });
+  return data;
+}
+
 export async function getHeistPlay(id) {
   const { data } = await api.get(`/heists/${id}/play`);
   return data;

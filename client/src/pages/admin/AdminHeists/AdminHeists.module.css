@@ -248,7 +248,8 @@
 }
 
 .form,
-.taskForm {
+.taskForm,
+.promoForm {
   display: grid;
   gap: 12px;
 }
@@ -278,7 +279,8 @@
 .statusBox input,
 .statusBox select,
 .taskForm input,
-.demoUserForm input {
+.demoUserForm input,
+.promoForm input {
   width: 100%;
   min-height: 46px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -303,6 +305,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
   gap: 10px;
+  align-items: end;
+  min-width: 0;
+}
+
+.promoForm {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   align-items: end;
   min-width: 0;
 }
@@ -405,7 +413,8 @@
 .statusBox input:focus,
 .statusBox select:focus,
 .taskForm input:focus,
-.demoUserForm input:focus {
+.demoUserForm input:focus,
+.promoForm input:focus {
   border-color: rgba(159, 255, 231, 0.38);
   box-shadow: 0 0 0 4px rgba(159, 255, 231, 0.08);
 }
@@ -669,7 +678,8 @@
   .statusBox,
   .taskForm,
   .autoHeistForm,
-  .demoUserForm {
+  .demoUserForm,
+  .promoForm {
     grid-template-columns: 1fr;
   }
 

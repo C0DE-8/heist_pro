@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FiRefreshCw } from "react-icons/fi";
+import { FiGift, FiRefreshCw } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useToast } from "../../components/Toast/ToastContext";
 import {
   getAvailableHeists,
+  getCopupJrBalance,
   joinHeist,
+  redeemPromoCode,
 } from "../../lib/heists";
 import HeistCard from "./HeistCard";
 import styles from "./Heist.module.css";
@@ -87,6 +89,9 @@ export default function Heist() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [joiningId, setJoiningId] = useState(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoBalance, setPromoBalance] = useState(null);
+  const [redeeming, setRedeeming] = useState(false);
 
   const loadHeists = useCallback(async () => {
     setLoading(true);
@@ -104,9 +109,21 @@ export default function Heist() {
     }
   }, []);
 
+  const loadPromoBalance = useCallback(async () => {
+    try {
+      const data = await getCopupJrBalance();
+      setPromoBalance(Number(data?.copup_jr_balance || 0));
+    } catch (err) {
+      if (err?.response?.status !== 401) {
+        console.warn("Load CopUp Jr balance error:", err);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     loadHeists();
-  }, [loadHeists]);
+    loadPromoBalance();
+  }, [loadHeists, loadPromoBalance]);
 
   const handleJoin = async (heist) => {
     if (!heist?.id || joiningId) return;
@@ -115,6 +132,7 @@ export default function Heist() {
     try {
       await joinHeist(heist.id, referralCode);
       toast.success("Joined heist");
+      loadPromoBalance();
       navigate(`/heist/${heist.id}`);
     } catch (err) {
       const message = err?.response?.data?.message || "Unable to join heist.";
@@ -125,6 +143,25 @@ export default function Heist() {
       }
     } finally {
       setJoiningId(null);
+    }
+  };
+
+  const handleRedeemPromo = async (event) => {
+    event.preventDefault();
+    const code = promoCode.trim();
+    if (!code || redeeming) return;
+
+    setRedeeming(true);
+    try {
+      const data = await redeemPromoCode(code);
+      setPromoCode("");
+      setPromoBalance(Number(data?.copup_jr_balance || 0));
+      toast.success(`Added ${formatNum(data?.credited_copup_jr)} CopUp Jr`);
+      await loadHeists();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to redeem promo code.");
+    } finally {
+      setRedeeming(false);
     }
   };
 
@@ -213,6 +250,28 @@ export default function Heist() {
           ) : (
             <EmptyHeistFallback />
           )}
+        </section>
+
+        <section className={styles.promoPanel}>
+          <div className={styles.promoIcon}>
+            <FiGift />
+          </div>
+          <div className={styles.promoCopy}>
+            <span>Promo code</span>
+            <strong>CopUp Jr balance: {promoBalance === null ? "..." : formatNum(promoBalance)}</strong>
+            <p>CopUp Jr is only used to join heists and cannot be withdrawn.</p>
+          </div>
+          <form className={styles.promoForm} onSubmit={handleRedeemPromo}>
+            <input
+              value={promoCode}
+              onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+              placeholder="Enter code"
+              autoCapitalize="characters"
+            />
+            <button type="submit" className={styles.secondaryBtn} disabled={redeeming || !promoCode.trim()}>
+              {redeeming ? "Redeeming..." : "Redeem"}
+            </button>
+          </form>
         </section>
       </main>
 

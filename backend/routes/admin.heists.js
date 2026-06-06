@@ -15,6 +15,11 @@ const {
   updateAutoHeistSettings,
   maybeCreateAutoHeist,
 } = require("../services/autoHeist.service");
+const {
+  ensurePromoTables,
+  normalizePromoCode,
+  parsePositiveInt,
+} = require("../services/promo.service");
 
 const router = express.Router();
 
@@ -26,6 +31,7 @@ router.use(async (req, res, next) => {
     await ensureHeistDemoSubmissionsTable(pool);
     await ensureHeistWinnerDemoColumn(pool);
     await ensureAutoHeistTables(pool);
+    await ensurePromoTables(pool);
     next();
   } catch (err) {
     console.error("admin heist schema check error:", err);
@@ -376,6 +382,212 @@ router.post("/demo-users", async (req, res) => {
     }
     console.error("admin demo user bank create error:", err);
     return res.status(500).json({ message: "Error saving demo user" });
+  }
+});
+
+router.get("/promo-codes", async (req, res) => {
+  try {
+    const [codes] = await pool.query(
+      `SELECT
+         pc.id,
+         pc.code,
+         pc.copup_jr_amount,
+         pc.max_redemptions,
+         pc.redemption_count,
+         pc.is_active,
+         pc.expires_at,
+         pc.created_by,
+         pc.updated_by,
+         pc.created_at,
+         pc.updated_at,
+         creator.username AS created_by_username,
+         creator.full_name AS created_by_full_name
+       FROM promo_codes pc
+       LEFT JOIN users creator ON creator.id = pc.created_by
+       WHERE pc.deleted_at IS NULL
+       ORDER BY pc.created_at DESC, pc.id DESC`
+    );
+
+    const [[summary]] = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(CASE WHEN is_active = 1 AND deleted_at IS NULL THEN 1 END) AS active,
+         COALESCE(SUM(redemption_count), 0) AS redemptions
+       FROM promo_codes
+       WHERE deleted_at IS NULL`
+    );
+
+    return res.json({ codes, summary });
+  } catch (err) {
+    console.error("admin promo code list error:", err);
+    return res.status(500).json({ message: "Error fetching promo codes" });
+  }
+});
+
+router.post("/promo-codes", async (req, res) => {
+  try {
+    const code = normalizePromoCode(req.body?.code);
+    if (!code) return res.status(400).json({ message: "Code is required" });
+
+    const amount = parsePositiveInt(req.body?.copup_jr_amount, "copup_jr_amount");
+    if (!amount.ok) return res.status(400).json({ message: amount.message });
+
+    let maxRedemptions = null;
+    if (req.body?.max_redemptions !== undefined && req.body.max_redemptions !== null && req.body.max_redemptions !== "") {
+      const parsedMax = parsePositiveInt(req.body.max_redemptions, "max_redemptions");
+      if (!parsedMax.ok) return res.status(400).json({ message: parsedMax.message });
+      maxRedemptions = parsedMax.value;
+    }
+
+    const expiresAt = normalizeDateTimeInput(req.body?.expires_at);
+    if (expiresAt === false) return res.status(400).json({ message: "expires_at must be a valid date" });
+
+    const [result] = await pool.query(
+      `INSERT INTO promo_codes
+        (code, copup_jr_amount, max_redemptions, is_active, expires_at, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        code,
+        amount.value,
+        maxRedemptions,
+        boolToTinyInt(req.body?.is_active !== false),
+        expiresAt === undefined ? null : expiresAt,
+        req.user.userId,
+        req.user.userId,
+      ]
+    );
+
+    const [[promoCode]] = await pool.query(
+      `SELECT id, code, copup_jr_amount, max_redemptions, redemption_count, is_active, expires_at, created_at, updated_at
+       FROM promo_codes
+       WHERE id = ?
+       LIMIT 1`,
+      [result.insertId]
+    );
+
+    return res.status(201).json({ message: "Promo code created", promo_code: promoCode });
+  } catch (err) {
+    if (err?.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "Promo code already exists" });
+    }
+    console.error("admin promo code create error:", err);
+    return res.status(500).json({ message: "Error creating promo code" });
+  }
+});
+
+router.patch("/promo-codes/:promoCodeId", async (req, res) => {
+  try {
+    const promoCodeId = Number(req.params.promoCodeId);
+    if (!promoCodeId) return res.status(400).json({ message: "Invalid promo code" });
+
+    const updates = [];
+    const params = [];
+
+    if (req.body?.code !== undefined) {
+      const code = normalizePromoCode(req.body.code);
+      if (!code) return res.status(400).json({ message: "Code is required" });
+      updates.push("code = ?");
+      params.push(code);
+    }
+
+    if (req.body?.copup_jr_amount !== undefined) {
+      const amount = parsePositiveInt(req.body.copup_jr_amount, "copup_jr_amount");
+      if (!amount.ok) return res.status(400).json({ message: amount.message });
+      updates.push("copup_jr_amount = ?");
+      params.push(amount.value);
+    }
+
+    if (req.body?.max_redemptions !== undefined) {
+      if (req.body.max_redemptions === null || req.body.max_redemptions === "") {
+        updates.push("max_redemptions = ?");
+        params.push(null);
+      } else {
+        const maxRedemptions = parsePositiveInt(req.body.max_redemptions, "max_redemptions");
+        if (!maxRedemptions.ok) return res.status(400).json({ message: maxRedemptions.message });
+        updates.push("max_redemptions = ?");
+        params.push(maxRedemptions.value);
+      }
+    }
+
+    if (req.body?.is_active !== undefined) {
+      updates.push("is_active = ?");
+      params.push(boolToTinyInt(req.body.is_active));
+    }
+
+    if (req.body?.expires_at !== undefined) {
+      const expiresAt = normalizeDateTimeInput(req.body.expires_at);
+      if (expiresAt === false) return res.status(400).json({ message: "expires_at must be a valid date" });
+      updates.push("expires_at = ?");
+      params.push(expiresAt);
+    }
+
+    if (!updates.length) return res.status(400).json({ message: "No updates provided" });
+    updates.push("updated_by = ?");
+    params.push(req.user.userId, promoCodeId);
+
+    const [result] = await pool.query(
+      `UPDATE promo_codes
+       SET ${updates.join(", ")}
+       WHERE id = ? AND deleted_at IS NULL`,
+      params
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Promo code not found" });
+
+    const [[promoCode]] = await pool.query(
+      `SELECT id, code, copup_jr_amount, max_redemptions, redemption_count, is_active, expires_at, created_at, updated_at
+       FROM promo_codes
+       WHERE id = ?
+       LIMIT 1`,
+      [promoCodeId]
+    );
+
+    return res.json({ message: "Promo code updated", promo_code: promoCode });
+  } catch (err) {
+    if (err?.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "Promo code already exists" });
+    }
+    console.error("admin promo code update error:", err);
+    return res.status(500).json({ message: "Error updating promo code" });
+  }
+});
+
+router.patch("/promo-codes/:promoCodeId/expire", async (req, res) => {
+  try {
+    const promoCodeId = Number(req.params.promoCodeId);
+    if (!promoCodeId) return res.status(400).json({ message: "Invalid promo code" });
+
+    const [result] = await pool.query(
+      `UPDATE promo_codes
+       SET is_active = 0, expires_at = COALESCE(expires_at, NOW()), updated_by = ?
+       WHERE id = ? AND deleted_at IS NULL`,
+      [req.user.userId, promoCodeId]
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Promo code not found" });
+
+    return res.json({ message: "Promo code expired" });
+  } catch (err) {
+    console.error("admin promo code expire error:", err);
+    return res.status(500).json({ message: "Error expiring promo code" });
+  }
+});
+
+router.delete("/promo-codes/:promoCodeId", async (req, res) => {
+  try {
+    const promoCodeId = Number(req.params.promoCodeId);
+    if (!promoCodeId) return res.status(400).json({ message: "Invalid promo code" });
+
+    const [result] = await pool.query(
+      `UPDATE promo_codes
+       SET deleted_at = NOW(), is_active = 0, updated_by = ?
+       WHERE id = ? AND deleted_at IS NULL`,
+      [req.user.userId, promoCodeId]
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Promo code not found" });
+
+    return res.json({ message: "Promo code deleted" });
+  } catch (err) {
+    console.error("admin promo code delete error:", err);
+    return res.status(500).json({ message: "Error deleting promo code" });
   }
 });
 

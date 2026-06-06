@@ -15,6 +15,12 @@ const {
   recordAffiliateTaskProgress,
 } = require("../services/heist.service");
 const { applyReferralRewardJoin } = require("../services/referralReward.service");
+const {
+  ensurePromoTables,
+  getCopupJrBalance,
+  lockCopupJrBalance,
+  redeemPromoCode,
+} = require("../services/promo.service");
 
 const router = express.Router();
 
@@ -33,10 +39,53 @@ router.use(async (req, res, next) => {
     await ensureHeistDemoUsersTable(pool);
     await ensureHeistDemoSubmissionsTable(pool);
     await ensureHeistWinnerDemoColumn(pool);
+    await ensurePromoTables(pool);
     next();
   } catch (err) {
     console.error("heist schema check error:", err);
     res.status(500).json({ message: "Error preparing heist schema" });
+  }
+});
+
+router.get("/promo-balance", authenticateToken, async (req, res) => {
+  try {
+    const balance = await getCopupJrBalance(pool, req.user.userId);
+    return res.json({
+      copup_jr_balance: balance,
+      message: "CopUp Jr can only be used to join heists and has no withdrawal value.",
+    });
+  } catch (err) {
+    console.error("promo balance error:", err);
+    return res.status(500).json({ message: "Error fetching promo balance" });
+  }
+});
+
+router.post("/promo-codes/redeem", authenticateToken, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const result = await redeemPromoCode(conn, {
+      userId: req.user.userId,
+      rawCode: req.body?.code,
+    });
+    if (![200, 201].includes(result.status)) {
+      await conn.rollback();
+      return res.status(result.status).json(result.body);
+    }
+
+    await conn.commit();
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error("promo redeem error:", err);
+    if (isDuplicateError(err)) {
+      return res.status(400).json({ message: "You have already used this promo code" });
+    }
+    return res.status(500).json({ message: "Error redeeming promo code" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -386,10 +435,16 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       await conn.rollback();
       return res.status(404).json({ message: "User not found" });
     }
-    if (Number(user.cop_point) < Number(heist.ticket_price)) {
+    const jrBalance = await lockCopupJrBalance(conn, userId);
+    const ticketPrice = Number(heist.ticket_price || 0);
+    const availableJr = Number(jrBalance.balance || 0);
+    const availableCopPoint = Number(user.cop_point || 0);
+    if (availableCopPoint + availableJr < ticketPrice) {
       await conn.rollback();
       return res.status(400).json({ message: "Insufficient cop_point" });
     }
+    const chargedCopupJr = Math.min(availableJr, ticketPrice);
+    const chargedCopPoint = ticketPrice - chargedCopupJr;
 
     let affiliateUserId = null;
     let trackedReferralCode = null;
@@ -418,10 +473,26 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       [heistId, userId, affiliateUserId, trackedReferralCode]
     );
 
-    await conn.query("UPDATE users SET cop_point = cop_point - ? WHERE id = ?", [
-      heist.ticket_price,
-      userId,
-    ]);
+    if (chargedCopPoint > 0) {
+      await conn.query("UPDATE users SET cop_point = cop_point - ? WHERE id = ?", [
+        chargedCopPoint,
+        userId,
+      ]);
+    }
+
+    if (chargedCopupJr > 0) {
+      const nextJrBalance = availableJr - chargedCopupJr;
+      await conn.query("UPDATE user_copup_jr_balances SET balance = ? WHERE user_id = ?", [
+        nextJrBalance,
+        userId,
+      ]);
+      await conn.query(
+        `INSERT INTO user_copup_jr_ledger
+          (user_id, heist_id, direction, amount, balance_after, reason)
+         VALUES (?, ?, 'debit', ?, ?, 'heist_join')`,
+        [userId, heistId, chargedCopupJr, nextJrBalance]
+      );
+    }
 
     let affiliate_task_progress = [];
     if (affiliateUserId) {
@@ -459,7 +530,9 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
       participant_id: result.insertId,
       affiliate_user_id: affiliateUserId,
       referral_code: trackedReferralCode,
-      charged_cop_point: heist.ticket_price,
+      charged_cop_point: chargedCopPoint,
+      charged_copup_jr: chargedCopupJr,
+      copup_jr_balance: availableJr - chargedCopupJr,
       countdown_started,
       affiliate_task_progress,
       referral_reward_progress,

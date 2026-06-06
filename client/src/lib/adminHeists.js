@@ -95,6 +95,31 @@ export async function getAdminDemoUsers() {
   return data;
 }
 
+export async function getAdminPromoCodes() {
+  const { data } = await api.get("/admin/heists/promo-codes");
+  return data;
+}
+
+export async function createAdminPromoCode(payload) {
+  const { data } = await api.post("/admin/heists/promo-codes", payload);
+  return data;
+}
+
+export async function updateAdminPromoCode(promoCodeId, payload) {
+  const { data } = await api.patch(`/admin/heists/promo-codes/${promoCodeId}`, payload);
+  return data;
+}
+
+export async function expireAdminPromoCode(promoCodeId) {
+  const { data } = await api.patch(`/admin/heists/promo-codes/${promoCodeId}/expire`);
+  return data;
+}
+
+export async function deleteAdminPromoCode(promoCodeId) {
+  const { data } = await api.delete(`/admin/heists/promo-codes/${promoCodeId}`);
+  return data;
+}
+
 export async function createAdminDemoUser(payload) {
   const { data } = await api.post("/admin/heists/demo-users", payload);
   return data;
