@@ -115,7 +115,7 @@ export default function Heist() {
       setPromoBalance(Number(data?.copup_jr_balance || 0));
     } catch (err) {
       if (err?.response?.status !== 401) {
-        console.warn("Load CopUp Jr balance error:", err);
+        console.warn("Load Gift CopUp Coin balance error:", err);
       }
     }
   }, []);
@@ -156,7 +156,7 @@ export default function Heist() {
       const data = await redeemPromoCode(code);
       setPromoCode("");
       setPromoBalance(Number(data?.copup_jr_balance || 0));
-      toast.success(`Added ${formatNum(data?.credited_copup_jr)} CopUp Jr`);
+      toast.success(`Added ${formatNum(data?.credited_copup_jr)} Gift CopUp Coin`);
       await loadHeists();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Unable to redeem promo code.");

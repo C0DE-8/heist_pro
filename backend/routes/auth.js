@@ -7,6 +7,14 @@ const {
   sendRegistrationOtpEmail,
   sendPasswordResetOtpEmail,
 } = require("../lib/mail");
+const {
+  cleanUserAgent,
+  countAccountsForDevice,
+  ensureGodEyesSchema,
+  getClientIp,
+  getDeviceKey,
+  recordActivity,
+} = require("../services/godEyes.service");
 
 const router = express.Router();
 
@@ -146,6 +154,8 @@ router.post("/register", async (req, res) => {
         ? "affiliate"
         : "user";
     const usernameError = validateUsername(normalizedUsername);
+    const registrationIp = getClientIp(req);
+    const registrationDeviceKey = getDeviceKey(req);
 
     if (!normalizedEmail || !password || !normalizedOtp) {
       return res.status(400).json({ message: "username, email, password, otp are required" });
@@ -155,8 +165,17 @@ router.post("/register", async (req, res) => {
     }
 
     conn = await pool.getConnection();
+    await ensureGodEyesSchema(conn);
     if (requestedRole === "affiliate") {
       await ensureAffiliateRole(conn);
+    }
+    if (registrationDeviceKey) {
+      const deviceAccounts = await countAccountsForDevice(registrationDeviceKey, conn);
+      if (deviceAccounts >= 3) {
+        return res.status(429).json({
+          message: "This device has reached the 3 account limit.",
+        });
+      }
     }
     await conn.beginTransaction();
     const rollbackAndRespond = async (status, message) => {
@@ -215,9 +234,10 @@ router.post("/register", async (req, res) => {
 
     const [result] = await conn.query(
       `INSERT INTO users
-        (email, username, full_name, password_hash, role, is_verified, is_blocked, referral_code, wallet_address, game_id)
+        (email, username, full_name, password_hash, role, is_verified, is_blocked,
+         referral_code, wallet_address, game_id, registration_ip, registration_device_key, last_seen_at)
        VALUES
-        (?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
+        (?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
       [
         normalizedEmail,
         normalizedUsername,
@@ -227,6 +247,8 @@ router.post("/register", async (req, res) => {
         userReferralCode,
         walletAddress,
         gameId,
+        registrationIp,
+        registrationDeviceKey,
       ]
     );
 
@@ -246,6 +268,19 @@ router.post("/register", async (req, res) => {
 
     await conn.query("DELETE FROM otps WHERE email = ?", [normalizedEmail]);
     await conn.commit();
+    await recordActivity({
+      userId: newUserId,
+      eventType: "register",
+      path: "/register",
+      method: "POST",
+      ipAddress: registrationIp,
+      userAgent: cleanUserAgent(req),
+      deviceKey: registrationDeviceKey,
+      metadata: {
+        account_type: requestedRole,
+        referral_code: normalizedReferralCode,
+      },
+    });
     res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
     if (conn) await conn.rollback();
@@ -273,20 +308,72 @@ router.post("/login", async (req, res) => {
       [identifier, identifier]
     );
     const user = rows[0];
+    const ipAddress = getClientIp(req);
+    const deviceKey = getDeviceKey(req);
+    const userAgent = cleanUserAgent(req);
 
     if (!user || !user.is_verified) {
+      await recordActivity({
+        userId: user?.id || null,
+        eventType: "login_failed",
+        path: "/login",
+        method: "POST",
+        ipAddress,
+        userAgent,
+        deviceKey,
+        metadata: { identifier: String(identifier || "").trim(), reason: "not_found_or_unverified" },
+      });
       return res.status(401).json({ message: "Invalid credentials or account not verified" });
     }
-    if (user.is_blocked) return res.status(403).json({ message: "Account is blocked" });
+    if (user.is_blocked) {
+      await recordActivity({
+        userId: user.id,
+        eventType: "login_failed",
+        path: "/login",
+        method: "POST",
+        ipAddress,
+        userAgent,
+        deviceKey,
+        metadata: { reason: "blocked" },
+      });
+      return res.status(403).json({ message: "Account is blocked" });
+    }
 
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ message: "Invalid credentials" });
+    if (!ok) {
+      await recordActivity({
+        userId: user.id,
+        eventType: "login_failed",
+        path: "/login",
+        method: "POST",
+        ipAddress,
+        userAgent,
+        deviceKey,
+        metadata: { reason: "bad_password" },
+      });
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES || "7d" }
     );
+
+    await ensureGodEyesSchema();
+    await pool.query(
+      "UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [user.id]
+    );
+    await recordActivity({
+      userId: user.id,
+      eventType: "login",
+      path: "/login",
+      method: "POST",
+      ipAddress,
+      userAgent,
+      deviceKey,
+    });
 
     res.json({
       token,

@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { getAdminProfile } from "./admin";
 import { emitAuthChanged } from "./copupEvents";
+import { getDeviceKey } from "./device";
 import { getUserProfile } from "./users";
 
 export { getUserProfile } from "./users";
@@ -95,6 +96,7 @@ export async function registerUser(payload) {
     otp: String(payload?.otp || "").trim(),
     referralCode: String(payload?.referralCode || "").trim() || null,
     account_type: payload?.account_type === "affiliate" ? "affiliate" : "user",
+    device_key: getDeviceKey(),
   });
   return data;
 }

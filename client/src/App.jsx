@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Navigate, Routes, Route } from "react-router-dom";
 import BackgroundMusic from "./components/BackgroundMusic/BackgroundMusic";
+import ActivityTracker from "./components/ActivityTracker";
 import SEO from "./components/SEO/SEO";
 
 
@@ -19,6 +20,7 @@ import AdminUsers from "./pages/admin/AdminUsers/AdminUsers";
 import AdminAnalytics from "./pages/admin/AdminAnalytics/AdminAnalytics";
 import AdminReferral from "./pages/admin/AdminReferral/AdminReferral";
 import AdminNotifications from "./pages/admin/AdminNotifications/AdminNotifications";
+import AdminGodEyes from "./pages/admin/AdminGodEyes/AdminGodEyes";
 
 
 // Protected Routes
@@ -58,6 +60,7 @@ export default function App() {
     <Router>
       <SEO />
       <BackgroundMusic />
+      <ActivityTracker />
       <Routes>
         {/* ================= AUTH ROUTES ================= */}
         <Route path="/" element={<Landing />} />
@@ -156,6 +159,10 @@ export default function App() {
 
         <Route element={<AdminRoute />}>
           <Route path="/admin/notifications" element={<AdminNotifications />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/god-eyes" element={<AdminGodEyes />} />
         </Route>
 
 

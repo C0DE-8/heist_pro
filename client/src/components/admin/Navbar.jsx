@@ -18,6 +18,7 @@ import {
   FaSignOutAlt,
   FaGift,
   FaBell,
+  FaEye,
 } from "react-icons/fa";
 
 export default function AdminNavbar({ admin: adminProp }) {
@@ -34,6 +35,7 @@ export default function AdminNavbar({ admin: adminProp }) {
       { to: "/admin/analytics", label: "Analytics", icon: <FaChartLine /> },
       { to: "/admin/referral", label: "Affiliate", icon: <FaGift /> },
       { to: "/admin/notifications", label: "Alerts", icon: <FaBell /> },
+      { to: "/admin/god-eyes", label: "God Eyes", icon: <FaEye /> },
       { to: "/admin/heists", label: "Heists", icon: <FaFlask /> },
       { to: "/admin/transactions", label: "Transactions", icon: <FaWallet /> },
       { to: "/admin/coins", label: "Coins", icon: <FaCoins /> },

@@ -1,5 +1,6 @@
 // src/lib/api.js
 import axios from "axios";
+import { getDeviceKey } from "./device";
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -48,6 +49,9 @@ api.interceptors.request.use(
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    config.headers = config.headers || {};
+    config.headers["X-Copup-Device-Key"] = getDeviceKey();
 
     return config;
   },

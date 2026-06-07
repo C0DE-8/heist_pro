@@ -1,0 +1,429 @@
+.page {
+  min-height: 100vh;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(34, 211, 238, 0.15), transparent 28%),
+    radial-gradient(circle at 86% 18%, rgba(244, 114, 182, 0.1), transparent 26%),
+    linear-gradient(180deg, #080c12 0%, #111722 58%, #0b111a 100%);
+}
+
+.main {
+  width: min(1320px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 18px 0 52px;
+  display: grid;
+  gap: 18px;
+}
+
+.panel,
+.filters,
+.statBox,
+.subPanel,
+.activityPanel {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.035)),
+    rgba(16, 22, 32, 0.78);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.kicker {
+  margin: 0 0 7px;
+  color: #9fffe7;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.statBox {
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.statBox svg {
+  color: #9fffe7;
+}
+
+.statBox span,
+.infoGrid span,
+.breakdownGrid span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.statBox strong {
+  font-size: 1.55rem;
+}
+
+.filters {
+  border-radius: 20px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr 150px 170px auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.filters label {
+  display: grid;
+  gap: 8px;
+}
+
+.filters label > span {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.searchBox,
+.filters select {
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.searchBox {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 0 14px;
+}
+
+.searchBox input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  outline: none;
+}
+
+.filters select {
+  padding: 0 12px;
+}
+
+.primaryBtn,
+.dangerBtn {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  background: linear-gradient(90deg, #10b981, #22d3ee);
+  color: #03131f;
+}
+
+.dangerBtn {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(248, 113, 113, 0.32);
+  color: #fecaca;
+}
+
+.primaryBtn:disabled,
+.dangerBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  border-radius: 22px;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.panelHead h2,
+.subHead h3 {
+  margin: 0;
+}
+
+.panelHead > svg,
+.subHead svg {
+  color: #9fffe7;
+}
+
+.userList {
+  display: grid;
+  gap: 10px;
+  max-height: 760px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.userRow {
+  width: 100%;
+  min-height: 92px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #ffffff;
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+}
+
+.userRowActive {
+  border-color: rgba(34, 211, 238, 0.5);
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #10b981, #22d3ee);
+  color: #03131f;
+  font-weight: 950;
+}
+
+.userMeta {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.userMeta strong,
+.userMeta small,
+.infoGrid strong,
+.compactList strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userMeta small,
+.compactList span,
+.activityRow span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.userFlags,
+.rowStats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.rowStats {
+  grid-column: 2 / -1;
+  justify-content: flex-start;
+}
+
+.rowStats span,
+.okPill,
+.blockedPill,
+.riskPill,
+.eventPill {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.rowStats span,
+.eventPill {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.okPill {
+  background: rgba(16, 185, 129, 0.15);
+  color: #bbf7d0;
+}
+
+.blockedPill,
+.riskPill {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fecaca;
+}
+
+.emptyState,
+.miniEmpty {
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  padding: 18px;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.68);
+  font-weight: 850;
+}
+
+.miniEmpty {
+  min-height: 76px;
+}
+
+.breakdownGrid,
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.breakdownGrid div,
+.infoGrid div {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.065);
+  display: grid;
+  gap: 6px;
+}
+
+.breakdownGrid strong,
+.infoGrid strong {
+  font-size: 0.92rem;
+}
+
+.splitGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.subPanel,
+.activityPanel {
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.subHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.compactList,
+.activityList {
+  display: grid;
+  gap: 8px;
+}
+
+.compactList button,
+.compactList div,
+.activityRow {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.16);
+  color: #ffffff;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.compactList button {
+  cursor: pointer;
+}
+
+.activityRow {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.activityRow > span:last-child {
+  grid-column: 2;
+}
+
+@media (max-width: 1040px) {
+  .statsGrid,
+  .filters,
+  .contentGrid,
+  .breakdownGrid,
+  .infoGrid,
+  .splitGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .primaryBtn,
+  .dangerBtn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .main {
+    width: min(100% - 20px, 1320px);
+  }
+
+  .panel,
+  .filters {
+    border-radius: 18px;
+    padding: 12px;
+  }
+
+  .userRow {
+    grid-template-columns: 38px 1fr;
+  }
+
+  .userFlags,
+  .rowStats {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .panelHead {
+    display: grid;
+  }
+
+  .activityRow {
+    grid-template-columns: 1fr;
+  }
+
+  .activityRow > span:last-child {
+    grid-column: auto;
+  }
+}

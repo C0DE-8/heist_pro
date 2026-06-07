@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FaBell, FaPaperPlane, FaRedoAlt, FaUsers } from "react-icons/fa";
+import { FaBell, FaCheckCircle, FaPaperPlane, FaRedoAlt, FaSearch, FaUsers } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
 import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { useToast } from "../../../components/Toast/ToastContext";
@@ -34,6 +34,8 @@ export default function AdminNotifications() {
   const toast = useToast();
   const [form, setForm] = useState(DEFAULT_FORM);
   const [users, setUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [usersError, setUsersError] = useState("");
   const [sending, setSending] = useState(false);
@@ -41,15 +43,21 @@ export default function AdminNotifications() {
 
   const targetLabel = useMemo(() => {
     if (form.all_users) return "All active users";
-    const selected = users.find((user) => Number(user.id) === Number(form.user_id));
+    const selected =
+      selectedUser ||
+      users.find((user) => Number(user.id) === Number(form.user_id));
     return selected ? userLabel(selected) : "One user";
-  }, [form.all_users, form.user_id, users]);
+  }, [form.all_users, form.user_id, selectedUser, users]);
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
     setUsersError("");
     try {
-      const data = await getAdminUsers({ role: "user", limit: 100 });
+      const data = await getAdminUsers({
+        role: "user",
+        search: userSearch.trim() || undefined,
+        limit: 25,
+      });
       setUsers(Array.isArray(data?.users) ? data.users : []);
     } catch (err) {
       console.error("Load notice users error:", err);
@@ -57,7 +65,7 @@ export default function AdminNotifications() {
     } finally {
       setLoadingUsers(false);
     }
-  }, []);
+  }, [userSearch]);
 
   useEffect(() => {
     loadUsers();
@@ -72,8 +80,22 @@ export default function AdminNotifications() {
     setForm((prev) => ({ ...prev, all_users: allUsers }));
   };
 
+  const chooseUser = (user) => {
+    setSelectedUser(user);
+    setUserSearch(userLabel(user));
+    setForm((prev) => ({ ...prev, all_users: false, user_id: String(user.id) }));
+  };
+
+  const clearSelectedUser = () => {
+    setSelectedUser(null);
+    setUserSearch("");
+    setForm((prev) => ({ ...prev, user_id: "" }));
+  };
+
   const resetForm = () => {
     setForm(DEFAULT_FORM);
+    setSelectedUser(null);
+    setUserSearch("");
     setLastResult(null);
   };
 
@@ -150,16 +172,49 @@ export default function AdminNotifications() {
               </div>
 
               {!form.all_users ? (
-                <label>
+                <label className={styles.userPicker}>
                   <span>User</span>
-                  <select value={form.user_id} onChange={updateField("user_id")} required>
-                    <option value="">Select user</option>
-                    {users.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {userLabel(user)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className={styles.searchInput}>
+                    <FaSearch />
+                    <input
+                      value={userSearch}
+                      onChange={(event) => {
+                        setUserSearch(event.target.value);
+                        setSelectedUser(null);
+                        setForm((prev) => ({ ...prev, user_id: "" }));
+                      }}
+                      placeholder="Search username, email, name, wallet, or game ID"
+                      required={!form.user_id}
+                    />
+                  </div>
+
+                  {selectedUser ? (
+                    <div className={styles.selectedUser}>
+                      <FaCheckCircle />
+                      <strong>{userLabel(selectedUser)}</strong>
+                      <button type="button" onClick={clearSelectedUser}>
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className={styles.userResults}>
+                      {loadingUsers ? (
+                        <div className={styles.userResultEmpty}>Searching users...</div>
+                      ) : users.length ? (
+                        users.map((user) => (
+                          <button key={user.id} type="button" onClick={() => chooseUser(user)}>
+                            <span>
+                              <strong>{userLabel(user)}</strong>
+                              <small>{user.email}</small>
+                            </span>
+                            <em>{user.game_id || "No game ID"}</em>
+                          </button>
+                        ))
+                      ) : (
+                        <div className={styles.userResultEmpty}>No users found.</div>
+                      )}
+                    </div>
+                  )}
                 </label>
               ) : null}
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FaChartLine,
   FaCoins,
+  FaEye,
   FaFlask,
   FaGift,
   FaBell,
@@ -87,6 +88,14 @@ export default function AdminDashboard() {
         icon: <FaUsers />,
         stat: `${formatNum(userStats.total_users)} users`,
         tone: "green",
+      },
+      {
+        title: "God Eyes",
+        text: "Watch login activity, site visits, IPs, device matches, account limits, and suspicious users.",
+        path: "/admin/god-eyes",
+        icon: <FaEye />,
+        stat: "Security",
+        tone: "cyan",
       },
       {
         title: "Transactions",
