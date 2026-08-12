@@ -17,6 +17,7 @@ import {
   Volume2,
   VolumeX,
   Bell,
+  Shield,
 } from "lucide-react";
 import styles from "./UserToolbar.module.css";
 import { imgUrl } from "../../lib/api";
@@ -308,6 +309,18 @@ export default function UserToolbar() {
 
           <button className={styles.item} onClick={() => go("/heist")}>
             <ShieldAlert size={16} /> Heist
+          </button>
+
+          <button className={styles.item} onClick={() => go("/clans")}>
+            <Shield size={16} /> Clans
+          </button>
+
+          <button className={styles.item} onClick={() => go("/my-clan")}>
+            <Users size={16} /> My Clan
+          </button>
+
+          <button className={styles.item} onClick={() => go("/clan-quests")}>
+            <Trophy size={16} /> Clan quests
           </button>
 
           <button className={styles.item} onClick={() => go("/trade")}>

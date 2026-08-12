@@ -28,9 +28,10 @@ export default function AdminPageHeader({
             className={styles.refreshBtn}
             onClick={onRefresh}
             disabled={refreshing}
+            aria-label={refreshing ? refreshingLabel : refreshLabel}
+            title={refreshing ? refreshingLabel : refreshLabel}
           >
             <FaRedoAlt />
-            <span>{refreshing ? refreshingLabel : refreshLabel}</span>
           </button>
         ) : null}
       </section>

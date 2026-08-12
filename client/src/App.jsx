@@ -21,6 +21,7 @@ import AdminAnalytics from "./pages/admin/AdminAnalytics/AdminAnalytics";
 import AdminReferral from "./pages/admin/AdminReferral/AdminReferral";
 import AdminNotifications from "./pages/admin/AdminNotifications/AdminNotifications";
 import AdminGodEyes from "./pages/admin/AdminGodEyes/AdminGodEyes";
+import AdminClans from "./pages/admin/AdminClans/AdminClans";
 
 
 // Protected Routes
@@ -53,6 +54,9 @@ import Support from "./pages/Support/Support";
 import Terms from "./pages/Support/Terms";
 import Home from "./pages/Home/Home";
 import Account from "./pages/Account/Account";
+import Clans from "./pages/Clans/Clans";
+import ClanQuests from "./pages/ClanQuests/ClanQuests";
+import MyClan from "./pages/MyClan/MyClan";
 
 
 export default function App() {
@@ -123,6 +127,13 @@ export default function App() {
         </Route>
 
         <Route element={<UserRoute />}>
+          <Route path="/my-clan" element={<MyClan />} />
+          <Route path="/clans" element={<Clans />} />
+          <Route path="/clans/:clanId" element={<Clans />} />
+          <Route path="/clan-quests" element={<ClanQuests />} />
+        </Route>
+
+        <Route element={<UserRoute />}>
           <Route path="/how-to-play" element={<HowItWork />} />
         </Route>
 
@@ -163,6 +174,10 @@ export default function App() {
 
         <Route element={<AdminRoute />}>
           <Route path="/admin/god-eyes" element={<AdminGodEyes />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/clans" element={<AdminClans />} />
         </Route>
 
 

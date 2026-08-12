@@ -5,6 +5,7 @@ import {
   FaChevronRight,
   FaEdit,
   FaPlus,
+  FaRedoAlt,
   FaSave,
   FaTrash,
   FaTrophy,
@@ -1424,8 +1425,8 @@ function AdminHeistsPage() {
                   <FaPlus />
                   <span>Add questions</span>
                 </button>
-                <button type="button" className={styles.softBtn} onClick={loadQuestionBank} disabled={busy}>
-                  Refresh bank
+                <button type="button" className={styles.softBtn} onClick={loadQuestionBank} disabled={busy} aria-label="Refresh question bank" title="Refresh question bank">
+                  <FaRedoAlt />
                 </button>
               </div>
             </div>
@@ -1472,8 +1473,8 @@ function AdminHeistsPage() {
                 <p className={styles.kicker}>CopUp Jr</p>
                 <h2>Promo codes</h2>
               </div>
-              <button type="button" className={styles.softBtn} onClick={loadPromoCodes} disabled={busy}>
-                Refresh codes
+              <button type="button" className={styles.softBtn} onClick={loadPromoCodes} disabled={busy} aria-label="Refresh promo codes" title="Refresh promo codes">
+                <FaRedoAlt />
               </button>
             </div>
 

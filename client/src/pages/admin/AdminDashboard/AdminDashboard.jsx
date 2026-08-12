@@ -7,6 +7,7 @@ import {
   FaFlask,
   FaGift,
   FaBell,
+  FaShieldAlt,
   FaTrophy,
   FaUsers,
   FaWallet,
@@ -120,6 +121,14 @@ export default function AdminDashboard() {
         icon: <FaBell />,
         stat: "Notices",
         tone: "cyan",
+      },
+      {
+        title: "Clan Management",
+        text: "Review clans, manage status, configure clan settings, create quests, and distribute clan rewards.",
+        path: "/admin/clans",
+        icon: <FaShieldAlt />,
+        stat: "Clans",
+        tone: "green",
       },
       {
         title: "Analytics",

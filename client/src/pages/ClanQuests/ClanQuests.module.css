@@ -1,0 +1,348 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(57, 217, 138, 0.16), transparent 28%),
+    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.12), transparent 30%),
+    linear-gradient(180deg, #07090d 0%, #0d1117 45%, #11161f 100%);
+}
+
+.main {
+  width: min(1180px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 112px 0 42px;
+  display: grid;
+  gap: 16px;
+  flex: 1 0 auto;
+}
+
+.hero,
+.questCard,
+.error,
+.empty,
+.skeletonQuest {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.04)),
+    rgba(22, 25, 34, 0.72);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.hero {
+  border-radius: 30px;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.kicker,
+.status {
+  margin: 0 0 8px;
+  color: #baffc7;
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.questTop h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.hero h1 {
+  font-size: clamp(2.3rem, 6vw, 4.8rem);
+  line-height: 0.94;
+}
+
+.hero p,
+.questTop p,
+.clanInfo span,
+.questMeta,
+.empty {
+  color: rgba(255, 255, 255, 0.66);
+  line-height: 1.55;
+}
+
+.hero p {
+  margin: 12px 0 0;
+  max-width: 68ch;
+}
+
+.pills,
+.questMeta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.pills span,
+.questMeta span {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.iconBtn,
+.joinBtn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.iconBtn {
+  width: 44px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.joinBtn {
+  width: fit-content;
+  margin-top: 14px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #1a8f5c, #0f766e);
+  border-color: rgba(186, 255, 199, 0.28);
+}
+
+.joinBtn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.questList {
+  display: grid;
+  gap: 16px;
+}
+
+.questCard {
+  border-radius: 26px;
+  padding: 18px;
+}
+
+.questTop {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.questTop h2 {
+  font-size: 1.5rem;
+}
+
+.questTop p {
+  margin: 8px 0 0;
+}
+
+.prizeBox {
+  min-width: 130px;
+  border-radius: 20px;
+  padding: 14px;
+  background: rgba(186, 255, 199, 0.1);
+  text-align: center;
+}
+
+.prizeBox strong,
+.prizeBox span {
+  display: block;
+}
+
+.prizeBox strong {
+  font-size: 1.25rem;
+}
+
+.prizeBox span {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.board {
+  margin-top: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.boardHead,
+.clanRow {
+  display: grid;
+  grid-template-columns: 52px 56px minmax(0, 1fr) 100px;
+  gap: 12px;
+  align-items: center;
+}
+
+.boardHead {
+  padding: 12px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.76rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.boardHead strong {
+  grid-column: 1 / 4;
+}
+
+.clanRow {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rank,
+.logo {
+  display: grid;
+  place-items: center;
+  font-weight: 950;
+}
+
+.rank {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  color: #baffc7;
+  background: rgba(186, 255, 199, 0.1);
+}
+
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.clanInfo {
+  min-width: 0;
+}
+
+.clanInfo strong,
+.clanInfo span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wins {
+  border-radius: 16px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+
+.wins strong,
+.wins span {
+  display: block;
+}
+
+.wins span {
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.error,
+.empty {
+  border-radius: 20px;
+  padding: 14px;
+}
+
+.skeletonQuest {
+  min-height: 280px;
+  border-radius: 26px;
+  padding: 18px;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeletonQuest::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: shimmer 1.25s infinite;
+}
+
+.skeletonQuest span {
+  width: 70%;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.skeletonQuest span:nth-child(2) {
+  width: 46%;
+}
+
+.skeletonQuest span:nth-child(3) {
+  width: 88%;
+  height: 92px;
+  border-radius: 20px;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 760px) {
+  .main {
+    width: min(100% - 24px, 1180px);
+    padding-top: 96px;
+  }
+
+  .hero,
+  .questTop,
+  .boardHead,
+  .clanRow {
+    grid-template-columns: 1fr;
+  }
+
+  .boardHead strong {
+    grid-column: auto;
+  }
+
+  .prizeBox,
+  .joinBtn,
+  .wins {
+    width: 100%;
+    text-align: left;
+  }
+}

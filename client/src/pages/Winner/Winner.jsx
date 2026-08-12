@@ -13,6 +13,8 @@ import {
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import SkeletonGrid from "../../components/SkeletonGrid/SkeletonGrid";
+import { imgUrl } from "../../lib/api";
+import { getTopClans } from "../../lib/clans";
 import { getCompletedHeists, getHeistLeaderboard } from "../../lib/heists";
 import styles from "./Winner.module.css";
 
@@ -46,12 +48,18 @@ function winnerName(heist) {
   return heist?.winner_full_name || heist?.winner_username || "Winner unavailable";
 }
 
+function clanInitial(name) {
+  return String(name || "C").trim().slice(0, 1).toUpperCase();
+}
+
 export default function Winner() {
   const [loading, setLoading] = useState(true);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [clansLoading, setClansLoading] = useState(true);
   const [error, setError] = useState("");
   const [completed, setCompleted] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [topClans, setTopClans] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [copied, setCopied] = useState(false);
 
@@ -96,9 +104,23 @@ export default function Winner() {
     }
   }, []);
 
+  const loadTopClans = useCallback(async () => {
+    setClansLoading(true);
+    try {
+      const data = await getTopClans({ limit: 10 });
+      setTopClans(Array.isArray(data?.clans) ? data.clans : []);
+    } catch (err) {
+      console.warn("Top clans error:", err);
+      setTopClans([]);
+    } finally {
+      setClansLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadCompleted();
-  }, [loadCompleted]);
+    loadTopClans();
+  }, [loadCompleted, loadTopClans]);
 
   useEffect(() => {
     loadLeaderboard(activeHeist?.id);
@@ -166,9 +188,8 @@ export default function Winner() {
               </div>
 
               <div className={styles.heroActions}>
-                <button type="button" className={styles.btnPrimary} onClick={loadCompleted}>
-                  <FiRefreshCw style={{ marginRight: 8 }} />
-                  Refresh
+                <button type="button" className={styles.btnPrimary} onClick={loadCompleted} aria-label="Refresh winners" title="Refresh winners">
+                  <FiRefreshCw />
                 </button>
               </div>
             </div>
@@ -362,6 +383,62 @@ export default function Winner() {
                   </div>
                 ) : (
                   <div className={styles.softNote}>No submitted leaderboard rows for this heist.</div>
+                )}
+              </div>
+
+              <div className={styles.card}>
+                <div className={styles.cardHeaderRow}>
+                  <div>
+                    <div className={styles.cardTitle}>Top Clans</div>
+                    <div className={styles.cardSub}>
+                      Ranked by successful heist wins from clan members
+                    </div>
+                  </div>
+                  <div className={styles.badgeSoft}>{topClans.length} clans</div>
+                </div>
+
+                {clansLoading ? (
+                  <div className={styles.clanList}>
+                    {[0, 1, 2].map((item) => (
+                      <div className={styles.clanSkeleton} key={item}>
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    ))}
+                  </div>
+                ) : topClans.length ? (
+                  <div className={styles.clanList}>
+                    {topClans.map((clan) => (
+                      <div className={styles.clanRankCard} key={clan.id}>
+                        <div className={styles.clanRank}>#{clan.rank}</div>
+                        <div className={styles.clanLogo}>
+                          {clan.logo_url ? (
+                            <img src={imgUrl(clan.logo_url)} alt="" />
+                          ) : (
+                            clanInitial(clan.name)
+                          )}
+                        </div>
+                        <div className={styles.clanInfo}>
+                          <div className={styles.clanName}>{clan.name}</div>
+                          <div className={styles.clanMeta}>
+                            {formatNum(clan.member_count)} members · Leader{" "}
+                            {clan.leader_full_name || clan.leader_username || "Unavailable"}
+                          </div>
+                        </div>
+                        <div className={styles.clanStats}>
+                          <strong>{formatNum(clan.heist_wins)}</strong>
+                          <span>wins</span>
+                        </div>
+                        <div className={styles.clanStats}>
+                          <strong>{formatNum(clan.heist_prize_cop_points)}</strong>
+                          <span>CP won</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={styles.softNote}>No clan heist wins yet.</div>
                 )}
               </div>
             </>

@@ -382,6 +382,140 @@
   padding: 7px 9px;
 }
 
+.clanList {
+  display: grid;
+  gap: 10px;
+}
+
+.clanRankCard,
+.clanSkeleton {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.clanRankCard {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 48px 56px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.clanRank {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #baffc7;
+  background: rgba(186, 255, 199, 0.1);
+  font-weight: 950;
+}
+
+.clanLogo {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(186, 255, 199, 0.18), rgba(59, 130, 246, 0.14)),
+    rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 950;
+}
+
+.clanLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.clanInfo {
+  min-width: 0;
+}
+
+.clanName {
+  font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clanMeta {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clanStats {
+  min-width: 82px;
+  border-radius: 16px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+
+.clanStats strong,
+.clanStats span {
+  display: block;
+}
+
+.clanStats strong {
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.clanStats span {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.clanSkeleton {
+  position: relative;
+  overflow: hidden;
+  min-height: 82px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 120px;
+  gap: 12px;
+  align-items: center;
+}
+
+.clanSkeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: shimmer 1.25s infinite;
+}
+
+.clanSkeleton span {
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.clanSkeleton span:first-child {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+}
+
+.clanSkeleton span:last-child {
+  height: 34px;
+}
+
 .stateCard {
   min-height: 160px;
 }
@@ -510,6 +644,14 @@
   .metaGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .clanRankCard {
+    grid-template-columns: 44px 52px minmax(0, 1fr);
+  }
+
+  .clanStats {
+    grid-column: span 1;
+  }
 }
 
 @media (max-width: 560px) {
@@ -534,8 +676,20 @@
 
   .winnerRow,
   .selectorRow,
-  .metaGrid {
+  .metaGrid,
+  .clanRankCard,
+  .clanSkeleton {
     grid-template-columns: 1fr;
+  }
+
+  .clanRank,
+  .clanLogo {
+    justify-self: start;
+  }
+
+  .clanStats {
+    width: 100%;
+    text-align: left;
   }
 
   .avatarWrap {
@@ -551,5 +705,11 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }

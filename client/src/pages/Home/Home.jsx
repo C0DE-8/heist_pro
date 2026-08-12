@@ -8,6 +8,7 @@ import {
   FiTarget,
   FiRepeat,
   FiCreditCard,
+  FiShield,
 } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
@@ -81,7 +82,7 @@ export default function Home() {
       await navigator.clipboard.writeText(String(value));
       setCopied(label);
       setTimeout(() => setCopied(""), 1400);
-    } catch (err) {
+    } catch {
       setCopied("");
     }
   };
@@ -111,13 +112,34 @@ export default function Home() {
     },
     {
       id: 3,
-      title: "How To Play",
-      sub: "Learn the full flow",
+      title: "Clans",
+      sub: "Team up and win",
       image: m3Img,
-      action: () => navigate("/how-to-play"),
+      action: () => navigate("/clans"),
     },
     {
       id: 4,
+      title: "My Clan",
+      sub: "Chat and members",
+      image: m2Img,
+      action: () => navigate("/my-clan"),
+    },
+    {
+      id: 5,
+      title: "Clan Quests",
+      sub: "Track clan wins",
+      image: m1Img,
+      action: () => navigate("/clan-quests"),
+    },
+    {
+      id: 6,
+      title: "How To Play",
+      sub: "Learn the full flow",
+      image: m4Img,
+      action: () => navigate("/how-to-play"),
+    },
+    {
+      id: 7,
       title: "Your Wallet",
       sub: "Track points and access",
       image: m4Img,
@@ -188,6 +210,11 @@ export default function Home() {
           <button type="button" className={styles.quickLink} onClick={() => navigate("/heist")}>
             <FiTarget />
             <span>Heist</span>
+          </button>
+
+          <button type="button" className={styles.quickLink} onClick={() => navigate("/clans")}>
+            <FiShield />
+            <span>Clans</span>
           </button>
 
           <button type="button" className={styles.quickLink} onClick={() => navigate("/trade")}>

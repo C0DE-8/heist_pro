@@ -378,9 +378,8 @@ export default function Trade() {
               </div>
 
               <div className={styles.heroActions}>
-                <button type="button" className={styles.btnPrimary} onClick={onRefresh} disabled={loading}>
-                  <FiRefreshCw style={{ marginRight: 8 }} />
-                  Refresh
+                <button type="button" className={styles.btnPrimary} onClick={onRefresh} disabled={loading} aria-label="Refresh trade" title="Refresh trade">
+                  <FiRefreshCw />
                 </button>
 
                 <button
