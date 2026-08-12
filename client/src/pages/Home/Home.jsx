@@ -4,11 +4,9 @@ import {
   FiCopy,
   FiEye,
   FiEyeOff,
-  FiHelpCircle,
+  FiAward,
   FiTarget,
-  FiRepeat,
   FiCreditCard,
-  FiShield,
 } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
@@ -18,7 +16,6 @@ import styles from "./Home.module.css";
 
 import m1Img from "../../assets/m1.png";
 import m2Img from "../../assets/m2.png";
-import m3Img from "../../assets/m3.png";
 import m4Img from "../../assets/m4.png";
 
 const WALLET_HIDE_KEY = "copup_hide_wallet_balance";
@@ -105,31 +102,10 @@ export default function Home() {
     },
     {
       id: 2,
-      title: "Trade Hub",
-      sub: "Manage your exchange",
+      title: "Winners",
+      sub: "View latest results",
       image: m2Img,
-      action: () => navigate("/trade"),
-    },
-    {
-      id: 3,
-      title: "Clans",
-      sub: "Team up and win",
-      image: m3Img,
-      action: () => navigate("/clans"),
-    },
-    {
-      id: 4,
-      title: "My Clan",
-      sub: "Chat and members",
-      image: m2Img,
-      action: () => navigate("/my-clan"),
-    },
-    {
-      id: 5,
-      title: "Clan Quests",
-      sub: "Track clan wins",
-      image: m1Img,
-      action: () => navigate("/clan-quests"),
+      action: () => navigate("/winners"),
     },
     {
       id: 6,
@@ -137,13 +113,6 @@ export default function Home() {
       sub: "Learn the full flow",
       image: m4Img,
       action: () => navigate("/how-to-play"),
-    },
-    {
-      id: 7,
-      title: "Your Wallet",
-      sub: "Track points and access",
-      image: m4Img,
-      action: () => navigate("/profile"),
     },
   ];
 
@@ -212,19 +181,14 @@ export default function Home() {
             <span>Heist</span>
           </button>
 
-          <button type="button" className={styles.quickLink} onClick={() => navigate("/clans")}>
-            <FiShield />
-            <span>Clans</span>
+          <button type="button" className={styles.quickLink} onClick={() => navigate("/account")}>
+            <FiCreditCard />
+            <span>Wallet</span>
           </button>
 
-          <button type="button" className={styles.quickLink} onClick={() => navigate("/trade")}>
-            <FiRepeat />
-            <span>Trade</span>
-          </button>
-
-          <button type="button" className={styles.quickLink} onClick={() => navigate("/how-to-play")}>
-            <FiHelpCircle />
-            <span>How To Play</span>
+          <button type="button" className={styles.quickLink} onClick={() => navigate("/winners")}>
+            <FiAward />
+            <span>Winners</span>
           </button>
         </section>
 

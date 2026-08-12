@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
   FiAward,
+  FiChevronLeft,
+  FiChevronRight,
   FiCheckCircle,
   FiCopy,
   FiEdit3,
@@ -75,6 +77,8 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [modeSaving, setModeSaving] = useState(false);
+  const [activeSettingsSlide, setActiveSettingsSlide] = useState(0);
+  const [activeProfileSlide, setActiveProfileSlide] = useState(0);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
 
@@ -102,6 +106,196 @@ export default function Profile() {
   const passwordDirty = Boolean(
     passwordForm.current_password || passwordForm.new_password || passwordForm.confirm_password
   );
+
+  const profileSlides = [
+    {
+      key: "identity",
+      label: "Identity",
+      eyebrow: "Account",
+      title: "Identity and wallet",
+      icon: <FiUser />,
+      content: (
+        <React.Fragment>
+          <div className={styles.infoList}>
+            <div>
+              <span>Role</span>
+              <strong>{user?.role || "user"}</strong>
+            </div>
+            <div>
+              <span>Game ID</span>
+              <strong>{user?.game_id || "Not assigned"}</strong>
+            </div>
+            {isAffiliate ? (
+              <div>
+                <span>Referral code</span>
+                <button
+                  type="button"
+                  onClick={() => copyValue("Referral code", user?.referral_code)}
+                  disabled={!user?.referral_code}
+                >
+                  <strong>{user?.referral_code || "Not assigned"}</strong>
+                  <FiCopy />
+                </button>
+              </div>
+            ) : null}
+            <div>
+              <span>Wallet</span>
+              <button
+                type="button"
+                onClick={() => copyValue("Wallet", user?.wallet_address)}
+                disabled={!user?.wallet_address}
+              >
+                <strong>{shortText(user?.wallet_address)}</strong>
+                <FiCopy />
+              </button>
+            </div>
+            <div>
+              <span>Joined</span>
+              <strong>{formatDate(user?.created_at)}</strong>
+            </div>
+          </div>
+
+          {copied ? <p className={styles.notice}>{copied} copied</p> : null}
+        </React.Fragment>
+      ),
+    },
+    {
+      key: "performance",
+      label: "Record",
+      eyebrow: "Performance",
+      title: "Heist record",
+      icon: <FiAward />,
+      content: (
+        <div className={styles.scoreGrid}>
+          <div>
+            <span>Total submissions</span>
+            <strong>{formatNum(submissionStats.total_submissions)}</strong>
+          </div>
+          <div>
+            <span>Best correct</span>
+            <strong>{formatNum(submissionStats.best_correct_count)}</strong>
+          </div>
+          <div>
+            <span>Average score</span>
+            <strong>{formatPercent(submissionStats.average_score_percent)}</strong>
+          </div>
+          {isAffiliate ? (
+            <div>
+              <span>Affiliate rewards</span>
+              <strong>{formatNum(taskStats.affiliate_rewards_earned)} CP</strong>
+            </div>
+          ) : (
+            <div>
+              <span>Live heists</span>
+              <strong>{formatNum(heistStats.active_heists)}</strong>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "recent",
+      label: "Recent",
+      eyebrow: "Recent",
+      title: "Heist activity",
+      icon: <FiTarget />,
+      content: (
+        <div className={styles.rows}>
+          {loading ? (
+            <div className={styles.emptyState}>Loading heists...</div>
+          ) : recentHeists.length ? (
+            recentHeists.map((heist) => (
+              <button
+                type="button"
+                key={`${heist.id}-${heist.joined_at}`}
+                className={styles.activityRow}
+                onClick={() => navigate(`/heist/${heist.id}`)}
+              >
+                <span>
+                  <strong>{heist.name}</strong>
+                  <small>{formatDate(heist.joined_at)}</small>
+                </span>
+                <em>{heist.participant_status || heist.status}</em>
+              </button>
+            ))
+          ) : (
+            <div className={styles.emptyState}>No heist activity yet.</div>
+          )}
+        </div>
+      ),
+    },
+    ...(isAffiliate
+      ? [
+          {
+            key: "affiliate",
+            label: "Affiliate",
+            eyebrow: "Affiliate",
+            title: "Task progress",
+            icon: <FiUsers />,
+            content: (
+              <div className={styles.rows}>
+                {loading ? (
+                  <div className={styles.emptyState}>Loading tasks...</div>
+                ) : affiliateProgress.length ? (
+                  affiliateProgress.map((task) => {
+                    const required = Number(task.required_joins || 0);
+                    const current = Number(task.current_joins || 0);
+                    const pct = required
+                      ? Math.min(100, Math.round((current / required) * 100))
+                      : 0;
+
+                    return (
+                      <div className={styles.taskRow} key={task.task_id}>
+                        <div className={styles.taskTop}>
+                          <span>
+                            <strong>{task.heist_name}</strong>
+                            <small>{formatNum(task.reward_cop_points)} CP reward</small>
+                          </span>
+                          <em>
+                            {task.is_completed
+                              ? "Complete"
+                              : `${formatNum(current)} / ${formatNum(required)}`}
+                          </em>
+                        </div>
+                        <div className={styles.progressTrack}>
+                          <span style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className={styles.emptyState}>No affiliate task progress yet.</div>
+                )}
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  useEffect(() => {
+    setActiveProfileSlide((index) => Math.min(index, profileSlides.length - 1));
+  }, [profileSlides.length]);
+
+  const moveProfileSlide = (direction) => {
+    setActiveProfileSlide((index) => {
+      const next = index + direction;
+      if (next < 0) return profileSlides.length - 1;
+      if (next >= profileSlides.length) return 0;
+      return next;
+    });
+  };
+
+  const settingsSlideCount = 3;
+
+  const moveSettingsSlide = (direction) => {
+    setActiveSettingsSlide((index) => {
+      const next = index + direction;
+      if (next < 0) return settingsSlideCount - 1;
+      if (next >= settingsSlideCount) return 0;
+      return next;
+    });
+  };
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -276,136 +470,200 @@ export default function Profile() {
             </div>
           </article>
 
-          <form className={styles.editCard} onSubmit={handleSubmit}>
-            <div className={styles.cardHead}>
+          <section className={styles.settingsSwap} aria-label="Profile settings cards">
+            <div className={styles.miniSwapTop}>
               <div>
-                <p className={styles.kicker}>Update Profile</p>
-                <h2>Account details</h2>
+                <p className={styles.kicker}>Settings Cards</p>
+                <h2>
+                  {activeSettingsSlide === 0
+                    ? "Account details"
+                    : activeSettingsSlide === 1
+                      ? "Update password"
+                      : "Account mode"}
+                </h2>
               </div>
-              <FiEdit3 />
+
+              <div className={styles.swapControls}>
+                <button
+                  type="button"
+                  onClick={() => moveSettingsSlide(-1)}
+                  aria-label="Previous settings card"
+                >
+                  <FiChevronLeft />
+                </button>
+                <span>{activeSettingsSlide + 1}/{settingsSlideCount}</span>
+                <button
+                  type="button"
+                  onClick={() => moveSettingsSlide(1)}
+                  aria-label="Next settings card"
+                >
+                  <FiChevronRight />
+                </button>
+              </div>
             </div>
 
-            <label className={styles.field}>
-              <span>Username</span>
-              <input
-                name="username"
-                value={form.username}
-                onChange={updateField}
-                placeholder="Username"
-                disabled={loading || saving}
-              />
-            </label>
+            <div className={`${styles.swapDeck} ${styles.settingsDeck}`}>
+              <form
+                className={`${styles.swapCard} ${styles.settingsCard}`}
+                data-active={activeSettingsSlide === 0 ? "true" : "false"}
+                style={{ "--offset": 0 - activeSettingsSlide, "--abs-offset": Math.abs(0 - activeSettingsSlide) }}
+                aria-hidden={activeSettingsSlide !== 0}
+                onSubmit={handleSubmit}
+              >
+                <div className={styles.cardHead}>
+                  <div>
+                    <p className={styles.kicker}>Update Profile</p>
+                    <h2>Account details</h2>
+                  </div>
+                  <FiEdit3 />
+                </div>
 
-            <label className={styles.field}>
-              <span>Full name</span>
-              <input
-                name="full_name"
-                value={form.full_name}
-                onChange={updateField}
-                placeholder="Full name"
-                disabled={loading || saving}
-              />
-            </label>
+                <label className={styles.field}>
+                  <span>Username</span>
+                  <input
+                    name="username"
+                    value={form.username}
+                    onChange={updateField}
+                    placeholder="Username"
+                    disabled={loading || saving}
+                  />
+                </label>
 
-            <label className={styles.field}>
-              <span>Email</span>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={updateField}
-                placeholder="Email address"
-                disabled={loading || saving}
-              />
-            </label>
+                <label className={styles.field}>
+                  <span>Full name</span>
+                  <input
+                    name="full_name"
+                    value={form.full_name}
+                    onChange={updateField}
+                    placeholder="Full name"
+                    disabled={loading || saving}
+                  />
+                </label>
 
-            <button type="submit" className={styles.saveBtn} disabled={!isDirty || loading || saving}>
-              {saving ? "Saving..." : "Save changes"}
-            </button>
-          </form>
+                <label className={styles.field}>
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={updateField}
+                    placeholder="Email address"
+                    disabled={loading || saving}
+                  />
+                </label>
 
-          <form className={styles.editCard} onSubmit={handlePasswordSubmit}>
-            <div className={styles.cardHead}>
-              <div>
-                <p className={styles.kicker}>Security</p>
-                <h2>Update password</h2>
-              </div>
-              <FiShield />
+                <button type="submit" className={styles.saveBtn} disabled={!isDirty || loading || saving}>
+                  {saving ? "Saving..." : "Save changes"}
+                </button>
+              </form>
+
+              <form
+                className={`${styles.swapCard} ${styles.settingsCard}`}
+                data-active={activeSettingsSlide === 1 ? "true" : "false"}
+                style={{ "--offset": 1 - activeSettingsSlide, "--abs-offset": Math.abs(1 - activeSettingsSlide) }}
+                aria-hidden={activeSettingsSlide !== 1}
+                onSubmit={handlePasswordSubmit}
+              >
+                <div className={styles.cardHead}>
+                  <div>
+                    <p className={styles.kicker}>Security</p>
+                    <h2>Update password</h2>
+                  </div>
+                  <FiShield />
+                </div>
+
+                <label className={styles.field}>
+                  <span>Current password</span>
+                  <input
+                    type="password"
+                    name="current_password"
+                    value={passwordForm.current_password}
+                    onChange={updatePasswordField}
+                    placeholder="Current password"
+                    disabled={loading || passwordSaving}
+                  />
+                </label>
+
+                <label className={styles.field}>
+                  <span>New password</span>
+                  <input
+                    type="password"
+                    name="new_password"
+                    value={passwordForm.new_password}
+                    onChange={updatePasswordField}
+                    placeholder="New password"
+                    disabled={loading || passwordSaving}
+                  />
+                </label>
+
+                <label className={styles.field}>
+                  <span>Confirm new password</span>
+                  <input
+                    type="password"
+                    name="confirm_password"
+                    value={passwordForm.confirm_password}
+                    onChange={updatePasswordField}
+                    placeholder="Confirm new password"
+                    disabled={loading || passwordSaving}
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  className={styles.saveBtn}
+                  disabled={!passwordDirty || loading || passwordSaving}
+                >
+                  {passwordSaving ? "Updating..." : "Update password"}
+                </button>
+              </form>
+
+              <article
+                className={`${styles.swapCard} ${styles.settingsCard}`}
+                data-active={activeSettingsSlide === 2 ? "true" : "false"}
+                style={{ "--offset": 2 - activeSettingsSlide, "--abs-offset": Math.abs(2 - activeSettingsSlide) }}
+                aria-hidden={activeSettingsSlide !== 2}
+              >
+                <div className={styles.cardHead}>
+                  <div>
+                    <p className={styles.kicker}>Account Mode</p>
+                    <h2>{isAffiliate ? "Affiliate mode" : "User mode"}</h2>
+                  </div>
+                  <FiRepeat />
+                </div>
+
+                <p className={styles.modeText}>
+                  {isAffiliate
+                    ? "Referral tools, affiliate plans, affiliate rewards, and affiliate task progress are active."
+                    : "Normal user mode keeps the profile focused on heists, wallet, clans, winners, and gameplay."}
+                </p>
+
+                <button
+                  type="button"
+                  className={styles.switchBtn}
+                  onClick={handleModeSwitch}
+                  disabled={loading || modeSaving}
+                >
+                  {modeSaving
+                    ? "Switching..."
+                    : isAffiliate
+                      ? "Switch to user mode"
+                      : "Switch to affiliate mode"}
+                </button>
+              </article>
             </div>
 
-            <label className={styles.field}>
-              <span>Current password</span>
-              <input
-                type="password"
-                name="current_password"
-                value={passwordForm.current_password}
-                onChange={updatePasswordField}
-                placeholder="Current password"
-                disabled={loading || passwordSaving}
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span>New password</span>
-              <input
-                type="password"
-                name="new_password"
-                value={passwordForm.new_password}
-                onChange={updatePasswordField}
-                placeholder="New password"
-                disabled={loading || passwordSaving}
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span>Confirm new password</span>
-              <input
-                type="password"
-                name="confirm_password"
-                value={passwordForm.confirm_password}
-                onChange={updatePasswordField}
-                placeholder="Confirm new password"
-                disabled={loading || passwordSaving}
-              />
-            </label>
-
-            <button
-              type="submit"
-              className={styles.saveBtn}
-              disabled={!passwordDirty || loading || passwordSaving}
-            >
-              {passwordSaving ? "Updating..." : "Update password"}
-            </button>
-          </form>
-
-          <article className={styles.modeCard}>
-            <div className={styles.cardHead}>
-              <div>
-                <p className={styles.kicker}>Account Mode</p>
-                <h2>{isAffiliate ? "Affiliate mode" : "User mode"}</h2>
-              </div>
-              <FiRepeat />
+            <div className={styles.swapDots} aria-label="Settings card selector">
+              {["Account details", "Password", "Mode"].map((label, index) => (
+                <button
+                  type="button"
+                  key={label}
+                  className={index === activeSettingsSlide ? styles.swapDotActive : ""}
+                  onClick={() => setActiveSettingsSlide(index)}
+                  aria-label={`Show ${label}`}
+                />
+              ))}
             </div>
-
-            <p>
-              {isAffiliate
-                ? "Referral tools, affiliate plans, affiliate rewards, and affiliate task progress are active."
-                : "Normal user mode keeps the profile focused on heists, wallet, clans, winners, and gameplay."}
-            </p>
-
-            <button
-              type="button"
-              className={styles.switchBtn}
-              onClick={handleModeSwitch}
-              disabled={loading || modeSaving}
-            >
-              {modeSaving
-                ? "Switching..."
-                : isAffiliate
-                  ? "Switch to user mode"
-                  : "Switch to affiliate mode"}
-            </button>
-          </article>
+          </section>
         </section>
 
         <section className={styles.statsGrid}>
@@ -439,167 +697,70 @@ export default function Profile() {
           )}
         </section>
 
-        <section className={styles.detailGrid}>
-          <article className={styles.infoPanel}>
-            <div className={styles.cardHead}>
-              <div>
-                <p className={styles.kicker}>Account</p>
-                <h2>Identity and wallet</h2>
-              </div>
-              <FiUser />
+        <section className={styles.swapSection}>
+          <div className={styles.swapTop}>
+            <div>
+              <p className={styles.kicker}>Profile Cards</p>
+              <h2>{profileSlides[activeProfileSlide]?.title || "Profile details"}</h2>
             </div>
 
-            <div className={styles.infoList}>
-              <div>
-                <span>Role</span>
-                <strong>{user?.role || "user"}</strong>
-              </div>
-              <div>
-                <span>Game ID</span>
-                <strong>{user?.game_id || "Not assigned"}</strong>
-              </div>
-              {isAffiliate ? (
-                <div>
-                  <span>Referral code</span>
-                  <button
-                    type="button"
-                    onClick={() => copyValue("Referral code", user?.referral_code)}
-                    disabled={!user?.referral_code}
-                  >
-                    <strong>{user?.referral_code || "Not assigned"}</strong>
-                    <FiCopy />
-                  </button>
-                </div>
-              ) : null}
-              <div>
-                <span>Wallet</span>
-                <button
-                  type="button"
-                  onClick={() => copyValue("Wallet", user?.wallet_address)}
-                  disabled={!user?.wallet_address}
+            <div className={styles.swapControls}>
+              <button
+                type="button"
+                onClick={() => moveProfileSlide(-1)}
+                aria-label="Previous profile card"
+              >
+                <FiChevronLeft />
+              </button>
+              <span>
+                {activeProfileSlide + 1}/{profileSlides.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => moveProfileSlide(1)}
+                aria-label="Next profile card"
+              >
+                <FiChevronRight />
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.swapDeck}>
+            {profileSlides.map((slide, index) => {
+              const offset = index - activeProfileSlide;
+              const isActive = offset === 0;
+              return (
+                <article
+                  className={styles.swapCard}
+                  key={slide.key}
+                  data-active={isActive ? "true" : "false"}
+                  style={{ "--offset": offset, "--abs-offset": Math.abs(offset) }}
+                  aria-hidden={!isActive}
                 >
-                  <strong>{shortText(user?.wallet_address)}</strong>
-                  <FiCopy />
-                </button>
-              </div>
-              <div>
-                <span>Joined</span>
-                <strong>{formatDate(user?.created_at)}</strong>
-              </div>
-            </div>
+                  <div className={styles.cardHead}>
+                    <div>
+                      <p className={styles.kicker}>{slide.eyebrow}</p>
+                      <h2>{slide.title}</h2>
+                    </div>
+                    {slide.icon}
+                  </div>
+                  {slide.content}
+                </article>
+              );
+            })}
+          </div>
 
-            {copied ? <p className={styles.notice}>{copied} copied</p> : null}
-          </article>
-
-          <article className={styles.infoPanel}>
-            <div className={styles.cardHead}>
-              <div>
-                <p className={styles.kicker}>Performance</p>
-                <h2>Heist record</h2>
-              </div>
-              <FiAward />
-            </div>
-
-            <div className={styles.scoreGrid}>
-              <div>
-                <span>Total submissions</span>
-                <strong>{formatNum(submissionStats.total_submissions)}</strong>
-              </div>
-              <div>
-                <span>Best correct</span>
-                <strong>{formatNum(submissionStats.best_correct_count)}</strong>
-              </div>
-              <div>
-                <span>Average score</span>
-                <strong>{formatPercent(submissionStats.average_score_percent)}</strong>
-              </div>
-              {isAffiliate ? (
-                <div>
-                  <span>Affiliate rewards</span>
-                  <strong>{formatNum(taskStats.affiliate_rewards_earned)} CP</strong>
-                </div>
-              ) : (
-                <div>
-                  <span>Live heists</span>
-                  <strong>{formatNum(heistStats.active_heists)}</strong>
-                </div>
-              )}
-            </div>
-          </article>
-        </section>
-
-        <section className={styles.activityGrid}>
-          <article className={styles.listPanel}>
-            <div className={styles.cardHead}>
-              <div>
-                <p className={styles.kicker}>Recent</p>
-                <h2>Heist activity</h2>
-              </div>
-            </div>
-
-            <div className={styles.rows}>
-              {loading ? (
-                <div className={styles.emptyState}>Loading heists...</div>
-              ) : recentHeists.length ? (
-                recentHeists.map((heist) => (
-                  <button
-                    type="button"
-                    key={`${heist.id}-${heist.joined_at}`}
-                    className={styles.activityRow}
-                    onClick={() => navigate(`/heist/${heist.id}`)}
-                  >
-                    <span>
-                      <strong>{heist.name}</strong>
-                      <small>{formatDate(heist.joined_at)}</small>
-                    </span>
-                    <em>{heist.participant_status || heist.status}</em>
-                  </button>
-                ))
-              ) : (
-                <div className={styles.emptyState}>No heist activity yet.</div>
-              )}
-            </div>
-          </article>
-
-          {isAffiliate ? (
-            <article className={styles.listPanel}>
-              <div className={styles.cardHead}>
-                <div>
-                  <p className={styles.kicker}>Affiliate</p>
-                  <h2>Task progress</h2>
-                </div>
-              </div>
-
-              <div className={styles.rows}>
-                {loading ? (
-                  <div className={styles.emptyState}>Loading tasks...</div>
-                ) : affiliateProgress.length ? (
-                  affiliateProgress.map((task) => {
-                    const required = Number(task.required_joins || 0);
-                    const current = Number(task.current_joins || 0);
-                    const pct = required ? Math.min(100, Math.round((current / required) * 100)) : 0;
-
-                    return (
-                      <div className={styles.taskRow} key={task.task_id}>
-                        <div className={styles.taskTop}>
-                          <span>
-                            <strong>{task.heist_name}</strong>
-                            <small>{formatNum(task.reward_cop_points)} CP reward</small>
-                          </span>
-                          <em>{task.is_completed ? "Complete" : `${formatNum(current)} / ${formatNum(required)}`}</em>
-                        </div>
-                        <div className={styles.progressTrack}>
-                          <span style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className={styles.emptyState}>No affiliate task progress yet.</div>
-                )}
-              </div>
-            </article>
-          ) : null}
+          <div className={styles.swapDots} aria-label="Profile card selector">
+            {profileSlides.map((slide, index) => (
+              <button
+                type="button"
+                key={slide.key}
+                className={index === activeProfileSlide ? styles.swapDotActive : ""}
+                onClick={() => setActiveProfileSlide(index)}
+                aria-label={`Show ${slide.label}`}
+              />
+            ))}
+          </div>
         </section>
       </main>
 

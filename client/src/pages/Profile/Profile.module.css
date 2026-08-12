@@ -55,9 +55,7 @@
   opacity: 0.58;
 }
 
-.heroGrid,
-.detailGrid,
-.activityGrid {
+.heroGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
   gap: 16px;
@@ -70,6 +68,7 @@
 .statCard,
 .infoPanel,
 .listPanel,
+.swapCard,
 .errorBox {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
@@ -211,7 +210,8 @@
 .editCard,
 .modeCard,
 .infoPanel,
-.listPanel {
+.listPanel,
+.swapCard {
   border-radius: 28px;
   padding: 18px;
   display: grid;
@@ -223,6 +223,39 @@
 }
 
 .modeCard p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.5;
+}
+
+.settingsSwap {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.miniSwapTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.miniSwapTop h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+
+.settingsDeck {
+  min-height: 428px;
+}
+
+.settingsCard {
+  align-content: start;
+}
+
+.modeText {
   margin: 0;
   color: rgba(255, 255, 255, 0.68);
   line-height: 1.5;
@@ -306,20 +339,66 @@
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px;
+  justify-items: center;
 }
 
 .statCard {
-  min-height: 138px;
-  border-radius: 24px;
-  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  width: min(100%, 176px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  padding: 24px 16px;
   display: grid;
-  align-content: space-between;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 31% 24%, rgba(255, 255, 255, 0.32), transparent 16%),
+    radial-gradient(circle at 38% 35%, rgba(186, 255, 199, 0.18), transparent 25%),
+    radial-gradient(circle at 70% 76%, rgba(120, 214, 255, 0.12), transparent 31%),
+    linear-gradient(145deg, rgba(47, 51, 61, 0.94), rgba(14, 17, 24, 0.9));
+  box-shadow:
+    18px 24px 42px rgba(0, 0, 0, 0.32),
+    -8px -10px 26px rgba(255, 255, 255, 0.055),
+    inset 10px 12px 22px rgba(255, 255, 255, 0.1),
+    inset -14px -18px 26px rgba(0, 0, 0, 0.3);
+}
+
+.statCard::before {
+  content: "";
+  position: absolute;
+  top: 16%;
+  left: 23%;
+  width: 28%;
+  height: 18%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  filter: blur(6px);
+  transform: rotate(-22deg);
+}
+
+.statCard::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 0 28px rgba(186, 255, 199, 0.055);
+  pointer-events: none;
+}
+
+.statCard > * {
+  position: relative;
+  z-index: 1;
 }
 
 .statCard svg {
   color: #baffc7;
-  font-size: 1.4rem;
+  font-size: 1.45rem;
+  filter: drop-shadow(0 0 10px rgba(186, 255, 199, 0.2));
 }
 
 .statCard span,
@@ -332,8 +411,9 @@
 
 .statCard strong {
   color: #ffffff;
-  font-size: 1.9rem;
+  font-size: clamp(1.65rem, 5vw, 2.15rem);
   line-height: 1;
+  text-shadow: 0 8px 22px rgba(0, 0, 0, 0.36);
 }
 
 .infoList,
@@ -392,6 +472,126 @@
   color: #baffc7;
   font-size: 0.84rem;
   font-weight: 800;
+}
+
+.swapSection {
+  display: grid;
+  gap: 14px;
+}
+
+.swapTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.swapTop h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 4vw, 2.2rem);
+  line-height: 1.05;
+}
+
+.swapControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.swapControls button,
+.swapDots button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+.swapControls button {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.swapControls span {
+  min-width: 44px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.84rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.swapDeck {
+  position: relative;
+  min-height: 440px;
+  perspective: 1200px;
+}
+
+.swapCard {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  align-content: start;
+  min-height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transform:
+    translateX(calc(var(--offset) * 44px))
+    scale(calc(1 - min(var(--abs-offset), 2) * 0.04))
+    rotateY(calc(var(--offset) * -5deg));
+  transition:
+    opacity 220ms ease,
+    transform 260ms ease,
+    filter 260ms ease;
+  filter: blur(1px);
+}
+
+.swapCard[data-active="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1) rotateY(0deg);
+  filter: none;
+  z-index: 3;
+}
+
+.swapCard[data-active="false"] {
+  opacity: 0.38;
+}
+
+.swapCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 14% 10%, rgba(186, 255, 199, 0.12), transparent 26%),
+    radial-gradient(circle at 94% 18%, rgba(120, 214, 255, 0.1), transparent 28%);
+  pointer-events: none;
+}
+
+.swapCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+.swapDots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.swapDots button {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  padding: 0;
+}
+
+.swapDots .swapDotActive {
+  width: 28px;
+  border-color: rgba(186, 255, 199, 0.5);
+  background: #baffc7;
 }
 
 .rows {
@@ -499,10 +699,16 @@
 
 @media (max-width: 900px) {
   .heroGrid,
-  .detailGrid,
-  .activityGrid,
   .statsGrid {
     grid-template-columns: 1fr;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .swapDeck {
+    min-height: 500px;
   }
 }
 
@@ -520,8 +726,31 @@
     font-size: 2.35rem;
   }
 
+  .statsGrid {
+    gap: 12px;
+  }
+
+  .statCard {
+    width: min(100%, 158px);
+    padding: 22px 12px;
+  }
+
   .scoreGrid {
     grid-template-columns: 1fr;
+  }
+
+  .swapTop {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .swapControls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .swapDeck {
+    min-height: 560px;
   }
 
   .activityRow,
