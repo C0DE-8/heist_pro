@@ -66,6 +66,7 @@
 
 .profileCard,
 .editCard,
+.modeCard,
 .statCard,
 .infoPanel,
 .listPanel,
@@ -208,12 +209,23 @@
 }
 
 .editCard,
+.modeCard,
 .infoPanel,
 .listPanel {
   border-radius: 28px;
   padding: 18px;
   display: grid;
   gap: 14px;
+}
+
+.modeCard {
+  align-content: space-between;
+}
+
+.modeCard p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.5;
 }
 
 .cardHead {
@@ -273,6 +285,22 @@
   font-weight: 950;
   cursor: pointer;
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+}
+
+.switchBtn {
+  border: 1px solid rgba(186, 255, 199, 0.26);
+  min-height: 48px;
+  border-radius: 999px;
+  color: #baffc7;
+  background: rgba(186, 255, 199, 0.1);
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.switchBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .statsGrid {

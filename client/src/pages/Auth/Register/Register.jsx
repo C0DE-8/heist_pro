@@ -25,14 +25,16 @@ export default function Register() {
   const [searchParams] = useSearchParams();
   const isAffiliateRegistration = location.pathname === "/affiliate-register";
   const urlReferralCode = useMemo(
-    () =>
-      String(
+    () => {
+      if (!isAffiliateRegistration) return "";
+      return String(
         searchParams.get("ref") ||
           searchParams.get("referral_code") ||
           searchParams.get("referralCode") ||
           ""
-      ).trim(),
-    [searchParams]
+      ).trim();
+    },
+    [isAffiliateRegistration, searchParams]
   );
 
   // step 1 = send otp, step 2 = register
@@ -266,19 +268,6 @@ export default function Register() {
                 </div>
 
                 <div className={styles.field}>
-                  <div className={styles.label}>Account type</div>
-                  <select
-                    className={styles.input}
-                    value={form.account_type}
-                    onChange={onChange("account_type")}
-                  >
-                    <option value="user">User</option>
-                    <option value="affiliate">Affiliate</option>
-                  </select>
-                 
-                </div>
-
-                <div className={styles.field}>
                   <div className={styles.label}>Email</div>
                   <input
                     className={styles.input}
@@ -302,7 +291,7 @@ export default function Register() {
 
                 {msg ? <div className={styles.msgOk}>{msg}</div> : null}
                 {err ? <div className={styles.msgErr}>{err}</div> : null}
-                {urlReferralCode ? (
+                {isAffiliateRegistration && urlReferralCode ? (
                   <div className={styles.msgOk}>Referral code detected: {urlReferralCode}</div>
                 ) : null}
 
@@ -372,31 +361,21 @@ export default function Register() {
                   </div>
                 </div>
 
-                <div className={styles.field}>
-                  <div className={styles.label}>Account type</div>
-                  <select
-                    className={styles.input}
-                    value={form.account_type}
-                    onChange={onChange("account_type")}
-                  >
-                    <option value="user">User</option>
-                    <option value="affiliate">Affiliate</option>
-                  </select>
-                </div>
-
-                <div className={styles.field}>
-                  <div className={styles.label}>Referral code (optional)</div>
-                  <input
-                    className={styles.input}
-                    value={form.referralCode}
-                    onChange={onChange("referralCode")}
-                    placeholder="Referral code"
-                    readOnly={Boolean(urlReferralCode)}
-                  />
-                  {urlReferralCode ? (
-                    <div className={styles.helper}>Locked from referral link: {urlReferralCode}</div>
-                  ) : null}
-                </div>
+                {isAffiliateRegistration ? (
+                  <div className={styles.field}>
+                    <div className={styles.label}>Referral code (optional)</div>
+                    <input
+                      className={styles.input}
+                      value={form.referralCode}
+                      onChange={onChange("referralCode")}
+                      placeholder="Referral code"
+                      readOnly={Boolean(urlReferralCode)}
+                    />
+                    {urlReferralCode ? (
+                      <div className={styles.helper}>Locked from referral link: {urlReferralCode}</div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className={styles.actions}>
                   <button

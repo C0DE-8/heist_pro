@@ -7,6 +7,7 @@ import {
   FiCopy,
   FiEdit3,
   FiRefreshCw,
+  FiRepeat,
   FiShield,
   FiTarget,
   FiUser,
@@ -15,7 +16,7 @@ import {
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { useToast } from "../../components/Toast/ToastContext";
-import { getUserProfile, updateUserPassword, updateUserProfile } from "../../lib/users";
+import { getUserProfile, switchUserMode, updateUserPassword, updateUserProfile } from "../../lib/users";
 import styles from "./Profile.module.css";
 
 function formatNum(value) {
@@ -73,10 +74,12 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [modeSaving, setModeSaving] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
 
   const user = profileData?.user || null;
+  const isAffiliate = String(user?.role || "").toLowerCase() === "affiliate";
   const stats = profileData?.stats || {};
   const heistStats = stats.heists || {};
   const submissionStats = stats.submissions || {};
@@ -199,13 +202,34 @@ export default function Profile() {
     }
   };
 
+  const handleModeSwitch = async () => {
+    if (!user || modeSaving) return;
+
+    const nextMode = isAffiliate ? "user" : "affiliate";
+    setModeSaving(true);
+    try {
+      const data = await switchUserMode(nextMode);
+      setProfileData((prev) => ({ ...(prev || {}), user: data?.user }));
+      toast.success(data?.message || "Account mode updated");
+      navigate(nextMode === "affiliate" ? "/affiliate-dashboard" : "/dashboard", { replace: true });
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to switch account mode.");
+    } finally {
+      setModeSaving(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <Header />
 
       <main className={styles.main}>
         <div className={styles.topBar}>
-          <button type="button" className={styles.backBtn} onClick={() => navigate("/dashboard")}>
+          <button
+            type="button"
+            className={styles.backBtn}
+            onClick={() => navigate(isAffiliate ? "/affiliate-dashboard" : "/dashboard")}
+          >
             <FiArrowLeft />
             <span>Dashboard</span>
           </button>
@@ -353,6 +377,35 @@ export default function Profile() {
               {passwordSaving ? "Updating..." : "Update password"}
             </button>
           </form>
+
+          <article className={styles.modeCard}>
+            <div className={styles.cardHead}>
+              <div>
+                <p className={styles.kicker}>Account Mode</p>
+                <h2>{isAffiliate ? "Affiliate mode" : "User mode"}</h2>
+              </div>
+              <FiRepeat />
+            </div>
+
+            <p>
+              {isAffiliate
+                ? "Referral tools, affiliate plans, affiliate rewards, and affiliate task progress are active."
+                : "Normal user mode keeps the profile focused on heists, wallet, clans, winners, and gameplay."}
+            </p>
+
+            <button
+              type="button"
+              className={styles.switchBtn}
+              onClick={handleModeSwitch}
+              disabled={loading || modeSaving}
+            >
+              {modeSaving
+                ? "Switching..."
+                : isAffiliate
+                  ? "Switch to user mode"
+                  : "Switch to affiliate mode"}
+            </button>
+          </article>
         </section>
 
         <section className={styles.statsGrid}>
@@ -371,11 +424,19 @@ export default function Profile() {
             <span>Won heists</span>
             <strong>{formatNum(heistStats.won_heists)}</strong>
           </div>
-          <div className={styles.statCard}>
-            <FiUsers />
-            <span>Referred joins</span>
-            <strong>{formatNum(affiliateStats.referred_joins)}</strong>
-          </div>
+          {isAffiliate ? (
+            <div className={styles.statCard}>
+              <FiUsers />
+              <span>Referred joins</span>
+              <strong>{formatNum(affiliateStats.referred_joins)}</strong>
+            </div>
+          ) : (
+            <div className={styles.statCard}>
+              <FiTarget />
+              <span>Live heists</span>
+              <strong>{formatNum(heistStats.active_heists)}</strong>
+            </div>
+          )}
         </section>
 
         <section className={styles.detailGrid}>
@@ -397,17 +458,19 @@ export default function Profile() {
                 <span>Game ID</span>
                 <strong>{user?.game_id || "Not assigned"}</strong>
               </div>
-              <div>
-                <span>Referral code</span>
-                <button
-                  type="button"
-                  onClick={() => copyValue("Referral code", user?.referral_code)}
-                  disabled={!user?.referral_code}
-                >
-                  <strong>{user?.referral_code || "Not assigned"}</strong>
-                  <FiCopy />
-                </button>
-              </div>
+              {isAffiliate ? (
+                <div>
+                  <span>Referral code</span>
+                  <button
+                    type="button"
+                    onClick={() => copyValue("Referral code", user?.referral_code)}
+                    disabled={!user?.referral_code}
+                  >
+                    <strong>{user?.referral_code || "Not assigned"}</strong>
+                    <FiCopy />
+                  </button>
+                </div>
+              ) : null}
               <div>
                 <span>Wallet</span>
                 <button
@@ -450,10 +513,17 @@ export default function Profile() {
                 <span>Average score</span>
                 <strong>{formatPercent(submissionStats.average_score_percent)}</strong>
               </div>
-              <div>
-                <span>Affiliate rewards</span>
-                <strong>{formatNum(taskStats.affiliate_rewards_earned)} CP</strong>
-              </div>
+              {isAffiliate ? (
+                <div>
+                  <span>Affiliate rewards</span>
+                  <strong>{formatNum(taskStats.affiliate_rewards_earned)} CP</strong>
+                </div>
+              ) : (
+                <div>
+                  <span>Live heists</span>
+                  <strong>{formatNum(heistStats.active_heists)}</strong>
+                </div>
+              )}
             </div>
           </article>
         </section>
@@ -491,43 +561,45 @@ export default function Profile() {
             </div>
           </article>
 
-          <article className={styles.listPanel}>
-            <div className={styles.cardHead}>
-              <div>
-                <p className={styles.kicker}>Affiliate</p>
-                <h2>Task progress</h2>
+          {isAffiliate ? (
+            <article className={styles.listPanel}>
+              <div className={styles.cardHead}>
+                <div>
+                  <p className={styles.kicker}>Affiliate</p>
+                  <h2>Task progress</h2>
+                </div>
               </div>
-            </div>
 
-            <div className={styles.rows}>
-              {loading ? (
-                <div className={styles.emptyState}>Loading tasks...</div>
-              ) : affiliateProgress.length ? (
-                affiliateProgress.map((task) => {
-                  const required = Number(task.required_joins || 0);
-                  const current = Number(task.current_joins || 0);
-                  const pct = required ? Math.min(100, Math.round((current / required) * 100)) : 0;
+              <div className={styles.rows}>
+                {loading ? (
+                  <div className={styles.emptyState}>Loading tasks...</div>
+                ) : affiliateProgress.length ? (
+                  affiliateProgress.map((task) => {
+                    const required = Number(task.required_joins || 0);
+                    const current = Number(task.current_joins || 0);
+                    const pct = required ? Math.min(100, Math.round((current / required) * 100)) : 0;
 
-                  return (
-                    <div className={styles.taskRow} key={task.task_id}>
-                      <div className={styles.taskTop}>
-                        <span>
-                          <strong>{task.heist_name}</strong>
-                          <small>{formatNum(task.reward_cop_points)} CP reward</small>
-                        </span>
-                        <em>{task.is_completed ? "Complete" : `${formatNum(current)} / ${formatNum(required)}`}</em>
+                    return (
+                      <div className={styles.taskRow} key={task.task_id}>
+                        <div className={styles.taskTop}>
+                          <span>
+                            <strong>{task.heist_name}</strong>
+                            <small>{formatNum(task.reward_cop_points)} CP reward</small>
+                          </span>
+                          <em>{task.is_completed ? "Complete" : `${formatNum(current)} / ${formatNum(required)}`}</em>
+                        </div>
+                        <div className={styles.progressTrack}>
+                          <span style={{ width: `${pct}%` }} />
+                        </div>
                       </div>
-                      <div className={styles.progressTrack}>
-                        <span style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className={styles.emptyState}>No affiliate task progress yet.</div>
-              )}
-            </div>
-          </article>
+                    );
+                  })
+                ) : (
+                  <div className={styles.emptyState}>No affiliate task progress yet.</div>
+                )}
+              </div>
+            </article>
+          ) : null}
         </section>
       </main>
 

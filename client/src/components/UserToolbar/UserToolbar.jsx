@@ -53,8 +53,6 @@ export default function UserToolbar() {
   const [alertMessage, setAlertMessage] = useState("");
 
   const displayName = profile?.full_name || profile?.username || "User";
-  const role = String(profile?.role || "").toLowerCase();
-  const isAffiliate = role === "affiliate";
   const copPoints = Number(profile?.cop_point || 0);
   const joinedHeists = Number(profileData?.stats?.heists?.joined_heists || 0);
 
@@ -303,7 +301,7 @@ export default function UserToolbar() {
 
           {alertMessage ? <p className={styles.alertHint}>{alertMessage}</p> : null}
 
-          <button className={styles.item} onClick={() => go(isAffiliate ? "/affiliate-dashboard" : "/dashboard")}>
+          <button className={styles.item} onClick={() => go("/dashboard")}>
             <LayoutGrid size={16} /> Dashboard
           </button>
 
@@ -331,18 +329,6 @@ export default function UserToolbar() {
         <div className={styles.divider} />
 
         <div className={styles.section}>
-          {isAffiliate ? (
-            <React.Fragment>
-              <button className={styles.item} onClick={() => go("/affiliate-dashboard")}>
-                <Target size={16} /> Affiliate
-              </button>
-            </React.Fragment>
-          ) : null}
-
-          <button className={styles.item} onClick={() => go("/referral")}>
-            <Users size={16} /> Referral
-          </button>
-
           <button className={styles.item} onClick={() => go("/winners")}>
             <Trophy size={16} /> Winners
           </button>

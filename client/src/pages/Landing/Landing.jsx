@@ -76,7 +76,7 @@ const steps = [
 const features = [
   "True/False gameplay with fast rounds",
   "CopUpCoin prizes for winning runs",
-  "Affiliate tasks and referral growth",
+  "Clan quests and leaderboard progress",
   "Wallet pay-in and payout tracking",
 ];
 
@@ -242,7 +242,7 @@ export default function Landing() {
               </div>
               <div className={styles.answerTile}>
                 <FiUsers />
-                <strong>REF</strong>
+                <strong>CP</strong>
               </div>
             </div>
           </div>
@@ -254,8 +254,8 @@ export default function Landing() {
               <p className={styles.kicker}>May Rewards Are Waiting</p>
               <h2>Download CopupBid for Android.</h2>
               <p>
-                Install the latest Android build and keep heists, CopUpCoin rewards, referrals, and
-                wallet actions within reach all month long.
+                Install the latest Android build and keep heists, CopUpCoin rewards, and wallet
+                actions within reach all month long.
               </p>
 
               <div className={styles.downloadMeta}>

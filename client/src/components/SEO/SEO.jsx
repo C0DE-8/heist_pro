@@ -14,9 +14,9 @@ const SOCIAL_LINKS = [
 const DEFAULT_SEO = {
   title: "CopUpBid - Bid, Win, Trade, and Earn CopUpCoin",
   description:
-    "CopUpBid is an online bidding and reward platform where users join heists, win deals, trade CopUpCoin, earn referral rewards, and track winners.",
+    "CopUpBid is an online bidding and reward platform where users join heists, win deals, trade CopUpCoin, and track winners.",
   keywords:
-    "CopUpBid, CopUpCoin, online bidding, bid and win, auction rewards, heist game, referral rewards, trade CopUpCoin, winners, Nigeria deals",
+    "CopUpBid, CopUpCoin, online bidding, bid and win, auction rewards, heist game, trade CopUpCoin, winners, Nigeria deals",
   type: "website",
   robots: "index, follow",
 };
@@ -42,7 +42,7 @@ const ROUTE_SEO = [
     match: (path) => path === "/login",
     title: "Login to CopUpBid",
     description:
-      "Access your CopUpBid wallet, heists, rewards, referrals, trades, and bidding account.",
+      "Access your CopUpBid wallet, heists, rewards, trades, and bidding account.",
     keywords: "CopUpBid login, CopUpBid account, CopUpCoin wallet login",
     robots: "noindex, follow",
   },
@@ -72,7 +72,7 @@ const ROUTE_SEO = [
     match: (path) => path === "/how-to-play",
     title: "How to Play on CopUpBid",
     description:
-      "Learn how CopUpBid heists, bids, rewards, winners, referrals, and CopUpCoin features work.",
+      "Learn how CopUpBid heists, bids, rewards, winners, and CopUpCoin features work.",
     keywords:
       "how to play CopUpBid, CopUpBid heist, bid guide, CopUpCoin guide, online rewards guide",
   },

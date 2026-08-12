@@ -119,10 +119,6 @@ export default function App() {
         </Route>
 
         <Route element={<UserRoute />}>
-          <Route path="/referral" element={<Referral />} />
-        </Route>
-
-        <Route element={<UserRoute />}>
           <Route path="/winners" element={<Winner />} />
         </Route>
 
@@ -141,6 +137,7 @@ export default function App() {
         <Route element={<AffiliateRoute />}>
           <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
           <Route path="/affiliate/plans" element={<Affiliate />} />
+          <Route path="/referral" element={<Navigate to="/affiliate/referral" replace />} />
           <Route path="/affiliate/referral" element={<Referral />} />
           <Route path="/affiliate/trade" element={<Trade />} />
           <Route path="/affiliate/how-it-works" element={<AffiliateHowItWorks />} />

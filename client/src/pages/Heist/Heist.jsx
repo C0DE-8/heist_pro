@@ -212,8 +212,8 @@ export default function Heist() {
             <strong>{loading ? "..." : formatNum(available.length)}</strong>
           </div>
           <div>
-            <span>Referral</span>
-            <strong>{referralCode ? "Active" : "None"}</strong>
+            <span>Gift balance</span>
+            <strong>{promoBalance === null ? "..." : formatNum(promoBalance)}</strong>
           </div>
         </section>
 

@@ -1,8 +1,17 @@
 import { api } from "./api";
+import { emitAuthChanged } from "./copupEvents";
+
+function normalizeRole(raw) {
+  const role = String(raw || "").toLowerCase();
+  if (role.includes("admin")) return "admin";
+  if (role.includes("affiliate")) return "affiliate";
+  return "user";
+}
 
 export function cacheUserProfile(user) {
   if (!user) return;
   localStorage.setItem("user", JSON.stringify(user));
+  if (user.role) localStorage.setItem("role", normalizeRole(user.role));
   localStorage.setItem("copup_cop_point", String(user.cop_point ?? 0));
 }
 
@@ -60,6 +69,13 @@ export async function updateUserProfile(payload) {
     email: payload?.email,
   });
   cacheUserProfile(data?.user);
+  return data;
+}
+
+export async function switchUserMode(mode) {
+  const { data } = await api.patch("/users/profile/mode", { mode });
+  cacheUserProfile(data?.user);
+  emitAuthChanged();
   return data;
 }
 

@@ -37,7 +37,13 @@ function getFrontendBaseUrl(req) {
 
 function buildUserReferralLink(req, referralCode) {
   if (!referralCode) return null;
-  return `${getFrontendBaseUrl(req)}/register?ref=${encodeURIComponent(referralCode)}`;
+  return `${getFrontendBaseUrl(req)}/affiliate-register?ref=${encodeURIComponent(referralCode)}`;
+}
+
+async function ensureAffiliateRole(conn = pool) {
+  await conn.query(
+    "ALTER TABLE users MODIFY role enum('user','affiliate','admin') NOT NULL DEFAULT 'user'"
+  );
 }
 
 async function ensureUserNoticesTable(db = pool) {
@@ -71,7 +77,11 @@ async function getUserProfile(userId, req) {
 
   if (!user) return null;
 
-  user.referral_link = buildUserReferralLink(req, user.referral_code);
+  if (user.role === "affiliate") {
+    user.referral_link = buildUserReferralLink(req, user.referral_code);
+  } else {
+    delete user.referral_code;
+  }
   return user;
 }
 
@@ -104,26 +114,44 @@ router.get("/profile", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    const [[affiliateStats]] = await pool.query(
-      `SELECT
-         (SELECT COUNT(*) FROM affiliate_user_links WHERE affiliate_user_id = ?) AS total_links,
-         (SELECT COALESCE(SUM(total_clicks), 0) FROM affiliate_user_links WHERE affiliate_user_id = ?) AS total_clicks,
-         (SELECT COALESCE(SUM(total_heist_joins), 0) FROM affiliate_user_links WHERE affiliate_user_id = ?) AS total_heist_joins,
-         (SELECT COUNT(*) FROM affiliate_user_referrals WHERE affiliate_user_id = ?) AS referred_joins,
-         (SELECT COUNT(*) FROM referrals WHERE referrer_id = ?) AS referred_signups`,
-      [userId, userId, userId, userId, userId]
-    );
+    let affiliateStats = null;
+    let taskStats = null;
+    let affiliateProgress = [];
+    if (user.role === "affiliate") {
+      [[affiliateStats]] = await pool.query(
+        `SELECT
+           (SELECT COUNT(*) FROM affiliate_user_links WHERE affiliate_user_id = ?) AS total_links,
+           (SELECT COALESCE(SUM(total_clicks), 0) FROM affiliate_user_links WHERE affiliate_user_id = ?) AS total_clicks,
+           (SELECT COALESCE(SUM(total_heist_joins), 0) FROM affiliate_user_links WHERE affiliate_user_id = ?) AS total_heist_joins,
+           (SELECT COUNT(*) FROM affiliate_user_referrals WHERE affiliate_user_id = ?) AS referred_joins,
+           (SELECT COUNT(*) FROM referrals WHERE referrer_id = ?) AS referred_signups`,
+        [userId, userId, userId, userId, userId]
+      );
 
-    const [[taskStats]] = await pool.query(
-      `SELECT
-         COUNT(*) AS total_task_progress,
-         COUNT(CASE WHEN p.is_completed = 1 THEN 1 END) AS completed_tasks,
-         COALESCE(SUM(CASE WHEN p.is_completed = 1 THEN t.reward_cop_points ELSE 0 END), 0) AS affiliate_rewards_earned
-       FROM affiliate_task_progress p
-       JOIN affiliate_tasks t ON t.id = p.task_id
-       WHERE p.user_id = ?`,
-      [userId]
-    );
+      [[taskStats]] = await pool.query(
+        `SELECT
+           COUNT(*) AS total_task_progress,
+           COUNT(CASE WHEN p.is_completed = 1 THEN 1 END) AS completed_tasks,
+           COALESCE(SUM(CASE WHEN p.is_completed = 1 THEN t.reward_cop_points ELSE 0 END), 0) AS affiliate_rewards_earned
+         FROM affiliate_task_progress p
+         JOIN affiliate_tasks t ON t.id = p.task_id
+         WHERE p.user_id = ?`,
+        [userId]
+      );
+
+      [affiliateProgress] = await pool.query(
+        `SELECT t.id AS task_id, t.heist_id, h.name AS heist_name, t.required_joins,
+                t.reward_cop_points, t.is_active, p.current_joins,
+                p.is_completed, p.rewarded_at
+         FROM affiliate_task_progress p
+         JOIN affiliate_tasks t ON t.id = p.task_id
+         JOIN heist h ON h.id = t.heist_id
+         WHERE p.user_id = ?
+         ORDER BY p.is_completed ASC, t.required_joins ASC, p.id DESC
+         LIMIT 20`,
+        [userId]
+      );
+    }
 
     const [recentHeists] = await pool.query(
       `SELECT h.id, h.name, h.status, h.prize_cop_points, hp.status AS participant_status,
@@ -136,33 +164,57 @@ router.get("/profile", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    const [affiliateProgress] = await pool.query(
-      `SELECT t.id AS task_id, t.heist_id, h.name AS heist_name, t.required_joins,
-              t.reward_cop_points, t.is_active, p.current_joins,
-              p.is_completed, p.rewarded_at
-       FROM affiliate_task_progress p
-       JOIN affiliate_tasks t ON t.id = p.task_id
-       JOIN heist h ON h.id = t.heist_id
-       WHERE p.user_id = ?
-       ORDER BY p.is_completed ASC, t.required_joins ASC, p.id DESC
-       LIMIT 20`,
-      [userId]
-    );
-
     return res.json({
       user,
       stats: {
         heists: heistStats,
         submissions: submissionStats,
-        affiliate: affiliateStats,
-        affiliate_tasks: taskStats,
+        ...(user.role === "affiliate"
+          ? { affiliate: affiliateStats, affiliate_tasks: taskStats }
+          : {}),
       },
       recent_heists: recentHeists,
-      affiliate_task_progress: affiliateProgress,
+      ...(user.role === "affiliate" ? { affiliate_task_progress: affiliateProgress } : {}),
     });
   } catch (err) {
     console.error("user profile error:", err);
     return res.status(500).json({ message: "Error fetching profile" });
+  }
+});
+
+router.patch("/profile/mode", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const nextMode = String(req.body?.mode || "").trim().toLowerCase();
+    if (!["user", "affiliate"].includes(nextMode)) {
+      return res.status(400).json({ message: "Mode must be user or affiliate" });
+    }
+
+    const [[currentUser]] = await pool.query(
+      "SELECT id, role FROM users WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    if (!currentUser) return res.status(404).json({ message: "User not found" });
+    if (currentUser.role === "admin") {
+      return res.status(403).json({ message: "Admin accounts cannot switch mode here" });
+    }
+
+    if (nextMode === "affiliate") {
+      await ensureAffiliateRole();
+    }
+
+    if (currentUser.role !== nextMode) {
+      await pool.query("UPDATE users SET role = ? WHERE id = ?", [nextMode, userId]);
+    }
+
+    const user = await getUserProfile(userId, req);
+    return res.json({
+      message: nextMode === "affiliate" ? "Affiliate mode enabled" : "User mode enabled",
+      user,
+    });
+  } catch (err) {
+    console.error("user mode switch error:", err);
+    return res.status(500).json({ message: "Error switching account mode" });
   }
 });
 
@@ -521,7 +573,7 @@ router.patch("/profile/password", authenticateToken, async (req, res) => {
 });
 
 // List referred users
-router.get("/referred", authenticateToken, async (req, res) => {
+router.get("/referred", authenticateToken, authenticateAffiliate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const settings = await ensureReferralSettings(pool);
@@ -575,7 +627,7 @@ router.get("/referred", authenticateToken, async (req, res) => {
 });
 
 // Claim referral reward
-router.post("/referred/:referredUserId/claim", authenticateToken, async (req, res) => {
+router.post("/referred/:referredUserId/claim", authenticateToken, authenticateAffiliate, async (req, res) => {
   let conn;
   try {
     const referrerId = req.user.userId;
