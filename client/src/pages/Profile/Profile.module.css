@@ -241,10 +241,15 @@
   gap: 12px;
 }
 
+.miniSwapTop > div:first-child {
+  min-width: 0;
+}
+
 .miniSwapTop h2 {
   margin: 0;
   font-size: 1.35rem;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .settingsDeck {
@@ -744,6 +749,17 @@
     flex-direction: column;
   }
 
+  .miniSwapTop {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .miniSwapTop h2 {
+    font-size: 1.55rem;
+    max-width: 100%;
+  }
+
   .swapControls {
     width: 100%;
     justify-content: space-between;
@@ -751,6 +767,10 @@
 
   .swapDeck {
     min-height: 560px;
+  }
+
+  .settingsDeck {
+    min-height: 452px;
   }
 
   .activityRow,
