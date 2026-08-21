@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  FaArrowRight,
   FaChartLine,
   FaCoins,
   FaEye,
@@ -8,12 +9,12 @@ import {
   FaGift,
   FaBell,
   FaShieldAlt,
+  FaSignal,
   FaTrophy,
   FaUsers,
   FaWallet,
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
-import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import { getAdminProfile } from "../../../lib/admin";
 import styles from "./AdminDashboard.module.css";
 
@@ -76,11 +77,12 @@ export default function AdminDashboard() {
     () => [
       {
         title: "Manage Heists",
-        text: "Create heists, add true/false questions, control status, tasks, and finalize winners.",
+        text: "Build rounds, assign questions, control status, and finalize winners.",
         path: "/admin/heists",
         icon: <FaFlask />,
         stat: `${formatNum(heistStats.total_heists)} heists`,
         tone: "cyan",
+        featured: true,
       },
       {
         title: "Users",
@@ -156,49 +158,122 @@ export default function AdminDashboard() {
     ]
   );
 
+  const heroMetrics = [
+    {
+      label: "Active heists",
+      value: loading ? "..." : formatNum(heistStats.started_heists),
+      note: `${formatNum(heistStats.pending_heists)} pending`,
+    },
+    {
+      label: "User balance",
+      value: loading ? "..." : `${formatNum(userStats.total_cop_points)} CP`,
+      note: `${formatNum(userStats.excluded_user_coin_balance)} CP excluded`,
+    },
+    {
+      label: "Affiliate joins",
+      value: loading ? "..." : formatNum(activityStats.affiliate_referrals),
+      note: `${formatNum(rewardStats.affiliate_rewards_awarded)} CP rewarded`,
+    },
+  ];
+
+  const statCards = [
+    {
+      label: "Total users",
+      value: loading ? "..." : formatNum(userStats.total_users),
+      note: `${formatNum(userStats.included_users)} shown / ${formatNum(userStats.excluded_users)} excluded`,
+    },
+    {
+      label: "Started heists",
+      value: loading ? "..." : formatNum(heistStats.started_heists),
+      note: `${formatNum(heistStats.pending_heists)} pending`,
+    },
+    {
+      label: "Submitted results",
+      value: loading ? "..." : formatNum(activityStats.submitted_results),
+      note: `${formatNum(activityStats.total_submissions)} submissions`,
+    },
+    {
+      label: "Total user coins",
+      value: loading ? "..." : `${formatNum(userStats.total_cop_points)} CP`,
+      note: `${formatNum(userStats.excluded_user_coin_balance)} CP excluded`,
+    },
+    {
+      label: "Affiliate rewards",
+      value: loading ? "..." : `${formatNum(rewardStats.affiliate_rewards_awarded)} CP`,
+      note: `${formatNum(activityStats.completed_affiliate_tasks)} completed tasks`,
+    },
+  ];
+
   return (
     <div className={styles.page}>
       <AdminNavbar admin={admin} />
 
       <main className={styles.main}>
-        <AdminPageHeader
-          kicker="Admin Dashboard"
-          title={loading ? "Loading control room..." : `Welcome, ${adminName(admin)}`}
-          description="Monitor CopUpCoin balances, Heist activity, affiliate rewards, and platform users from one admin workspace."
-          onRefresh={loadDashboard}
-          refreshing={loading}
-          error={error}
-          onRetry={loadDashboard}
-        />
+        <section className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <p className={styles.kicker}>Admin Dashboard</p>
+            <h1>{loading ? "Loading control room..." : `Welcome, ${adminName(admin)}`}</h1>
+            <p>
+              Monitor CopUpCoin balances, live heists, affiliate rewards, and user risk from a
+              cleaner command workspace.
+            </p>
+
+            <div className={styles.heroActions}>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => navigate("/admin/heists")}
+              >
+                <FaFlask />
+                Manage heists
+              </button>
+              <button
+                type="button"
+                className={styles.refreshBtn}
+                onClick={loadDashboard}
+                disabled={loading}
+                title={loading ? "Refreshing..." : "Refresh dashboard"}
+              >
+                <FaSignal />
+                {loading ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.heroModel} aria-label="Platform summary">
+            <div className={styles.modelTop}>
+              <span>Live operations</span>
+              <strong>{formatNum(heistStats.total_heists)} total heists</strong>
+            </div>
+            <div className={styles.modelCards}>
+              {heroMetrics.map((metric) => (
+                <div className={styles.modelCard} key={metric.label}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                  <small>{metric.note}</small>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {error ? (
+          <div className={styles.errorBox}>
+            <span>{error}</span>
+            <button type="button" onClick={loadDashboard}>
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         <section className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <span>Total users</span>
-            <strong>{loading ? "..." : formatNum(userStats.total_users)}</strong>
-            <small>
-              {formatNum(userStats.included_users)} shown · {formatNum(userStats.excluded_users)} excluded
-            </small>
-          </div>
-          <div className={styles.statCard}>
-            <span>Started heists</span>
-            <strong>{loading ? "..." : formatNum(heistStats.started_heists)}</strong>
-            <small>{formatNum(heistStats.pending_heists)} pending</small>
-          </div>
-          <div className={styles.statCard}>
-            <span>Submitted results</span>
-            <strong>{loading ? "..." : formatNum(activityStats.submitted_results)}</strong>
-            <small>{formatNum(activityStats.total_submissions)} submissions</small>
-          </div>
-          <div className={styles.statCard}>
-            <span>Total user coins</span>
-            <strong>{loading ? "..." : `${formatNum(userStats.total_cop_points)} CP`}</strong>
-            <small>{formatNum(userStats.excluded_user_coin_balance)} CP excluded</small>
-          </div>
-          <div className={styles.statCard}>
-            <span>Affiliate rewards</span>
-            <strong>{loading ? "..." : `${formatNum(rewardStats.affiliate_rewards_awarded)} CP`}</strong>
-            <small>{formatNum(activityStats.completed_affiliate_tasks)} completed tasks</small>
-          </div>
+          {statCards.map((stat) => (
+            <div className={styles.statCard} key={stat.label}>
+              <span>{stat.label}</span>
+              <strong>{stat.value}</strong>
+              <small>{stat.note}</small>
+            </div>
+          ))}
         </section>
 
         <section className={styles.sectionHead}>
@@ -213,13 +288,22 @@ export default function AdminDashboard() {
             <button
               type="button"
               key={card.path}
-              className={`${styles.actionCard} ${styles[card.tone]}`}
+              className={`${styles.actionCard} ${styles[card.tone]} ${
+                card.featured ? styles.featuredCard : ""
+              }`}
               onClick={() => navigate(card.path)}
             >
-              <span className={styles.cardIcon}>{card.icon}</span>
-              <span className={styles.cardStat}>{card.stat}</span>
-              <strong>{card.title}</strong>
-              <span>{card.text}</span>
+              <span className={styles.cardTop}>
+                <span className={styles.cardIcon}>{card.icon}</span>
+                <span className={styles.cardStat}>{card.stat}</span>
+              </span>
+              <span className={styles.cardBody}>
+                <strong>{card.title}</strong>
+                <span>{card.text}</span>
+              </span>
+              <span className={styles.cardCta}>
+                Open <FaArrowRight />
+              </span>
             </button>
           ))}
         </section>

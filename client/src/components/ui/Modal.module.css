@@ -17,6 +17,9 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .sm { width: min(520px, 100%); }
@@ -25,6 +28,7 @@
 .xl { width: min(1100px, 100%); }
 
 .head {
+  flex: 0 0 auto;
   padding: 14px 14px 10px;
   display: flex;
   justify-content: space-between;
@@ -70,12 +74,15 @@
 }
 
 .body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 14px;
   overflow: auto;
   max-height: calc(100vh - 170px);
 }
 
 .footer {
+  flex: 0 0 auto;
   padding: 12px 14px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.10);
   display: flex;
@@ -92,7 +99,7 @@
 
   .modal {
     width: 100%;
-    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
     border-radius: 20px 20px 14px 14px;
   }
 
@@ -101,11 +108,12 @@
   }
 
   .body {
-    max-height: calc(100vh - 190px);
+    max-height: none;
   }
 
   .footer {
     display: grid;
     grid-template-columns: 1fr;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
 }

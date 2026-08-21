@@ -326,6 +326,256 @@
   font-size: 1.28rem;
 }
 
+.performancePanel {
+  height: 780px;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) minmax(220px, 0.55fr);
+}
+
+.performanceBody {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  overflow: hidden;
+}
+
+.analyticsStrip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.analyticsCard,
+.chartPanel {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035)),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.analyticsCard {
+  min-height: 112px;
+  border-radius: 18px;
+  padding: 13px;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.analyticsCard span,
+.analyticsCard small,
+.chartHead span,
+.barRow small,
+.participantBars span,
+.balanceGauge span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.analyticsCard strong {
+  color: #ffffff;
+  font-size: clamp(1.05rem, 1.8vw, 1.38rem);
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.analyticsCard small {
+  display: block;
+  margin-top: -2px;
+}
+
+.miniMeter,
+.statusBars i,
+.participantBars i,
+.balanceGauge i {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.miniMeter i,
+.statusBars i::before,
+.participantBars i::before,
+.balanceGauge i::before {
+  content: "";
+  display: block;
+  width: var(--value, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #9fffe7);
+}
+
+.chartGrid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.9fr) minmax(260px, 0.7fr);
+  gap: 12px;
+}
+
+.chartPanel {
+  border-radius: 20px;
+  padding: 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chartHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chartHead strong {
+  display: block;
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.chartHead svg {
+  color: #9fffe7;
+  flex: 0 0 auto;
+}
+
+.barList,
+.statusBars,
+.participantBars,
+.balanceGauge {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.barList {
+  display: grid;
+  gap: 11px;
+  padding-right: 2px;
+}
+
+.barRow {
+  display: grid;
+  gap: 7px;
+}
+
+.barRow > div:first-child,
+.participantBars div,
+.balanceGauge div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.barRow span,
+.participantBars span {
+  color: #ffffff;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barRow strong,
+.participantBars strong,
+.balanceGauge strong {
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.dualBars {
+  display: grid;
+  gap: 5px;
+}
+
+.dualBars i,
+.dualBars b {
+  height: 9px;
+  width: var(--value, 0%);
+  min-width: 4px;
+  border-radius: 999px;
+}
+
+.dualBars i {
+  background: linear-gradient(90deg, #22d3ee, #9fffe7);
+}
+
+.dualBars b {
+  background: linear-gradient(90deg, #facc15, #fb923c);
+}
+
+.statusBars {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+}
+
+.statusBars div {
+  display: grid;
+  grid-template-columns: minmax(92px, auto) auto minmax(90px, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.participantBars {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.participantBars i,
+.balanceGauge i {
+  grid-column: 1 / -1;
+}
+
+.balanceGauge {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.balanceGauge div {
+  gap: 8px 10px;
+}
+
+.emptyChart {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-weight: 850;
+}
+
+.heistTableWrap {
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+}
+
+.heistTableWrap .table {
+  min-width: 900px;
+}
+
+.heistTableWrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #121827;
+}
+
 .statusPill {
   width: fit-content;
   border-radius: 999px;
@@ -386,6 +636,31 @@
   .statsGridCompact {
     grid-template-columns: 1fr 1fr;
   }
+
+  .performancePanel {
+    height: auto;
+    overflow: visible;
+  }
+
+  .performanceBody {
+    overflow: visible;
+  }
+
+  .analyticsStrip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .chartGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .chartPanel {
+    min-height: 260px;
+  }
+
+  .heistTableWrap {
+    max-height: 460px;
+  }
 }
 
 @media (max-width: 700px) {
@@ -397,7 +672,8 @@
   .statsGrid,
   .contentGrid,
   .summaryGrid,
-  .statsGridCompact {
+  .statsGridCompact,
+  .analyticsStrip {
     grid-template-columns: 1fr;
   }
 
@@ -410,5 +686,27 @@
   .refreshBtn,
   .smallBtn {
     width: 100%;
+  }
+
+  .analyticsCard {
+    min-height: 96px;
+  }
+
+  .chartPanel {
+    min-height: 240px;
+    border-radius: 18px;
+    padding: 12px;
+  }
+
+  .statusBars div {
+    grid-template-columns: 1fr auto;
+  }
+
+  .statusBars i {
+    grid-column: 1 / -1;
+  }
+
+  .heistTableWrap {
+    max-height: 420px;
   }
 }

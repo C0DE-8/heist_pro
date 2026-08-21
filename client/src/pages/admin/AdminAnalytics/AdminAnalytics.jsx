@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaBalanceScale,
+  FaChartBar,
   FaChartLine,
   FaCoins,
   FaSearch,
@@ -53,6 +54,17 @@ function statusClassName(value) {
   return styles.statusNeutral;
 }
 
+function percentOf(value, total) {
+  const current = Number(value || 0);
+  const max = Number(total || 0);
+  if (!max || !Number.isFinite(current) || !Number.isFinite(max)) return 0;
+  return Math.min(100, Math.max(0, (current / max) * 100));
+}
+
+function maxOf(rows, key) {
+  return rows.reduce((max, row) => Math.max(max, Math.abs(Number(row?.[key] || 0))), 0);
+}
+
 export default function AdminAnalytics() {
   const toast = useToast();
   const [analytics, setAnalytics] = useState(null);
@@ -85,6 +97,12 @@ export default function AdminAnalytics() {
   const platform = analytics?.platform || {};
   const coinRate = analytics?.coin_rate || {};
   const excludedUserIds = analytics?.exclusions?.user_ids || [];
+  const completedPercent = percentOf(
+    heistSummary.completed_heists,
+    heistSummary.total_heists
+  );
+  const platformBalance = Number(platform.estimated_platform_coin_balance || 0);
+  const systemBalance = Number(platform.overall_system_balance || 0);
 
   const filteredUsers = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -95,6 +113,45 @@ export default function AdminAnalytics() {
         .some((value) => String(value).toLowerCase().includes(needle));
     });
   }, [search, users]);
+
+  const statusBreakdown = useMemo(() => {
+    const counts = heists.reduce((acc, heist) => {
+      const status = heist.status || "pending";
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    return ["completed", "started", "pending", "hold", "cancelled"]
+      .map((status) => ({
+        status,
+        count: counts[status] || 0,
+        percent: percentOf(counts[status] || 0, heists.length),
+      }))
+      .filter((item) => item.count || heists.length === 0);
+  }, [heists]);
+
+  const topRevenueHeists = useMemo(
+    () =>
+      [...heists]
+        .sort((a, b) => Number(b.ticket_revenue || 0) - Number(a.ticket_revenue || 0))
+        .slice(0, 6),
+    [heists]
+  );
+
+  const topParticipantHeists = useMemo(
+    () =>
+      [...heists]
+        .sort((a, b) => Number(b.participant_count || 0) - Number(a.participant_count || 0))
+        .slice(0, 5),
+    [heists]
+  );
+
+  const maxRevenue = useMemo(() => maxOf(topRevenueHeists, "ticket_revenue"), [topRevenueHeists]);
+  const maxParticipants = useMemo(
+    () => maxOf(topParticipantHeists, "participant_count"),
+    [topParticipantHeists]
+  );
+  const maxProfitLoss = useMemo(() => maxOf(topRevenueHeists, "profit_loss"), [topRevenueHeists]);
 
   const toggleUser = async (userId) => {
     const currentlyIncluded = !excludedUserIds.includes(userId);
@@ -283,7 +340,7 @@ export default function AdminAnalytics() {
           </div>
         </section>
 
-        <section className={styles.panel}>
+        <section className={`${styles.panel} ${styles.performancePanel}`}>
           <div className={styles.panelHead}>
             <div>
               <p className={styles.kicker}>Heists</p>
@@ -292,38 +349,154 @@ export default function AdminAnalytics() {
             <FaChartLine />
           </div>
 
-          <div className={styles.statsGridCompact}>
-            <div>
-              <span>Total heists</span>
-              <strong>{formatCoins(heistSummary.total_heists)}</strong>
+          <div className={styles.performanceBody}>
+            <div className={styles.analyticsStrip}>
+              <div className={styles.analyticsCard}>
+                <span>Total heists</span>
+                <strong>{formatCoins(heistSummary.total_heists)}</strong>
+                <div className={styles.miniMeter}>
+                  <i style={{ "--value": "100%" }} />
+                </div>
+              </div>
+              <div className={styles.analyticsCard}>
+                <span>Completed</span>
+                <strong>{formatCoins(heistSummary.completed_heists)}</strong>
+                <div className={styles.miniMeter}>
+                  <i style={{ "--value": `${completedPercent}%` }} />
+                </div>
+              </div>
+              <div className={styles.analyticsCard}>
+                <span>Participants</span>
+                <strong>{formatCoins(heistSummary.total_participants)}</strong>
+                <div className={styles.miniMeter}>
+                  <i style={{ "--value": `${percentOf(heistSummary.total_participants, Math.max(Number(heistSummary.total_heists || 0) * 10, 1))}%` }} />
+                </div>
+              </div>
+              <div className={styles.analyticsCard}>
+                <span>Ticket revenue</span>
+                <strong>{formatCoins(heistSummary.total_ticket_revenue)}</strong>
+                <div className={styles.miniMeter}>
+                  <i style={{ "--value": `${percentOf(heistSummary.total_ticket_revenue, Number(heistSummary.total_ticket_revenue || 0) + Number(heistSummary.total_prize_payouts || 0))}%` }} />
+                </div>
+              </div>
+              <div className={styles.analyticsCard}>
+                <span>Prize payouts</span>
+                <strong>{formatCoins(heistSummary.total_prize_payouts)}</strong>
+                <div className={styles.miniMeter}>
+                  <i style={{ "--value": `${percentOf(heistSummary.total_prize_payouts, Number(heistSummary.total_ticket_revenue || 0) + Number(heistSummary.total_prize_payouts || 0))}%` }} />
+                </div>
+              </div>
+              <div className={styles.analyticsCard}>
+                <span>Profit/Loss</span>
+                <strong className={Number(heistSummary.total_profit_loss) < 0 ? styles.negative : styles.positive}>
+                  {formatSignedCoins(heistSummary.total_profit_loss)}
+                </strong>
+                <small>{formatSignedMoney(heistSummary.total_profit_loss_value, coinRate.currency)}</small>
+              </div>
             </div>
-            <div>
-              <span>Completed</span>
-              <strong>{formatCoins(heistSummary.completed_heists)}</strong>
-            </div>
-            <div>
-              <span>Participants</span>
-              <strong>{formatCoins(heistSummary.total_participants)}</strong>
-            </div>
-            <div>
-              <span>Ticket revenue</span>
-              <strong>{formatCoins(heistSummary.total_ticket_revenue)}</strong>
-            </div>
-            <div>
-              <span>Prize payouts</span>
-              <strong>{formatCoins(heistSummary.total_prize_payouts)}</strong>
-            </div>
-            <div>
-              <span>Profit/Loss</span>
-              <strong>{formatSignedCoins(heistSummary.total_profit_loss)}</strong>
-            </div>
-            <div>
-              <span>Profit/Loss value</span>
-              <strong>{formatSignedMoney(heistSummary.total_profit_loss_value, coinRate.currency)}</strong>
+
+            <div className={styles.chartGrid}>
+              <article className={styles.chartPanel}>
+                <div className={styles.chartHead}>
+                  <div>
+                    <span>Revenue map</span>
+                    <strong>Tickets vs prizes</strong>
+                  </div>
+                  <FaChartBar />
+                </div>
+                <div className={styles.barList}>
+                  {topRevenueHeists.length ? (
+                    topRevenueHeists.map((heist) => (
+                      <div key={heist.id} className={styles.barRow}>
+                        <div>
+                          <span>{heist.name}</span>
+                          <strong>{formatSignedCoins(heist.profit_loss)}</strong>
+                        </div>
+                        <div className={styles.dualBars}>
+                          <i style={{ "--value": `${percentOf(heist.ticket_revenue, maxRevenue)}%` }} />
+                          <b style={{ "--value": `${percentOf(heist.prize_payout, maxRevenue)}%` }} />
+                        </div>
+                        <small>
+                          Revenue {formatCoins(heist.ticket_revenue)} / Prize {formatCoins(heist.prize_payout)}
+                        </small>
+                      </div>
+                    ))
+                  ) : (
+                    <p className={styles.emptyChart}>No heist revenue yet.</p>
+                  )}
+                </div>
+              </article>
+
+              <article className={styles.chartPanel}>
+                <div className={styles.chartHead}>
+                  <div>
+                    <span>Operating view</span>
+                    <strong>Status and reach</strong>
+                  </div>
+                  <FaUsers />
+                </div>
+                <div className={styles.statusBars}>
+                  {statusBreakdown.map((item) => (
+                    <div key={item.status}>
+                      <span className={`${styles.statusPill} ${statusClassName(item.status)}`}>
+                        {item.status}
+                      </span>
+                      <strong>{formatCoins(item.count)}</strong>
+                      <i style={{ "--value": `${item.percent}%` }} />
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.participantBars}>
+                  {topParticipantHeists.length ? (
+                    topParticipantHeists.map((heist) => (
+                      <div key={heist.id}>
+                        <span>{heist.name}</span>
+                        <strong>{formatCoins(heist.participant_count)}</strong>
+                        <i style={{ "--value": `${percentOf(heist.participant_count, maxParticipants)}%` }} />
+                      </div>
+                    ))
+                  ) : (
+                    <p className={styles.emptyChart}>No participant activity yet.</p>
+                  )}
+                </div>
+              </article>
+
+              <article className={styles.chartPanel}>
+                <div className={styles.chartHead}>
+                  <div>
+                    <span>Balance pressure</span>
+                    <strong>Platform health</strong>
+                  </div>
+                  <FaBalanceScale />
+                </div>
+                <div className={styles.balanceGauge}>
+                  <div>
+                    <span>Platform coins</span>
+                    <strong className={platformBalance < 0 ? styles.negative : styles.positive}>
+                      {formatSignedCoins(platformBalance)}
+                    </strong>
+                    <i style={{ "--value": `${percentOf(Math.abs(platformBalance), Math.max(Math.abs(platformBalance), Math.abs(systemBalance), 1))}%` }} />
+                  </div>
+                  <div>
+                    <span>System balance</span>
+                    <strong className={systemBalance < 0 ? styles.negative : styles.positive}>
+                      {formatSignedCoins(systemBalance)}
+                    </strong>
+                    <i style={{ "--value": `${percentOf(Math.abs(systemBalance), Math.max(Math.abs(platformBalance), Math.abs(systemBalance), 1))}%` }} />
+                  </div>
+                  <div>
+                    <span>Profit/Loss value</span>
+                    <strong className={Number(heistSummary.total_profit_loss_value) < 0 ? styles.negative : styles.positive}>
+                      {formatSignedMoney(heistSummary.total_profit_loss_value, coinRate.currency)}
+                    </strong>
+                    <i style={{ "--value": `${percentOf(Math.abs(heistSummary.total_profit_loss), Math.max(maxProfitLoss, Math.abs(Number(heistSummary.total_profit_loss || 0)), 1))}%` }} />
+                  </div>
+                </div>
+              </article>
             </div>
           </div>
 
-          <div className={styles.tableWrap}>
+          <div className={`${styles.tableWrap} ${styles.heistTableWrap}`}>
             <table className={styles.table}>
               <thead>
                 <tr>

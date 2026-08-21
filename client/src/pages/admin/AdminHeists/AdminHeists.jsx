@@ -1,12 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
+  FaArchive,
+  FaCalendarAlt,
+  FaChevronDown,
   FaChevronLeft,
   FaChevronRight,
+  FaClock,
+  FaDatabase,
   FaEdit,
+  FaGripVertical,
   FaPlus,
+  FaQuestionCircle,
   FaRedoAlt,
   FaSave,
+  FaSearch,
+  FaTags,
   FaTrash,
   FaTrophy,
   FaUsers,
@@ -112,6 +121,13 @@ const EMPTY_DEMO_USER = {
 };
 
 const HEISTS_PER_PAGE = 6;
+const HEIST_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "started", label: "Started" },
+  { value: "hold", label: "Hold" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 function formatNum(value) {
   const n = Number(value);
@@ -207,9 +223,81 @@ function formatCapacity(heist) {
   return maxUsers > 0 ? `${total}/${formatNum(maxUsers)} players` : `${total} players`;
 }
 
+function parseBulkQuestions(value) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+
+  const rows = [];
+  const pattern = /([^,\n;]+(?:,[^,\n;]+)*?)\s*,\s*(true|false)\s*(?:[.;\n]|$)/gi;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const questionText = match[1]
+      .replace(/^\s*[-*0-9.)]+\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (questionText) {
+      rows.push({
+        question_text: questionText,
+        correct_answer: match[2].toLowerCase(),
+      });
+    }
+  }
+
+  return rows;
+}
+
+function getDatePart(value) {
+  return String(value || "").split("T")[0] || "";
+}
+
+function getTimePart(value) {
+  return String(value || "").split("T")[1] || "";
+}
+
+function mergeDateTimePart(currentValue, part, nextValue) {
+  const date = part === "date" ? nextValue : getDatePart(currentValue);
+  const time = part === "time" ? nextValue : getTimePart(currentValue);
+  if (!date && !time) return "";
+  if (!date) return "";
+  return `${date}T${time || "00:00"}`;
+}
+
+function SchedulePicker({ label, value, onDateChange, onTimeChange }) {
+  return (
+    <section className={styles.scheduleCard}>
+      <div className={styles.scheduleTitle}>
+        <span className={styles.scheduleIcon}>
+          <FaCalendarAlt />
+        </span>
+        <span>{label}</span>
+      </div>
+      <div className={styles.scheduleFields}>
+        <label>
+          <span>Date</span>
+          <span className={styles.scheduleInputWrap}>
+            <FaCalendarAlt />
+            <input type="date" value={getDatePart(value)} onChange={(event) => onDateChange(event.target.value)} />
+          </span>
+        </label>
+        <label>
+          <span>Time</span>
+          <span className={styles.scheduleInputWrap}>
+            <FaClock />
+            <input type="time" value={getTimePart(value)} onChange={(event) => onTimeChange(event.target.value)} />
+          </span>
+        </label>
+      </div>
+    </section>
+  );
+}
+
 function AdminHeistsPage() {
   const toast = useToast();
   const location = useLocation();
+  const actionDragRef = useRef(null);
+  const actionIdleTimerRef = useRef(null);
 
   const [heists, setHeists] = useState([]);
   const [detailHeist, setDetailHeist] = useState(null);
@@ -235,6 +323,7 @@ function AdminHeistsPage() {
   const [questionsModalOpen, setQuestionsModalOpen] = useState(false);
   const [contentModalOpen, setContentModalOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
 
   const [createForm, setCreateForm] = useState(EMPTY_HEIST);
   const [editForm, setEditForm] = useState(EMPTY_HEIST);
@@ -249,10 +338,21 @@ function AdminHeistsPage() {
   const [promoForm, setPromoForm] = useState(EMPTY_PROMO_CODE);
   const [demoUserForm, setDemoUserForm] = useState(EMPTY_DEMO_USER);
   const [demoBankName, setDemoBankName] = useState("");
+  const [bulkQuestionText, setBulkQuestionText] = useState("");
   const [statusValue, setStatusValue] = useState("pending");
   const [sessionQuestionCount, setSessionQuestionCount] = useState("0");
   const [activePage, setActivePage] = useState(1);
   const [completedPage, setCompletedPage] = useState(1);
+  const [activeWorkflow, setActiveWorkflow] = useState("details");
+  const [collapsedSections, setCollapsedSections] = useState({
+    automation: true,
+    selected: true,
+    marketing: true,
+  });
+  const [heistSearch, setHeistSearch] = useState("");
+  const [heistStatusFilter, setHeistStatusFilter] = useState("all");
+  const [mobileActionPosition, setMobileActionPosition] = useState(null);
+  const [mobileActionAwake, setMobileActionAwake] = useState(true);
   const pageMode = location.pathname.endsWith("/content-bank")
     ? "content"
     : location.pathname.endsWith("/question-bank")
@@ -311,20 +411,64 @@ function AdminHeistsPage() {
     [heists]
   );
 
-  const activePageCount = useMemo(() => pageCountFor(activeHeists.length), [activeHeists.length]);
+  const normalizedHeistSearch = heistSearch.trim().toLowerCase();
+
+  const filterHeistRows = useCallback(
+    (rows) =>
+      rows.filter((heist) => {
+        const matchesStatus =
+          heistStatusFilter === "all" || String(heist.status) === heistStatusFilter;
+        const haystack = [
+          heist.name,
+          heist.description,
+          heist.status,
+          heist.winner_username,
+          heist.winner_full_name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const matchesSearch = !normalizedHeistSearch || haystack.includes(normalizedHeistSearch);
+        return matchesStatus && matchesSearch;
+      }),
+    [heistStatusFilter, normalizedHeistSearch]
+  );
+
+  const filteredActiveHeists = useMemo(
+    () => filterHeistRows(activeHeists),
+    [activeHeists, filterHeistRows]
+  );
+
+  const filteredCompletedHeists = useMemo(
+    () =>
+      completedHeists.filter((heist) => {
+        if (!normalizedHeistSearch) return true;
+        return [heist.name, heist.description, heist.winner_username, heist.winner_full_name]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedHeistSearch);
+      }),
+    [completedHeists, normalizedHeistSearch]
+  );
+
+  const activePageCount = useMemo(
+    () => pageCountFor(filteredActiveHeists.length),
+    [filteredActiveHeists.length]
+  );
   const completedPageCount = useMemo(
-    () => pageCountFor(completedHeists.length),
-    [completedHeists.length]
+    () => pageCountFor(filteredCompletedHeists.length),
+    [filteredCompletedHeists.length]
   );
 
   const pagedActiveHeists = useMemo(
-    () => paginateRows(activeHeists, activePage),
-    [activeHeists, activePage]
+    () => paginateRows(filteredActiveHeists, activePage),
+    [filteredActiveHeists, activePage]
   );
 
   const pagedCompletedHeists = useMemo(
-    () => paginateRows(completedHeists, completedPage),
-    [completedHeists, completedPage]
+    () => paginateRows(filteredCompletedHeists, completedPage),
+    [filteredCompletedHeists, completedPage]
   );
 
   const loadHeists = useCallback(async () => {
@@ -454,6 +598,10 @@ function AdminHeistsPage() {
   }, [activeDetailHeist]);
 
   useEffect(() => {
+    setActiveWorkflow("details");
+  }, [selectedId]);
+
+  useEffect(() => {
     loadSelectedDetails();
   }, [loadSelectedDetails]);
 
@@ -466,12 +614,79 @@ function AdminHeistsPage() {
   }, [completedPageCount]);
 
   useEffect(() => {
+    setActivePage(1);
+    setCompletedPage(1);
+  }, [heistSearch, heistStatusFilter]);
+
+  useEffect(() => {
     if (!isArchivePage || !completedHeists.length) return;
     const selectedIsCompleted = completedHeists.some(
       (heist) => Number(heist.id) === Number(selectedId)
     );
     if (!selectedIsCompleted) setSelectedId(completedHeists[0].id);
   }, [completedHeists, isArchivePage, selectedId]);
+
+  const wakeMobileActions = useCallback(() => {
+    setMobileActionAwake(true);
+    if (actionIdleTimerRef.current) window.clearTimeout(actionIdleTimerRef.current);
+    actionIdleTimerRef.current = window.setTimeout(() => {
+      setMobileActionAwake(false);
+    }, 2600);
+  }, []);
+
+  useEffect(() => {
+    wakeMobileActions();
+    return () => {
+      if (actionIdleTimerRef.current) window.clearTimeout(actionIdleTimerRef.current);
+    };
+  }, [wakeMobileActions]);
+
+  const startMobileActionDrag = useCallback(
+    (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      const bar = event.currentTarget.parentElement;
+      if (!bar) return;
+
+      const rect = bar.getBoundingClientRect();
+      actionDragRef.current = {
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+      setMobileActionPosition({ x: rect.left, y: rect.top });
+      wakeMobileActions();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    },
+    [wakeMobileActions]
+  );
+
+  const moveMobileActionBar = useCallback(
+    (event) => {
+      const drag = actionDragRef.current;
+      if (!drag) return;
+
+      const padding = 10;
+      const maxX = Math.max(padding, window.innerWidth - drag.width - padding);
+      const maxY = Math.max(padding, window.innerHeight - drag.height - padding);
+      const nextX = Math.min(Math.max(event.clientX - drag.offsetX, padding), maxX);
+      const nextY = Math.min(Math.max(event.clientY - drag.offsetY, padding), maxY);
+      setMobileActionPosition({ x: nextX, y: nextY });
+      wakeMobileActions();
+    },
+    [wakeMobileActions]
+  );
+
+  const stopMobileActionDrag = useCallback(
+    (event) => {
+      if (!actionDragRef.current) return;
+      actionDragRef.current = null;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      wakeMobileActions();
+    },
+    [wakeMobileActions]
+  );
 
   const updateCreateForm = (event) => {
     const { name, value } = event.target;
@@ -481,6 +696,14 @@ function AdminHeistsPage() {
   const updateEditForm = (event) => {
     const { name, value } = event.target;
     setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const updateScheduleField = (mode, field, part, value) => {
+    const updater = mode === "edit" ? setEditForm : setCreateForm;
+    updater((prev) => ({
+      ...prev,
+      [field]: mergeDateTimePart(prev[field], part, value),
+    }));
   };
 
   const updateContentForm = (event) => {
@@ -619,20 +842,49 @@ function AdminHeistsPage() {
     setQuestionRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
   };
 
+  const toggleCollapsedSection = (section) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  const applyBulkQuestionsToRows = () => {
+    const parsedRows = parseBulkQuestions(bulkQuestionText);
+    if (!parsedRows.length) {
+      toast.warn("Use this format: can a dog bark, true. sky is green, false.");
+      return;
+    }
+
+    setQuestionRows(
+      parsedRows.map((row, index) => ({
+        ...row,
+        sort_order: String(index + 1),
+      }))
+    );
+    setBulkQuestionText("");
+    toast.success(`${formatNum(parsedRows.length)} question(s) formatted`);
+  };
+
   const addQuestions = async (event) => {
     event.preventDefault();
     if (busy) return;
 
-    const payload = questionRows
+    const manualRows = questionRows
       .map((row, index) => ({
         question_text: row.question_text.trim(),
         correct_answer: row.correct_answer,
         sort_order: Number(row.sort_order || index + 1),
       }))
       .filter((row) => row.question_text);
+    const bulkRows = parseBulkQuestions(bulkQuestionText).map((row, index) => ({
+      ...row,
+      sort_order: manualRows.length + index + 1,
+    }));
+    const payload = [...manualRows, ...bulkRows];
 
     if (!payload.length) {
-      toast.warn("Add at least one question");
+      toast.warn("Add rows or paste questions using: question, true");
       return;
     }
 
@@ -641,6 +893,7 @@ function AdminHeistsPage() {
       await addAdminQuestionBankQuestions(payload);
       toast.success("Questions added to bank");
       setQuestionRows([{ ...EMPTY_QUESTION, sort_order: String(questions.length + 1) }]);
+      setBulkQuestionText("");
       setQuestionsModalOpen(false);
       await loadQuestionBank();
     } catch (err) {
@@ -688,10 +941,13 @@ function AdminHeistsPage() {
     }
   };
 
+  const requestFinalizeHeist = () => {
+    if (!selectedId || busy) return;
+    setFinalizeModalOpen(true);
+  };
+
   const finalizeHeist = async () => {
     if (!selectedId || busy) return;
-    const ok = window.confirm("Finalize this heist and award the winner?");
-    if (!ok) return;
 
     setBusy(true);
     try {
@@ -702,6 +958,7 @@ function AdminHeistsPage() {
           : "Heist finalized without submitted winner"
       );
       await Promise.all([loadHeists(), loadSelectedDetails()]);
+      setFinalizeModalOpen(false);
     } catch (err) {
       console.error("Finalize heist error:", err);
       toast.error(err?.response?.data?.message || "Unable to finalize heist.");
@@ -957,6 +1214,79 @@ function AdminHeistsPage() {
   const unusedBankCount = Number(questionBankSummary?.unused || 0);
   const activeContentCount = Number(contentBankSummary?.active || 0);
   const activePromoCount = Number(promoSummary?.active || 0);
+  const bulkQuestionPreview = useMemo(
+    () => parseBulkQuestions(bulkQuestionText),
+    [bulkQuestionText]
+  );
+
+  const heistNavItems = [
+    {
+      to: "/admin/heists",
+      end: true,
+      icon: <FaTrophy />,
+      title: "Manage",
+      note: `${formatNum(activeHeists.length)} active`,
+    },
+    {
+      to: "/admin/heists/content-bank",
+      icon: <FaDatabase />,
+      title: "Name bank",
+      note: `${formatNum(activeContentCount)} active`,
+    },
+    {
+      to: "/admin/heists/question-bank",
+      icon: <FaQuestionCircle />,
+      title: "Questions",
+      note: `${formatNum(unusedBankCount)} unused`,
+    },
+    {
+      to: "/admin/heists/promo-codes",
+      icon: <FaTags />,
+      title: "Promo codes",
+      note: `${formatNum(activePromoCount)} active`,
+    },
+    {
+      to: "/admin/heists/archive",
+      icon: <FaArchive />,
+      title: "Archive",
+      note: `${formatNum(completedHeists.length)} complete`,
+    },
+  ];
+
+  const workflowItems = activeDetailHeist
+    ? [
+        {
+          id: "details",
+          icon: <FaTrophy />,
+          title: "Details",
+          note: activeDetailHeist.status,
+        },
+        {
+          id: "players",
+          icon: <FaUsers />,
+          title: "Players",
+          note: `${formatNum(activeDetailHeist.total_participants)} joined`,
+        },
+        {
+          id: "questions",
+          icon: <FaQuestionCircle />,
+          title: "Questions",
+          note: `${formatNum(activeDetailHeist.total_questions)} assigned`,
+        },
+        {
+          id: "demo",
+          icon: <FaUsers />,
+          title: "Demo",
+          note: `${formatNum(activeDetailHeist.total_demo_submissions)} players`,
+        },
+        {
+          id: "affiliate",
+          icon: <FaTags />,
+          title: "Affiliate",
+          note: `${formatNum(tasks.length)} tasks`,
+        },
+      ]
+    : [];
 
   const createPromoCode = async (event) => {
     event.preventDefault();
@@ -1160,120 +1490,136 @@ function AdminHeistsPage() {
     );
   };
 
-  const renderDemoPlayersPanel = () => (
-    <article className={styles.detailPanel}>
+  const renderDemoPlayersPanel = ({ className = "", ...panelProps } = {}) => (
+    <article className={`${styles.detailPanel} ${className}`} {...panelProps}>
       <div className={styles.panelHead}>
         <div>
           <p className={styles.kicker}>Marketing</p>
           <h2>Demo leaderboard players</h2>
         </div>
-        <span className={styles.status}>{formatNum(demoUsers.length)} demo</span>
-      </div>
-
-      <form className={styles.demoUserForm} onSubmit={createDemoUser}>
-        <label className={styles.field}>
-          <span>Demo user</span>
-          <select
-            name="demo_user_id"
-            value={demoUserForm.demo_user_id}
-            onChange={updateDemoUserForm}
+        <div className={styles.inlineActions}>
+          <span className={styles.status}>{formatNum(demoUsers.length)} demo</span>
+          <button
+            type="button"
+            className={`${styles.collapseBtn} ${
+              collapsedSections.marketing ? styles.collapsed : ""
+            }`}
+            onClick={() => toggleCollapsedSection("marketing")}
+            aria-label={collapsedSections.marketing ? "Expand marketing" : "Collapse marketing"}
           >
-            <option value="">Select demo user</option>
-            {demoUserBank
-              .filter((demoUser) => Number(demoUser.is_active))
-              .map((demoUser) => (
-                <option value={demoUser.id} key={demoUser.id}>
-                  {demoUser.display_name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span>Add to list</span>
-          <input
-            value={demoBankName}
-            onChange={(event) => setDemoBankName(event.target.value)}
-            placeholder="Maya Stone"
-          />
-        </label>
-        <button type="button" className={styles.softBtn} onClick={createDemoBankUser} disabled={busy || !demoBankName.trim()}>
-          <FaPlus />
-          <span>Save user</span>
-        </button>
-        <label className={styles.field}>
-          <span>Correct</span>
-          <input type="number" name="correct_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.correct_count} onChange={updateDemoUserForm} />
-        </label>
-        <label className={styles.field}>
-          <span>Wrong</span>
-          <input type="number" name="wrong_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.wrong_count} onChange={updateDemoUserForm} />
-        </label>
-        <label className={styles.field}>
-          <span>Unanswered</span>
-          <input type="number" name="unanswered_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.unanswered_count} onChange={updateDemoUserForm} />
-        </label>
-        <label className={styles.field}>
-          <span>Time seconds</span>
-          <input type="number" name="total_time_seconds" min="0" value={demoUserForm.total_time_seconds} onChange={updateDemoUserForm} />
-        </label>
-        <label className={styles.field}>
-          <span>Submitted at</span>
-          <input type="datetime-local" name="submitted_at" value={demoUserForm.submitted_at} onChange={updateDemoUserForm} />
-        </label>
-        <button type="submit" className={styles.primaryBtn} disabled={busy || !selectedId || !demoUserForm.demo_user_id || demoQuestionLimit <= 0 || demoAnswerTotal > demoQuestionLimit}>
-          <FaPlus />
-          <span>Add to heist</span>
-        </button>
-      </form>
-      <p className={styles.softNote}>
-        {demoQuestionLimit > 0
-          ? `${formatNum(demoAnswerTotal)} of ${formatNum(demoQuestionLimit)} question slots used for this demo player.`
-          : "Assign questions before adding demo players."}
-      </p>
-
-      <div className={styles.rows}>
-        {demoUserBank.length ? (
-          <div className={styles.demoBankStrip}>
-            {demoUserBank.slice(0, 8).map((demoUser) => (
-              <span className={styles.demoChipGroup} key={demoUser.id}>
-                <button
-                  type="button"
-                  className={Number(demoUser.is_active) ? styles.demoChip : styles.demoChipOff}
-                  onClick={() => toggleDemoBankUser(demoUser)}
-                  disabled={busy}
-                  title={Number(demoUser.is_active) ? "Click to hide from picker" : "Click to show in picker"}
-                >
-                  {demoUser.display_name}
-                </button>
-                <button type="button" className={styles.iconMiniBtn} onClick={() => renameDemoBankUser(demoUser)} disabled={busy}>
-                  <FaEdit />
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {demoUsers.length ? (
-          demoUsers.map((demoUser) => (
-            <div className={styles.dataRow} key={demoUser.id}>
-              <span>
-                <strong>{demoUser.display_name}</strong>
-                <small>
-                  {formatNum(demoUser.correct_count)} correct · {formatNum(demoUser.wrong_count)} wrong · {formatNum(demoUser.total_time_seconds)}s
-                </small>
-                <small>Submitted {formatDate(demoUser.submitted_at)}</small>
-              </span>
-              <div className={styles.rowActions}>
-                <em>demo</em>
-                <button type="button" onClick={() => deleteDemoUser(demoUser)} disabled={busy}>
-                  <FaTrash />
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className={styles.emptyState}>No demo players yet.</div>
-        )}
+            <FaChevronDown />
+          </button>
+        </div>
       </div>
+
+      {!collapsedSections.marketing ? (
+        <>
+          <form className={styles.demoUserForm} onSubmit={createDemoUser}>
+            <label className={styles.field}>
+              <span>Demo user</span>
+              <select
+                name="demo_user_id"
+                value={demoUserForm.demo_user_id}
+                onChange={updateDemoUserForm}
+              >
+                <option value="">Select demo user</option>
+                {demoUserBank
+                  .filter((demoUser) => Number(demoUser.is_active))
+                  .map((demoUser) => (
+                    <option value={demoUser.id} key={demoUser.id}>
+                      {demoUser.display_name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>Add to list</span>
+              <input
+                value={demoBankName}
+                onChange={(event) => setDemoBankName(event.target.value)}
+                placeholder="Maya Stone"
+              />
+            </label>
+            <button type="button" className={styles.softBtn} onClick={createDemoBankUser} disabled={busy || !demoBankName.trim()}>
+              <FaPlus />
+              <span>Save user</span>
+            </button>
+            <label className={styles.field}>
+              <span>Correct</span>
+              <input type="number" name="correct_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.correct_count} onChange={updateDemoUserForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Wrong</span>
+              <input type="number" name="wrong_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.wrong_count} onChange={updateDemoUserForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Unanswered</span>
+              <input type="number" name="unanswered_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.unanswered_count} onChange={updateDemoUserForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Time seconds</span>
+              <input type="number" name="total_time_seconds" min="0" value={demoUserForm.total_time_seconds} onChange={updateDemoUserForm} />
+            </label>
+            <label className={styles.field}>
+              <span>Submitted at</span>
+              <input type="datetime-local" name="submitted_at" value={demoUserForm.submitted_at} onChange={updateDemoUserForm} />
+            </label>
+            <button type="submit" className={styles.primaryBtn} disabled={busy || !selectedId || !demoUserForm.demo_user_id || demoQuestionLimit <= 0 || demoAnswerTotal > demoQuestionLimit}>
+              <FaPlus />
+              <span>Add to heist</span>
+            </button>
+          </form>
+          <p className={styles.softNote}>
+            {demoQuestionLimit > 0
+              ? `${formatNum(demoAnswerTotal)} of ${formatNum(demoQuestionLimit)} question slots used for this demo player.`
+              : "Assign questions before adding demo players."}
+          </p>
+
+          <div className={styles.rows}>
+            {demoUserBank.length ? (
+              <div className={styles.demoBankStrip}>
+                {demoUserBank.slice(0, 8).map((demoUser) => (
+                  <span className={styles.demoChipGroup} key={demoUser.id}>
+                    <button
+                      type="button"
+                      className={Number(demoUser.is_active) ? styles.demoChip : styles.demoChipOff}
+                      onClick={() => toggleDemoBankUser(demoUser)}
+                      disabled={busy}
+                      title={Number(demoUser.is_active) ? "Click to hide from picker" : "Click to show in picker"}
+                    >
+                      {demoUser.display_name}
+                    </button>
+                    <button type="button" className={styles.iconMiniBtn} onClick={() => renameDemoBankUser(demoUser)} disabled={busy}>
+                      <FaEdit />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {demoUsers.length ? (
+              demoUsers.map((demoUser) => (
+                <div className={styles.dataRow} key={demoUser.id}>
+                  <span>
+                    <strong>{demoUser.display_name}</strong>
+                    <small>
+                      {formatNum(demoUser.correct_count)} correct · {formatNum(demoUser.wrong_count)} wrong · {formatNum(demoUser.total_time_seconds)}s
+                    </small>
+                    <small>Submitted {formatDate(demoUser.submitted_at)}</small>
+                  </span>
+                  <div className={styles.rowActions}>
+                    <em>demo</em>
+                    <button type="button" onClick={() => deleteDemoUser(demoUser)} disabled={busy}>
+                      <FaTrash />
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className={styles.emptyState}>No demo players yet.</div>
+            )}
+          </div>
+        </>
+      ) : null}
     </article>
   );
 
@@ -1313,52 +1659,51 @@ function AdminHeistsPage() {
         />
 
         <nav className={styles.subNav} aria-label="Heist admin sections">
-          <NavLink to="/admin/heists" end className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
-            Manage heists
-          </NavLink>
-          <NavLink to="/admin/heists/content-bank" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
-            Name bank
-          </NavLink>
-          <NavLink to="/admin/heists/question-bank" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
-            Question bank
-          </NavLink>
-          <NavLink to="/admin/heists/promo-codes" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
-            Promo codes
-          </NavLink>
-          <NavLink to="/admin/heists/archive" className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}>
-            Archive
-          </NavLink>
+          {heistNavItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) => (isActive ? styles.subNavActive : styles.subNavLink)}
+            >
+              <span className={styles.subNavIcon}>{item.icon}</span>
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.note}</small>
+              </span>
+            </NavLink>
+          ))}
         </nav>
 
         <section className={styles.statsGrid}>
-          <div>
+          <button type="button" onClick={() => setHeistStatusFilter("all")}>
             <span>Total</span>
             <strong>{formatNum(totals.all)}</strong>
-          </div>
-          <div>
+          </button>
+          <button type="button" onClick={() => setHeistStatusFilter("pending")}>
             <span>Pending</span>
             <strong>{formatNum(totals.pending)}</strong>
-          </div>
-          <div>
+          </button>
+          <button type="button" onClick={() => setHeistStatusFilter("started")}>
             <span>Started</span>
             <strong>{formatNum(totals.started)}</strong>
-          </div>
-          <div>
+          </button>
+          <button type="button" onClick={() => setHeistStatusFilter("all")}>
             <span>Completed</span>
             <strong>{formatNum(totals.completed)}</strong>
-          </div>
-          <div>
+          </button>
+          <button type="button" onClick={() => setHeistStatusFilter("all")}>
             <span>Unused bank</span>
             <strong>{formatNum(unusedBankCount)}</strong>
-          </div>
-          <div>
+          </button>
+          <button type="button" onClick={() => setHeistStatusFilter("all")}>
             <span>Content bank</span>
             <strong>{formatNum(activeContentCount)}</strong>
-          </div>
-          <div>
+          </button>
+          <button type="button" onClick={() => setHeistStatusFilter("all")}>
             <span>Promo codes</span>
             <strong>{formatNum(activePromoCount)}</strong>
-          </div>
+          </button>
         </section>
 
         {isContentPage ? (
@@ -1572,10 +1917,35 @@ function AdminHeistsPage() {
               </button>
             </div>
 
+            <div className={styles.heistControls}>
+              <label className={styles.searchBox}>
+                <FaSearch />
+                <input
+                  value={heistSearch}
+                  onChange={(event) => setHeistSearch(event.target.value)}
+                  placeholder="Search heists, winners, status"
+                />
+              </label>
+              <div className={styles.filterChips} aria-label="Filter heists by status">
+                {HEIST_FILTERS.map((filter) => (
+                  <button
+                    type="button"
+                    key={filter.value}
+                    className={
+                      heistStatusFilter === filter.value ? styles.filterChipActive : styles.filterChip
+                    }
+                    onClick={() => setHeistStatusFilter(filter.value)}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className={styles.heistGrid}>
               {loading ? (
                 <div className={styles.emptyState}>Loading heists...</div>
-              ) : activeHeists.length ? (
+              ) : filteredActiveHeists.length ? (
                 pagedActiveHeists.map((heist) => (
                   <button
                     type="button"
@@ -1597,152 +1967,213 @@ function AdminHeistsPage() {
                   </button>
                 ))
               ) : (
-                <div className={styles.emptyState}>No active heists.</div>
+                <div className={styles.emptyState}>No active heists match this view.</div>
               )}
             </div>
             {renderPagination({
               page: activePage,
               pageCount: activePageCount,
-              total: activeHeists.length,
+              total: filteredActiveHeists.length,
               onPageChange: setActivePage,
             })}
           </section>
         </section>
 
-        <section className={styles.detailPanel}>
-          <div className={styles.panelHead}>
-            <div>
-              <p className={styles.kicker}>Automation</p>
-              <h2>Auto make heist</h2>
-            </div>
-            <label className={styles.switchField}>
-              <input
-                type="checkbox"
-                name="is_enabled"
-                checked={autoHeistForm.is_enabled}
-                onChange={updateAutoHeistForm}
-              />
-              <span>{autoHeistForm.is_enabled ? "On" : "Off"}</span>
-            </label>
-          </div>
+	        <section className={styles.detailPanel}>
+	          <div className={styles.panelHead}>
+	            <div>
+	              <p className={styles.kicker}>Automation</p>
+	              <h2>Auto make heist</h2>
+	            </div>
+	            <div className={styles.inlineActions}>
+	              <label className={styles.switchField}>
+	                <input
+	                  type="checkbox"
+	                  name="is_enabled"
+	                  checked={autoHeistForm.is_enabled}
+	                  onChange={updateAutoHeistForm}
+	                />
+	                <span>{autoHeistForm.is_enabled ? "On" : "Off"}</span>
+	              </label>
+	              <button
+	                type="button"
+	                className={`${styles.collapseBtn} ${
+	                  collapsedSections.automation ? styles.collapsed : ""
+	                }`}
+	                onClick={() => toggleCollapsedSection("automation")}
+	                aria-label={
+	                  collapsedSections.automation ? "Expand automation" : "Collapse automation"
+	                }
+	              >
+	                <FaChevronDown />
+	              </button>
+	            </div>
+	          </div>
 
-          <form className={styles.autoHeistForm} onSubmit={saveAutoHeistSettings}>
-            <label className={styles.field}>
-              <span>Min users</span>
-              <input type="number" name="min_users" min="1" value={autoHeistForm.min_users} onChange={updateAutoHeistForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Max users</span>
-              <input type="number" name="max_users" min="0" value={autoHeistForm.max_users} onChange={updateAutoHeistForm} placeholder="Blank for unlimited" />
-            </label>
-            <label className={styles.field}>
-              <span>Ticket CP</span>
-              <input type="number" name="ticket_price" min="0" value={autoHeistForm.ticket_price} onChange={updateAutoHeistForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Prize CP</span>
-              <input type="number" name="prize_cop_points" min="0" value={autoHeistForm.prize_cop_points} onChange={updateAutoHeistForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Questions per session</span>
-              <input type="number" name="questions_per_session" min="0" value={autoHeistForm.questions_per_session} onChange={updateAutoHeistForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Countdown minutes</span>
-              <input type="number" name="countdown_duration_minutes" min="1" value={autoHeistForm.countdown_duration_minutes} onChange={updateAutoHeistForm} />
-            </label>
-            <div className={styles.autoHeistActions}>
-              <button type="submit" className={styles.primaryBtn} disabled={busy}>
-                <FaSave />
-                <span>{busy ? "Saving..." : "Save auto heist"}</span>
+	          {!collapsedSections.automation ? (
+	            <form className={styles.autoHeistForm} onSubmit={saveAutoHeistSettings}>
+	              <label className={styles.field}>
+	                <span>Min users</span>
+	                <input type="number" name="min_users" min="1" value={autoHeistForm.min_users} onChange={updateAutoHeistForm} />
+	              </label>
+	              <label className={styles.field}>
+	                <span>Max users</span>
+	                <input type="number" name="max_users" min="0" value={autoHeistForm.max_users} onChange={updateAutoHeistForm} placeholder="Blank for unlimited" />
+	              </label>
+	              <label className={styles.field}>
+	                <span>Ticket CP</span>
+	                <input type="number" name="ticket_price" min="0" value={autoHeistForm.ticket_price} onChange={updateAutoHeistForm} />
+	              </label>
+	              <label className={styles.field}>
+	                <span>Prize CP</span>
+	                <input type="number" name="prize_cop_points" min="0" value={autoHeistForm.prize_cop_points} onChange={updateAutoHeistForm} />
+	              </label>
+	              <label className={styles.field}>
+	                <span>Questions per session</span>
+	                <input type="number" name="questions_per_session" min="0" value={autoHeistForm.questions_per_session} onChange={updateAutoHeistForm} />
+	              </label>
+	              <label className={styles.field}>
+	                <span>Countdown minutes</span>
+	                <input type="number" name="countdown_duration_minutes" min="1" value={autoHeistForm.countdown_duration_minutes} onChange={updateAutoHeistForm} />
+	              </label>
+	              <div className={styles.autoHeistActions}>
+	                <button type="submit" className={styles.primaryBtn} disabled={busy}>
+	                  <FaSave />
+	                  <span>{busy ? "Saving..." : "Save auto heist"}</span>
+	                </button>
+	                <button type="button" className={styles.softBtn} onClick={runAutoHeistNow} disabled={busy}>
+	                  Make one now
+	                </button>
+	              </div>
+	            </form>
+	          ) : null}
+	        </section>
+
+        {activeDetailHeist ? (
+          <section className={styles.mobileFlow} aria-label="Selected heist workflows">
+            {workflowItems.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={activeWorkflow === item.id ? styles.flowActive : styles.flowItem}
+                onClick={() => setActiveWorkflow(item.id)}
+              >
+                {item.icon}
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.note}</small>
+                </span>
               </button>
-              <button type="button" className={styles.softBtn} onClick={runAutoHeistNow} disabled={busy}>
-                Make one now
-              </button>
-            </div>
-          </form>
-        </section>
+            ))}
+          </section>
+        ) : null}
 
         {activeDetailHeist ? (
           <section className={styles.detailGrid}>
-            <article className={styles.detailPanel}>
+            <article
+              className={`${styles.detailPanel} ${
+                activeWorkflow !== "details" ? styles.flowHidden : ""
+              }`}
+              id="heist-details"
+            >
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Selected</p>
                   <h2>{activeDetailHeist.name}</h2>
                 </div>
-                <div className={styles.inlineActions}>
-                  <button type="button" className={styles.softBtn} onClick={openEditModal} disabled={busy}>
-                    <FaEdit />
-                    <span>Edit</span>
-                  </button>
-                  <FaTrophy />
-                </div>
-              </div>
+	                <div className={styles.inlineActions}>
+	                  <button type="button" className={styles.softBtn} onClick={openEditModal} disabled={busy}>
+	                    <FaEdit />
+	                    <span>Edit</span>
+	                  </button>
+	                  <button
+	                    type="button"
+	                    className={`${styles.collapseBtn} ${
+	                      collapsedSections.selected ? styles.collapsed : ""
+	                    }`}
+	                    onClick={() => toggleCollapsedSection("selected")}
+	                    aria-label={
+	                      collapsedSections.selected ? "Expand selected heist" : "Collapse selected heist"
+	                    }
+	                  >
+	                    <FaChevronDown />
+	                  </button>
+	                  <FaTrophy />
+	                </div>
+	              </div>
 
-              {activeDetailHeist.description ? (
-                <p className={styles.detailCopy}>{activeDetailHeist.description}</p>
-              ) : null}
+	              {!collapsedSections.selected ? (
+	                <>
+	                  {activeDetailHeist.description ? (
+	                    <p className={styles.detailCopy}>{activeDetailHeist.description}</p>
+	                  ) : null}
 
-              <div className={styles.metaGrid}>
-                <div><span>Status</span><strong>{activeDetailHeist.status}</strong></div>
-                <div><span>Prize</span><strong>{formatNum(activeDetailHeist.prize_cop_points)} CP</strong></div>
-                <div><span>Ticket</span><strong>{formatNum(activeDetailHeist.ticket_price)} CP</strong></div>
-                <div><span>Min users</span><strong>{formatNum(activeDetailHeist.min_users)}</strong></div>
-                <div><span>Max users</span><strong>{activeDetailHeist.max_users ? formatNum(activeDetailHeist.max_users) : "Unlimited"}</strong></div>
-                <div><span>Participants</span><strong>{formatNum(activeDetailHeist.total_participants)}</strong></div>
-                <div><span>Demo users</span><strong>{formatNum(activeDetailHeist.total_demo_submissions)}</strong></div>
-                <div><span>Joined only</span><strong>{formatNum(activeDetailHeist.joined_participants)}</strong></div>
-                <div><span>Submitted</span><strong>{formatNum(activeDetailHeist.submitted_participants)}</strong></div>
-                <div><span>Assigned questions</span><strong>{formatNum(activeDetailHeist.total_questions)}</strong></div>
-                <div>
-                  <span>Question target</span>
-                  <strong>
-                    {Number(activeDetailHeist.questions_per_session) > 0
-                      ? formatNum(activeDetailHeist.questions_per_session)
-                      : "All"}
-                  </strong>
-                </div>
-                <div><span>Countdown</span><strong>{formatDurationMinutes(activeDetailHeist.countdown_duration_minutes)}</strong></div>
-                <div><span>Timer start</span><strong>{formatDate(activeDetailHeist.countdown_started_at)}</strong></div>
-                <div><span>Timer end</span><strong>{formatDate(activeDetailHeist.countdown_ends_at)}</strong></div>
-                <div><span>Starts at</span><strong>{formatDate(activeDetailHeist.starts_at)}</strong></div>
-                <div><span>Ends at</span><strong>{formatDate(activeDetailHeist.ends_at)}</strong></div>
-                <div><span>Winner</span><strong>{activeDetailHeist.winner_full_name || activeDetailHeist.winner_username || "Not decided"}</strong></div>
-                <div><span>Created by</span><strong>{activeDetailHeist.created_by_full_name || activeDetailHeist.created_by_username || "Unknown"}</strong></div>
-                <div><span>Created</span><strong>{formatDate(activeDetailHeist.created_at)}</strong></div>
-              </div>
+	                  <div className={styles.metaGrid}>
+	                    <div><span>Status</span><strong>{activeDetailHeist.status}</strong></div>
+	                    <div><span>Prize</span><strong>{formatNum(activeDetailHeist.prize_cop_points)} CP</strong></div>
+	                    <div><span>Ticket</span><strong>{formatNum(activeDetailHeist.ticket_price)} CP</strong></div>
+	                    <div><span>Min users</span><strong>{formatNum(activeDetailHeist.min_users)}</strong></div>
+	                    <div><span>Max users</span><strong>{activeDetailHeist.max_users ? formatNum(activeDetailHeist.max_users) : "Unlimited"}</strong></div>
+	                    <div><span>Participants</span><strong>{formatNum(activeDetailHeist.total_participants)}</strong></div>
+	                    <div><span>Demo users</span><strong>{formatNum(activeDetailHeist.total_demo_submissions)}</strong></div>
+	                    <div><span>Joined only</span><strong>{formatNum(activeDetailHeist.joined_participants)}</strong></div>
+	                    <div><span>Submitted</span><strong>{formatNum(activeDetailHeist.submitted_participants)}</strong></div>
+	                    <div><span>Assigned questions</span><strong>{formatNum(activeDetailHeist.total_questions)}</strong></div>
+	                    <div>
+	                      <span>Question target</span>
+	                      <strong>
+	                        {Number(activeDetailHeist.questions_per_session) > 0
+	                          ? formatNum(activeDetailHeist.questions_per_session)
+	                          : "All"}
+	                      </strong>
+	                    </div>
+	                    <div><span>Countdown</span><strong>{formatDurationMinutes(activeDetailHeist.countdown_duration_minutes)}</strong></div>
+	                    <div><span>Timer start</span><strong>{formatDate(activeDetailHeist.countdown_started_at)}</strong></div>
+	                    <div><span>Timer end</span><strong>{formatDate(activeDetailHeist.countdown_ends_at)}</strong></div>
+	                    <div><span>Starts at</span><strong>{formatDate(activeDetailHeist.starts_at)}</strong></div>
+	                    <div><span>Ends at</span><strong>{formatDate(activeDetailHeist.ends_at)}</strong></div>
+	                    <div><span>Winner</span><strong>{activeDetailHeist.winner_full_name || activeDetailHeist.winner_username || "Not decided"}</strong></div>
+	                    <div><span>Created by</span><strong>{activeDetailHeist.created_by_full_name || activeDetailHeist.created_by_username || "Unknown"}</strong></div>
+	                    <div><span>Created</span><strong>{formatDate(activeDetailHeist.created_at)}</strong></div>
+	                  </div>
 
-              <div className={styles.statusBox}>
-                <input
-                  type="number"
-                  min="0"
-                  max={questions.length + unusedBankCount || undefined}
-                  value={sessionQuestionCount}
-                  onChange={(event) => setSessionQuestionCount(event.target.value)}
-                  aria-label="Questions per session"
-                  title="Assign unused bank questions to this heist."
-                />
-                <button type="button" className={styles.softBtn} onClick={saveSessionQuestionCount} disabled={busy}>
-                  Assign questions
-                </button>
-                <select value={statusValue} onChange={(event) => setStatusValue(event.target.value)}>
-                  <option value="pending">pending</option>
-                  <option value="hold">hold</option>
-                  <option value="started">started</option>
-                  <option value="completed">completed</option>
-                  <option value="cancelled">cancelled</option>
-                </select>
-                <button type="button" className={styles.softBtn} onClick={updateStatus} disabled={busy}>
-                  Update status
-                </button>
-                <button type="button" className={styles.finalizeBtn} onClick={finalizeHeist} disabled={busy}>
-                  Finalize winner
-                </button>
-              </div>
-            </article>
+	                  <div className={styles.statusBox}>
+	                    <input
+	                      type="number"
+	                      min="0"
+	                      max={questions.length + unusedBankCount || undefined}
+	                      value={sessionQuestionCount}
+	                      onChange={(event) => setSessionQuestionCount(event.target.value)}
+	                      aria-label="Questions per session"
+	                      title="Assign unused bank questions to this heist."
+	                    />
+	                    <button type="button" className={styles.softBtn} onClick={saveSessionQuestionCount} disabled={busy}>
+	                      Assign questions
+	                    </button>
+	                    <select value={statusValue} onChange={(event) => setStatusValue(event.target.value)}>
+	                      <option value="pending">pending</option>
+	                      <option value="hold">hold</option>
+	                      <option value="started">started</option>
+	                      <option value="completed">completed</option>
+	                      <option value="cancelled">cancelled</option>
+	                    </select>
+	                    <button type="button" className={styles.softBtn} onClick={updateStatus} disabled={busy}>
+	                      Update status
+	                    </button>
+	                    <button type="button" className={styles.finalizeBtn} onClick={requestFinalizeHeist} disabled={busy}>
+	                      Finalize winner
+	                    </button>
+	                  </div>
+	                </>
+	              ) : null}
+	            </article>
 
-            <article className={styles.detailPanel}>
+            <article
+              className={`${styles.detailPanel} ${
+                activeWorkflow !== "players" ? styles.flowHidden : ""
+              }`}
+              id="heist-players"
+            >
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Players</p>
@@ -1791,9 +2222,17 @@ function AdminHeistsPage() {
               </div>
             </article>
 
-            {renderDemoPlayersPanel()}
+            {renderDemoPlayersPanel({
+              id: "heist-demo",
+              className: activeWorkflow !== "demo" ? styles.flowHidden : "",
+            })}
 
-            <article className={styles.detailPanel}>
+            <article
+              className={`${styles.detailPanel} ${
+                activeWorkflow !== "questions" ? styles.flowHidden : ""
+              }`}
+              id="heist-questions"
+            >
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Questions</p>
@@ -1834,7 +2273,12 @@ function AdminHeistsPage() {
               </div>
             </article>
 
-            <article className={styles.detailPanel}>
+            <article
+              className={`${styles.detailPanel} ${
+                activeWorkflow !== "affiliate" ? styles.flowHidden : ""
+              }`}
+              id="heist-rewards"
+            >
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Affiliate</p>
@@ -1873,7 +2317,12 @@ function AdminHeistsPage() {
               </div>
             </article>
 
-            <article className={styles.detailPanel}>
+            <article
+              className={`${styles.detailPanel} ${
+                activeWorkflow !== "affiliate" ? styles.flowHidden : ""
+              }`}
+              id="heist-progress"
+            >
               <div className={styles.panelHead}>
                 <div>
                   <p className={styles.kicker}>Progress</p>
@@ -1902,6 +2351,83 @@ function AdminHeistsPage() {
             </article>
           </section>
         ) : null}
+
+	        {activeDetailHeist ? (
+	          <section
+	            className={`${styles.mobileActionBar} ${
+	              mobileActionAwake ? "" : styles.mobileActionBarIdle
+	            }`}
+	            style={
+	              mobileActionPosition
+	                ? {
+	                    left: `${mobileActionPosition.x}px`,
+	                    top: `${mobileActionPosition.y}px`,
+	                    right: "auto",
+	                    bottom: "auto",
+	                  }
+	                : undefined
+	            }
+	            onPointerEnter={wakeMobileActions}
+	            onFocusCapture={wakeMobileActions}
+	            aria-label="Mobile heist actions"
+	          >
+	            <button
+	              type="button"
+	              className={styles.dragActionBtn}
+	              onPointerDown={startMobileActionDrag}
+	              onPointerMove={moveMobileActionBar}
+	              onPointerUp={stopMobileActionDrag}
+	              onPointerCancel={stopMobileActionDrag}
+	              aria-label="Move quick tools"
+	            >
+	              <FaGripVertical />
+	            </button>
+	            <button
+	              type="button"
+	              onClick={() => {
+	                wakeMobileActions();
+	                setCreateModalOpen(true);
+	              }}
+	              disabled={busy}
+	            >
+	              <FaPlus />
+	              <span>New</span>
+	            </button>
+	            <button
+	              type="button"
+	              onClick={() => {
+	                wakeMobileActions();
+	                openEditModal();
+	              }}
+	              disabled={busy}
+	            >
+	              <FaEdit />
+	              <span>Edit</span>
+	            </button>
+	            <button
+	              type="button"
+	              onClick={() => {
+	                wakeMobileActions();
+	                setActiveWorkflow("details");
+	              }}
+	              disabled={busy}
+	            >
+	              <FaTags />
+	              <span>Status</span>
+	            </button>
+	            <button
+	              type="button"
+	              onClick={() => {
+	                wakeMobileActions();
+	                requestFinalizeHeist();
+	              }}
+	              disabled={busy}
+	            >
+	              <FaTrophy />
+	              <span>Finalize</span>
+	            </button>
+          </section>
+        ) : null}
           </>
         ) : null}
 
@@ -1917,10 +2443,21 @@ function AdminHeistsPage() {
                   <span className={styles.status}>{formatNum(completedHeists.length)} completed</span>
                 </div>
 
+                <div className={styles.heistControls}>
+                  <label className={styles.searchBox}>
+                    <FaSearch />
+                    <input
+                      value={heistSearch}
+                      onChange={(event) => setHeistSearch(event.target.value)}
+                      placeholder="Search completed heists or winners"
+                    />
+                  </label>
+                </div>
+
                 <div className={styles.heistGrid}>
                   {loading ? (
                     <div className={styles.emptyState}>Loading completed heists...</div>
-                  ) : completedHeists.length ? (
+                  ) : filteredCompletedHeists.length ? (
                     pagedCompletedHeists.map((heist) => (
                       <button
                         type="button"
@@ -1942,13 +2479,13 @@ function AdminHeistsPage() {
                       </button>
                     ))
                   ) : (
-                    <div className={styles.emptyState}>No completed heists yet.</div>
+                    <div className={styles.emptyState}>No completed heists match this search.</div>
                   )}
                 </div>
                 {renderPagination({
                   page: completedPage,
                   pageCount: completedPageCount,
-                  total: completedHeists.length,
+                  total: filteredCompletedHeists.length,
                   onPageChange: setCompletedPage,
                 })}
               </section>
@@ -2076,15 +2613,19 @@ function AdminHeistsPage() {
               </label>
             </div>
 
-            <div className={styles.twoCol}>
-              <label className={styles.field}>
-                <span>Starts at</span>
-                <input type="datetime-local" name="starts_at" value={createForm.starts_at} onChange={updateCreateForm} />
-              </label>
-              <label className={styles.field}>
-                <span>Ends at</span>
-                <input type="datetime-local" name="ends_at" value={createForm.ends_at} onChange={updateCreateForm} />
-              </label>
+            <div className={styles.scheduleGrid}>
+              <SchedulePicker
+                label="Starts at"
+                value={createForm.starts_at}
+                onDateChange={(value) => updateScheduleField("create", "starts_at", "date", value)}
+                onTimeChange={(value) => updateScheduleField("create", "starts_at", "time", value)}
+              />
+              <SchedulePicker
+                label="Ends at"
+                value={createForm.ends_at}
+                onDateChange={(value) => updateScheduleField("create", "ends_at", "date", value)}
+                onTimeChange={(value) => updateScheduleField("create", "ends_at", "time", value)}
+              />
             </div>
           </form>
         </Modal>
@@ -2200,17 +2741,93 @@ function AdminHeistsPage() {
               </label>
             </div>
 
-            <div className={styles.twoCol}>
-              <label className={styles.field}>
-                <span>Starts at</span>
-                <input type="datetime-local" name="starts_at" value={editForm.starts_at} onChange={updateEditForm} />
-              </label>
-              <label className={styles.field}>
-                <span>Ends at</span>
-                <input type="datetime-local" name="ends_at" value={editForm.ends_at} onChange={updateEditForm} />
-              </label>
+            <div className={styles.scheduleGrid}>
+              <SchedulePicker
+                label="Starts at"
+                value={editForm.starts_at}
+                onDateChange={(value) => updateScheduleField("edit", "starts_at", "date", value)}
+                onTimeChange={(value) => updateScheduleField("edit", "starts_at", "time", value)}
+              />
+              <SchedulePicker
+                label="Ends at"
+                value={editForm.ends_at}
+                onDateChange={(value) => updateScheduleField("edit", "ends_at", "date", value)}
+                onTimeChange={(value) => updateScheduleField("edit", "ends_at", "time", value)}
+              />
             </div>
           </form>
+        </Modal>
+
+        <Modal
+          open={finalizeModalOpen}
+          title="Finalize heist"
+          subtitle={
+            activeDetailHeist
+              ? `Confirm winner calculation and award for ${activeDetailHeist.name}.`
+              : "Select a heist first."
+          }
+          size="md"
+          onClose={() => !busy && setFinalizeModalOpen(false)}
+          disableClose={busy}
+          footer={
+            <>
+              <button
+                type="button"
+                className={styles.softBtn}
+                onClick={() => setFinalizeModalOpen(false)}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.finalizeBtn}
+                onClick={finalizeHeist}
+                disabled={busy || !activeDetailHeist}
+              >
+                <FaTrophy />
+                <span>{busy ? "Finalizing..." : "Finalize winner"}</span>
+              </button>
+            </>
+          }
+        >
+          {activeDetailHeist ? (
+            <div className={styles.finalizeModal}>
+              <div className={styles.finalizeBadge}>
+                <FaTrophy />
+              </div>
+              <div>
+                <p className={styles.kicker}>Winner award</p>
+                <h3>{activeDetailHeist.name}</h3>
+                <p>
+                  This will lock the result flow, calculate the winner from submitted results, and
+                  award the configured prize.
+                </p>
+              </div>
+              <div className={styles.finalizeGrid}>
+                <div>
+                  <span>Status</span>
+                  <strong>{activeDetailHeist.status}</strong>
+                </div>
+                <div>
+                  <span>Prize</span>
+                  <strong>{formatNum(activeDetailHeist.prize_cop_points)} CP</strong>
+                </div>
+                <div>
+                  <span>Submitted</span>
+                  <strong>{formatNum(activeDetailHeist.submitted_participants)}</strong>
+                </div>
+                <div>
+                  <span>Current winner</span>
+                  <strong>
+                    {activeDetailHeist.winner_full_name ||
+                      activeDetailHeist.winner_username ||
+                      "Not decided"}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </Modal>
 
         <Modal
@@ -2265,7 +2882,7 @@ function AdminHeistsPage() {
         <Modal
           open={questionsModalOpen}
           title="Add bank questions"
-          subtitle="Add True/False questions to the reusable bank. Assigning a heist will consume unused bank questions."
+          subtitle="Paste a batch or use rows. The frontend will format everything before sending it to the existing backend."
           size="xl"
           onClose={() => !busy && setQuestionsModalOpen(false)}
           disableClose={busy}
@@ -2284,6 +2901,53 @@ function AdminHeistsPage() {
           }
         >
           <form id="add-questions-form" className={`${styles.form} ${styles.modalForm}`} onSubmit={addQuestions}>
+            <section className={styles.bulkQuestionBox}>
+              <div className={styles.bulkQuestionHead}>
+                <div>
+                  <p className={styles.kicker}>Fast paste</p>
+                  <h3>Dump questions in one box</h3>
+                </div>
+                <span>{formatNum(bulkQuestionPreview.length)} parsed</span>
+              </div>
+              <textarea
+                value={bulkQuestionText}
+                onChange={(event) => setBulkQuestionText(event.target.value)}
+                placeholder="can a dog bark, true. woman is from the rib of man, true. the sky is green, false."
+              />
+              <div className={styles.bulkActions}>
+                <button
+                  type="button"
+                  className={styles.softBtn}
+                  onClick={applyBulkQuestionsToRows}
+                  disabled={busy || !bulkQuestionText.trim()}
+                >
+                  Format into rows
+                </button>
+                <small>
+                  Use: question, true. question, false. New lines also work.
+                </small>
+              </div>
+              {bulkQuestionPreview.length ? (
+                <div className={styles.bulkPreview}>
+                  {bulkQuestionPreview.slice(0, 4).map((row, index) => (
+                    <span key={`${row.question_text}-${index}`}>
+                      <strong>{row.question_text}</strong>
+                      <em>{row.correct_answer}</em>
+                    </span>
+                  ))}
+                  {bulkQuestionPreview.length > 4 ? (
+                    <small>+{formatNum(bulkQuestionPreview.length - 4)} more</small>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+
+            <div className={styles.questionRowsHead}>
+              <div>
+                <p className={styles.kicker}>Editable rows</p>
+                <h3>Review or add manually</h3>
+              </div>
+            </div>
             {questionRows.map((row, index) => (
               <div className={styles.questionRow} key={`question-${index}`}>
                 <input

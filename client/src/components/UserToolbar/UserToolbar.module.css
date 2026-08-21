@@ -161,6 +161,7 @@
   right: 0;
   width: min(360px, 92vw);
   height: 100vh;
+  height: 100dvh;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.045)),
     rgba(12, 15, 21, 0.88);
@@ -175,6 +176,8 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .drawerOpen {
@@ -182,6 +185,7 @@
 }
 
 .drawerTop {
+  flex: 0 0 auto;
   padding: 18px;
   display: flex;
   align-items: center;
@@ -209,6 +213,7 @@
 
 /* Profile */
 .profileBlock {
+  flex: 0 0 auto;
   margin: 16px 18px 10px;
   padding: 14px;
   display: flex;
@@ -265,6 +270,7 @@
 
 /* Items */
 .section {
+  flex: 0 0 auto;
   padding: 6px 10px;
   display: grid;
   gap: 6px;
@@ -314,30 +320,74 @@
 
 /* Logout */
 .drawerBottom {
+  position: sticky;
+  bottom: 0;
+  flex: 0 0 auto;
   margin-top: auto;
-  padding: 18px 18px calc(32px + env(safe-area-inset-bottom));
+  padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(12, 15, 21, 0.78) 24%),
+    rgba(12, 15, 21, 0.72);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .logoutBtn {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 12px;
+  min-height: 52px;
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  border-radius: 18px;
+  padding: 0 14px;
   font-weight: 900;
-  color: #fff;
-  background: linear-gradient(180deg, #6f423b 0%, #56312c 100%);
+  color: #fecaca;
+  background:
+    linear-gradient(180deg, rgba(248, 113, 113, 0.16), rgba(127, 29, 29, 0.18)),
+    rgba(255, 255, 255, 0.04);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
+  white-space: nowrap;
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .logoutBtn:hover {
-  background: linear-gradient(180deg, #7d4b43 0%, #633933 100%);
+  border-color: rgba(248, 113, 113, 0.42);
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(248, 113, 113, 0.22), rgba(127, 29, 29, 0.24)),
+    rgba(255, 255, 255, 0.06);
 }
 
 @media (max-width: 520px) {
+  .drawer {
+    width: min(340px, calc(100vw - 18px));
+  }
+
+  .drawerTop {
+    padding: 14px;
+  }
+
+  .profileBlock {
+    margin: 12px 14px 8px;
+    border-radius: 18px;
+  }
+
+  .section {
+    padding-inline: 8px;
+  }
+
+  .drawerBottom {
+    padding: 10px 12px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .logoutBtn {
+    min-height: 50px;
+    border-radius: 16px;
+  }
+
   .toolbarCluster {
     gap: 6px;
   }
