@@ -3,7 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { FiArrowLeft, FiAward, FiClock, FiTarget } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { getHeistResult } from "../../lib/heists";
+import { getUserProgress } from "../../lib/levels";
 import styles from "./Heist.module.css";
 
 function formatNum(value) {
@@ -22,6 +24,7 @@ export default function HeistResult() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -30,8 +33,12 @@ export default function HeistResult() {
     setError("");
 
     try {
-      const result = await getHeistResult(id);
+      const [result, progressResult] = await Promise.all([
+        getHeistResult(id),
+        getUserProgress().catch(() => null),
+      ]);
       setData(result);
+      setProgress(progressResult);
     } catch (err) {
       console.error("Load result error:", err);
       setError(err?.response?.data?.message || "Unable to load result.");
@@ -126,6 +133,13 @@ export default function HeistResult() {
             <div className={styles.emptyState}>No submitted result found.</div>
           )}
         </section>
+
+        <LevelProgressBar
+          progress={progress}
+          compact
+          onLevels={() => navigate("/levels")}
+          onRewards={() => navigate("/rewards")}
+        />
       </main>
 
       <Footer />

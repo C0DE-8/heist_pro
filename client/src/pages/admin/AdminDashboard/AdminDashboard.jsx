@@ -7,6 +7,7 @@ import {
   FaEye,
   FaFlask,
   FaGift,
+  FaMedal,
   FaBell,
   FaShieldAlt,
   FaSignal,
@@ -131,6 +132,14 @@ export default function AdminDashboard() {
         icon: <FaShieldAlt />,
         stat: "Clans",
         tone: "green",
+      },
+      {
+        title: "Levels",
+        text: "Manage badges, XP rules, Roman numeral levels, and coupon reward status.",
+        path: "/admin/levels",
+        icon: <FaMedal />,
+        stat: "XP",
+        tone: "gold",
       },
       {
         title: "Analytics",

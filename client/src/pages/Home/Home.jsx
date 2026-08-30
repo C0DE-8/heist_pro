@@ -7,9 +7,11 @@ import {
   FiAward,
   FiTarget,
   FiCreditCard,
+  FiGift,
 } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { getStoredToken } from "../../lib/auth";
 import { getUserProfile } from "../../lib/users";
 import styles from "./Home.module.css";
@@ -190,6 +192,11 @@ export default function Home() {
             <FiAward />
             <span>Winners</span>
           </button>
+
+          <button type="button" className={styles.quickLink} onClick={() => navigate("/rewards")}>
+            <FiGift />
+            <span>Rewards</span>
+          </button>
         </section>
 
         {error ? (
@@ -200,6 +207,13 @@ export default function Home() {
             </button>
           </div>
         ) : null}
+
+        <LevelProgressBar
+          progress={profileData?.progress}
+          compact
+          onLevels={() => navigate("/levels")}
+          onRewards={() => navigate("/rewards")}
+        />
 
         <section className={styles.cardList}>
           {cards.map((card) => (

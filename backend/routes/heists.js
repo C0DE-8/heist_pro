@@ -21,6 +21,10 @@ const {
   lockCopupJrBalance,
   redeemPromoCode,
 } = require("../services/promo.service");
+const {
+  ensureLevelProgressTables,
+  awardConfiguredXp,
+} = require("../services/levelProgress.service");
 
 const router = express.Router();
 
@@ -40,6 +44,7 @@ router.use(async (req, res, next) => {
     await ensureHeistDemoSubmissionsTable(pool);
     await ensureHeistWinnerDemoColumn(pool);
     await ensurePromoTables(pool);
+    await ensureLevelProgressTables(pool);
     next();
   } catch (err) {
     console.error("heist schema check error:", err);
@@ -770,6 +775,17 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
       [submission.participant_id]
     );
 
+    const xpResult = await awardConfiguredXp(conn, {
+      userId,
+      source: "heist_play",
+      sourceId: `submission:${submissionId}`,
+      metadata: {
+        heist_id: heistId,
+        correct_count: correctCount,
+        score_percent: scorePercent,
+      },
+    });
+
     const rank = await getRankPreview(conn, heistId, submissionId);
     await conn.commit();
 
@@ -784,6 +800,7 @@ router.post("/:id/submit", authenticateToken, async (req, res) => {
         status: "submitted",
       },
       rank,
+      xp: xpResult,
     });
   } catch (err) {
     if (conn) await conn.rollback();

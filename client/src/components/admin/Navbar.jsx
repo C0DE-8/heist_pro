@@ -20,6 +20,7 @@ import {
   FaBell,
   FaEye,
   FaShieldAlt,
+  FaMedal,
 } from "react-icons/fa";
 
 export default function AdminNavbar({ admin: adminProp }) {
@@ -38,6 +39,7 @@ export default function AdminNavbar({ admin: adminProp }) {
       { to: "/admin/notifications", label: "Alerts", icon: <FaBell /> },
       { to: "/admin/god-eyes", label: "God Eyes", icon: <FaEye /> },
       { to: "/admin/clans", label: "Clans", icon: <FaShieldAlt /> },
+      { to: "/admin/levels", label: "Levels", icon: <FaMedal /> },
       { to: "/admin/heists", label: "Heists", icon: <FaFlask /> },
       { to: "/admin/transactions", label: "Transactions", icon: <FaWallet /> },
       { to: "/admin/coins", label: "Coins", icon: <FaCoins /> },

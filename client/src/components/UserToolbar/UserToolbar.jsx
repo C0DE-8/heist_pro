@@ -18,6 +18,9 @@ import {
   VolumeX,
   Bell,
   Shield,
+  Gift,
+  Medal,
+  ScrollText,
 } from "lucide-react";
 import styles from "./UserToolbar.module.css";
 import { imgUrl } from "../../lib/api";
@@ -323,6 +326,18 @@ export default function UserToolbar() {
 
           <button className={styles.item} onClick={() => go("/trade")}>
             <TrendingUp size={16} /> Trade
+          </button>
+
+          <button className={styles.item} onClick={() => go("/rewards")}>
+            <Gift size={16} /> Rewards
+          </button>
+
+          <button className={styles.item} onClick={() => go("/levels")}>
+            <Medal size={16} /> Levels
+          </button>
+
+          <button className={styles.item} onClick={() => go("/xp-activity")}>
+            <ScrollText size={16} /> XP Activity
           </button>
         </div>
 

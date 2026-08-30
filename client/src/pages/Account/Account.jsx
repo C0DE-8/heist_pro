@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiCopy, FiCreditCard, FiDownload, FiShield } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { useToast } from "../../components/Toast/ToastContext";
 import { getStoredToken } from "../../lib/auth";
 import {
@@ -483,6 +484,13 @@ export default function Account() {
 
           {copied ? <div className={styles.notice}>Wallet copied</div> : null}
         </section>
+
+        <LevelProgressBar
+          progress={profileData?.progress}
+          compact
+          onLevels={() => navigate("/levels")}
+          onRewards={() => navigate("/rewards")}
+        />
 
         <section className={styles.panel}>
           <div className={styles.tabs} role="tablist" aria-label="Wallet action">

@@ -22,6 +22,7 @@ import AdminReferral from "./pages/admin/AdminReferral/AdminReferral";
 import AdminNotifications from "./pages/admin/AdminNotifications/AdminNotifications";
 import AdminGodEyes from "./pages/admin/AdminGodEyes/AdminGodEyes";
 import AdminClans from "./pages/admin/AdminClans/AdminClans";
+import AdminLevels from "./pages/admin/AdminLevels/AdminLevels";
 
 
 // Protected Routes
@@ -57,6 +58,9 @@ import Account from "./pages/Account/Account";
 import Clans from "./pages/Clans/Clans";
 import ClanQuests from "./pages/ClanQuests/ClanQuests";
 import MyClan from "./pages/MyClan/MyClan";
+import Rewards from "./pages/Rewards/Rewards";
+import Levels from "./pages/Levels/Levels";
+import LevelActivity from "./pages/LevelActivity/LevelActivity";
 
 
 export default function App() {
@@ -87,6 +91,13 @@ export default function App() {
 
         <Route element={<UserRoute />}>
           <Route path="/account" element={<Account />} />
+        </Route>
+
+        <Route element={<UserRoute />}>
+          <Route path="/rewards" element={<Rewards />} />
+          <Route path="/redeem" element={<Rewards />} />
+          <Route path="/levels" element={<Levels />} />
+          <Route path="/xp-activity" element={<LevelActivity />} />
         </Route>
 
          <Route element={<UserRoute />}>
@@ -175,6 +186,15 @@ export default function App() {
 
         <Route element={<AdminRoute />}>
           <Route path="/admin/clans" element={<AdminClans />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/levels" element={<AdminLevels />} />
+          <Route path="/admin/levels/badges" element={<AdminLevels />} />
+          <Route path="/admin/levels/rules" element={<AdminLevels />} />
+          <Route path="/admin/levels/xp-rules" element={<AdminLevels />} />
+          <Route path="/admin/levels/rewards" element={<AdminLevels />} />
+          <Route path="/admin/levels/users" element={<AdminLevels />} />
         </Route>
 
 

@@ -20,6 +20,7 @@ const {
   normalizePromoCode,
   parsePositiveInt,
 } = require("../services/promo.service");
+const { ensureLevelProgressTables } = require("../services/levelProgress.service");
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.use(async (req, res, next) => {
     await ensureHeistWinnerDemoColumn(pool);
     await ensureAutoHeistTables(pool);
     await ensurePromoTables(pool);
+    await ensureLevelProgressTables(pool);
     next();
   } catch (err) {
     console.error("admin heist schema check error:", err);

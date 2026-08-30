@@ -15,6 +15,10 @@ const {
   registerPushToken,
   unregisterPushToken,
 } = require("../services/push.service");
+const {
+  ensureLevelProgressTables,
+  getUserProgress,
+} = require("../services/levelProgress.service");
 
 const router = express.Router();
 
@@ -174,6 +178,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
           : {}),
       },
       recent_heists: recentHeists,
+      progress: await getUserProgress(pool, userId),
       ...(user.role === "affiliate" ? { affiliate_task_progress: affiliateProgress } : {}),
     });
   } catch (err) {
@@ -636,6 +641,7 @@ router.post("/referred/:referredUserId/claim", authenticateToken, authenticateAf
       return res.status(400).json({ message: "Invalid referred user" });
     }
 
+    await ensureLevelProgressTables(pool);
     conn = await pool.getConnection();
     await conn.beginTransaction();
 

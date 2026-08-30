@@ -1,4 +1,8 @@
 const { noticePayload, sendPushToUser } = require("./push.service");
+const {
+  ensureLevelProgressTables,
+  awardConfiguredXp,
+} = require("./levelProgress.service");
 
 let heistMaxUsersColumnReady = false;
 let heistDemoSubmissionsTableReady = false;
@@ -328,6 +332,17 @@ async function finalizeHeist(db, heistId) {
       heist.prize_cop_points,
       winner.user_id,
     ]);
+    await ensureLevelProgressTables(db);
+    await awardConfiguredXp(db, {
+      userId: winner.user_id,
+      source: "heist_win",
+      sourceId: `heist:${heistId}`,
+      metadata: {
+        heist_id: heistId,
+        prize_cop_points: heist.prize_cop_points,
+        submission_id: winner.submission_id,
+      },
+    });
 
     await db.query(
       `UPDATE heist

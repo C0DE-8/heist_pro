@@ -1,4 +1,8 @@
 const { noticePayload, sendPushToUser } = require("./push.service");
+const {
+  ensureLevelProgressTables,
+  awardConfiguredXp,
+} = require("./levelProgress.service");
 
 async function ensureReferralSettings(db) {
   await db.query(
@@ -163,6 +167,17 @@ async function claimReferralReward(db, referrerId, referredUserId) {
      WHERE id = ? AND rewarded_at IS NULL`,
     [settings.reward_cop_points, progress.id]
   );
+  await ensureLevelProgressTables(db);
+  await awardConfiguredXp(db, {
+    userId: referrerId,
+    source: "referral_signup",
+    sourceId: `referral:${progress.id}`,
+    metadata: {
+      referred_user_id: referredUserId,
+      joined_heists: progress.joined_heists,
+      awarded_cop_points: settings.reward_cop_points,
+    },
+  });
 
   sendPushToUser(
     referrerId,

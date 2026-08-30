@@ -1,0 +1,129 @@
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.reward,
+.empty {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.reward {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  gap: 11px;
+  align-items: center;
+}
+
+.reward img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.info {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.top strong {
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.top span {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.top span[data-status="earned"] {
+  background: rgba(250, 204, 21, 0.14);
+  color: #fef08a;
+}
+
+.top span[data-status="redeemed"] {
+  background: rgba(34, 197, 94, 0.14);
+  color: #bbf7d0;
+}
+
+.info small,
+.info em {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.info code {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #d9f99d;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.actions button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.56;
+  cursor: default;
+}
+
+.done {
+  color: #86efac;
+}
+
+.empty {
+  padding: 18px;
+  color: rgba(255, 255, 255, 0.64);
+  text-align: center;
+  font-weight: 800;
+}
+
+@media (max-width: 420px) {
+  .reward {
+    grid-template-columns: 48px 1fr;
+  }
+
+  .actions {
+    grid-column: 1 / -1;
+    grid-auto-flow: column;
+    justify-content: end;
+  }
+}

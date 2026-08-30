@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import styles from "./PaymentResult.module.css";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { FiCheckCircle, FiXCircle, FiArrowLeft } from "react-icons/fi";
 import { getUserProfile } from "../../lib/users";
 
@@ -90,6 +91,17 @@ export default function PaymentResult() {
                   <div className={styles.row}>
                     <span>New CopUpCoin Balance</span>
                     <b>{Number(profile.user.cop_point).toLocaleString()} CP</b>
+                  </div>
+                ) : null}
+
+                {profile?.progress ? (
+                  <div className={styles.progressWrap}>
+                    <LevelProgressBar
+                      progress={profile.progress}
+                      compact
+                      onLevels={() => nav("/levels")}
+                      onRewards={() => nav("/rewards")}
+                    />
                   </div>
                 ) : null}
               </>

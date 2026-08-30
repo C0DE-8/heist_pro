@@ -6,6 +6,10 @@ const router = express.Router();
 const { pool } = require("../conf/db");
 const { authenticateToken } = require("../middleware/auth");
 const { notifyAdmins } = require("../services/telegram");
+const {
+  ensureLevelProgressTables,
+  awardConfiguredXp,
+} = require("../services/levelProgress.service");
 
 // ✅ mailer
 const {
@@ -317,6 +321,8 @@ router.get("/copup/verify", async (req, res) => {
     let copupCoin = Math.floor((amountPaid / pricePerUnit) * unit);
     if (!Number.isFinite(copupCoin) || copupCoin < 0) copupCoin = 0;
 
+    await ensureLevelProgressTables(pool);
+
     // Begin DB transaction
     const conn = await pool.getConnection();
     try {
@@ -333,6 +339,19 @@ router.get("/copup/verify", async (req, res) => {
         copupCoin,
         userId,
       ]);
+
+      await ensureLevelProgressTables(conn);
+      await awardConfiguredXp(conn, {
+        userId,
+        source: "deposit",
+        sourceId: `flutterwave:${flwId}`,
+        metadata: {
+          tx_ref,
+          amount: amountPaid,
+          currency: currencyPaid,
+          copup_coin: copupCoin,
+        },
+      });
 
       await conn.commit();
     } catch (e) {

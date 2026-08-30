@@ -17,6 +17,7 @@ import {
 } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { useToast } from "../../components/Toast/ToastContext";
 import { getUserProfile, switchUserMode, updateUserPassword, updateUserProfile } from "../../lib/users";
 import styles from "./Profile.module.css";
@@ -665,6 +666,12 @@ export default function Profile() {
             </div>
           </section>
         </section>
+
+        <LevelProgressBar
+          progress={profileData?.progress}
+          onLevels={() => navigate("/levels")}
+          onRewards={() => navigate("/rewards")}
+        />
 
         <section className={styles.statsGrid}>
           <div className={styles.statCard}>

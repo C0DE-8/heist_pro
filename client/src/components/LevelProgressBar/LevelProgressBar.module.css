@@ -1,0 +1,137 @@
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045)),
+    rgba(18, 23, 32, 0.78);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 13px;
+}
+
+.compact {
+  border-radius: 18px;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.badge {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.meta {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.meta span,
+.meta small,
+.trackText {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.meta span {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.meta strong {
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.meta small,
+.trackText {
+  font-size: 12px;
+}
+
+.rewardBtn {
+  min-width: 44px;
+  height: 40px;
+  border: 1px solid rgba(250, 204, 21, 0.24);
+  border-radius: 14px;
+  background: rgba(250, 204, 21, 0.12);
+  color: #fef08a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.trackWrap {
+  display: grid;
+  gap: 8px;
+}
+
+.track {
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c55e, #eab308, #38bdf8);
+}
+
+.trackText,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.actions button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 38px;
+  border-radius: 14px;
+  padding: 0 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+@media (max-width: 380px) {
+  .top {
+    grid-template-columns: 50px 1fr;
+  }
+
+  .rewardBtn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

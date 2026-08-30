@@ -10,6 +10,7 @@ const PaymentRoutes = require("./routes/payment");
 const heistRoutes = require("./routes/heists");
 const adminHeistRoutes = require("./routes/admin.heists");
 const userRoutes = require("./routes/users");
+const userLevelRoutes = require("./routes/user.levels");
 const tradeRoutes = require("./routes/trade");
 const flutterwaveRoutes = require("./routes/flutterwave");
 const adminProfileRoutes = require("./routes/admin.profile");
@@ -24,6 +25,7 @@ const adminGodEyesRoutes = require("./routes/admin.godEyes");
 const activityRoutes = require("./routes/activity");
 const clanRoutes = require("./routes/clans");
 const adminClanRoutes = require("./routes/admin.clans");
+const adminLevelRoutes = require("./routes/admin.levels");
 const { startHeistCron } = require("./jobs/heistCron");
 
 dotenv.config({ quiet: true });
@@ -56,6 +58,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/payment", PaymentRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/users/progress", userLevelRoutes);
 app.use("/api/trade", tradeRoutes);
 app.use("/api/flutterwave", flutterwaveRoutes);
 app.use("/api/heists", heistRoutes);
@@ -71,6 +74,7 @@ app.use("/api/admin/telegram", adminTelegramRoutes);
 app.use("/api/admin/notifications", adminNotificationRoutes);
 app.use("/api/admin/god-eyes", adminGodEyesRoutes);
 app.use("/api/admin/clans", adminClanRoutes);
+app.use("/api/admin/levels", adminLevelRoutes);
 
 
 app.get("/health", async (req, res) => {

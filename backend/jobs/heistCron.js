@@ -1,6 +1,7 @@
 const { pool } = require("../conf/db");
 const { maybeStartCountdown, finalizeHeist } = require("../services/heist.service");
 const { maybeCreateAutoHeist } = require("../services/autoHeist.service");
+const { ensureLevelProgressTables } = require("../services/levelProgress.service");
 
 let timer = null;
 let running = false;
@@ -65,6 +66,7 @@ async function startEligibleCountdowns() {
 }
 
 async function finalizeExpiredHeists() {
+  await ensureLevelProgressTables(pool);
   const [rows] = await pool.query(
     `SELECT id
      FROM heist

@@ -3,10 +3,24 @@ const { pool } = require("../conf/db");
 const { authenticateToken, authenticateAdmin } = require("../middleware/auth");
 const { notifyAdmins } = require("../services/telegram");
 const { noticePayload, sendPushToUser } = require("../services/push.service");
+const {
+  ensureLevelProgressTables,
+  awardConfiguredXp,
+} = require("../services/levelProgress.service");
 
 const router = express.Router();
 
 router.use(authenticateToken, authenticateAdmin);
+
+router.use(async (req, res, next) => {
+  try {
+    await ensureLevelProgressTables(pool);
+    next();
+  } catch (err) {
+    console.error("admin transaction level schema check error:", err);
+    res.status(500).json({ message: "Error preparing level progress schema" });
+  }
+});
 
 function toPositiveNumber(value) {
   const n = Number(value);
@@ -214,6 +228,17 @@ router.patch("/payins/:id/review", async (req, res) => {
         request.coin_amount,
         request.user_id,
       ]);
+      await ensureLevelProgressTables(conn);
+      await awardConfiguredXp(conn, {
+        userId: request.user_id,
+        source: "deposit",
+        sourceId: `manual_payin:${request.id}`,
+        createdBy: req.user.userId,
+        metadata: {
+          amount_ngn: request.amount_ngn,
+          coin_amount: request.coin_amount,
+        },
+      });
     }
 
     await conn.query(
@@ -338,6 +363,19 @@ router.patch("/payouts/:id/review", async (req, res) => {
         request.cop_points,
         request.user_id,
       ]);
+    }
+    if (status === "approved") {
+      await ensureLevelProgressTables(conn);
+      await awardConfiguredXp(conn, {
+        userId: request.user_id,
+        source: "withdrawal",
+        sourceId: `payout:${request.id}`,
+        createdBy: req.user.userId,
+        metadata: {
+          cop_points: request.cop_points,
+          amount_ngn: request.amount_ngn,
+        },
+      });
     }
 
     await conn.query(
