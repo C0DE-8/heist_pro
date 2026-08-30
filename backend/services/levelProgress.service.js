@@ -14,7 +14,7 @@ const DEFAULT_BADGES = [
 ];
 
 const DEFAULT_XP_RULES = [
-  ["daily_login", 10, "Daily login", 1],
+  ["daily_login", 10, "Daily check-in", 1],
   ["heist_play", 15, "Play a heist", 1],
   ["heist_win", 100, "Win a heist", 1],
   ["referral_signup", 50, "Referral signup", 1],
@@ -231,7 +231,7 @@ async function seedDefaultLevelProgressData(db) {
     await db.query(
       `INSERT INTO xp_source_rules (source, xp_amount, label, is_active)
        VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE source = source`,
+       ON DUPLICATE KEY UPDATE label = VALUES(label)`,
       [source, xpAmount, label, isActive]
     );
   }
@@ -247,6 +247,40 @@ async function getXpRule(db, source) {
   return {
     ...rule,
     xp_amount: Number(rule.xp_amount || 0),
+  };
+}
+
+async function getCurrentCheckInDay(db) {
+  const [[row]] = await db.query(
+    "SELECT DATE_FORMAT(CURRENT_DATE(), '%Y-%m-%d') AS today, DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY) AS tomorrow"
+  );
+  return {
+    today: row?.today,
+    tomorrow: row?.tomorrow,
+  };
+}
+
+async function getDailyCheckInStatus(db, userId) {
+  await ensureLevelProgressTables(db);
+  const day = await getCurrentCheckInDay(db);
+  const [[event]] = await db.query(
+    `SELECT id, xp_amount, created_at
+     FROM user_xp_events
+     WHERE user_id = ?
+       AND source = 'daily_login'
+       AND source_id = ?
+     LIMIT 1`,
+    [userId, day.today]
+  );
+  const rule = await getXpRule(db, "daily_login");
+
+  return {
+    date: day.today,
+    next_check_in_at: day.tomorrow,
+    eligible: Boolean(rule) && !event,
+    checked_in: Boolean(event),
+    xp_amount: Number(rule?.xp_amount || event?.xp_amount || 0),
+    claimed_at: event?.created_at || null,
   };
 }
 
@@ -520,6 +554,41 @@ async function getUserProgress(db, userId) {
     recent_events: recentEvents,
     rewards,
     unclaimed_reward_count: rewards.filter((reward) => reward.status === "earned").length,
+    daily_check_in: await getDailyCheckInStatus(db, userId),
+  };
+}
+
+async function claimDailyCheckIn(conn, userId) {
+  await ensureLevelProgressTables(conn);
+  const status = await getDailyCheckInStatus(conn, userId);
+  if (!status.eligible) {
+    return {
+      status: 400,
+      body: {
+        message: status.checked_in ? "Daily check-in already claimed" : "Daily check-in is not available",
+        daily_check_in: status,
+      },
+    };
+  }
+
+  const result = await awardConfiguredXp(conn, {
+    userId,
+    source: "daily_login",
+    sourceId: status.date,
+    metadata: { reason: "daily_check_in" },
+  });
+
+  return {
+    status: 201,
+    body: {
+      message: "Daily check-in claimed",
+      xp: result,
+      daily_check_in: {
+        ...status,
+        eligible: false,
+        checked_in: true,
+      },
+    },
   };
 }
 
@@ -667,6 +736,8 @@ module.exports = {
   awardConfiguredXp,
   adjustUserXp,
   getUserProgress,
+  getDailyCheckInStatus,
+  claimDailyCheckIn,
   getUserRewards,
   claimLevelReward,
   redeemLevelRewardCode,

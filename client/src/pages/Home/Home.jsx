@@ -11,6 +11,7 @@ import {
 } from "react-icons/fi";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
+import DailyCheckInPrompt from "../../components/DailyCheckInPrompt/DailyCheckInPrompt";
 import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { getStoredToken } from "../../lib/auth";
 import { getUserProfile } from "../../lib/users";
@@ -207,6 +208,11 @@ export default function Home() {
             </button>
           </div>
         ) : null}
+
+        <DailyCheckInPrompt
+          checkIn={profileData?.progress?.daily_check_in}
+          onClaimed={loadProfile}
+        />
 
         <LevelProgressBar
           progress={profileData?.progress}

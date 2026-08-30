@@ -124,7 +124,7 @@ INSERT INTO level_badges (name, badge_order, is_active) VALUES
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO xp_source_rules (source, xp_amount, label, is_active) VALUES
-  ('daily_login', 10, 'Daily login', 1),
+  ('daily_login', 10, 'Daily check-in', 1),
   ('heist_play', 15, 'Play a heist', 1),
   ('heist_win', 100, 'Win a heist', 1),
   ('referral_signup', 50, 'Referral signup', 1),

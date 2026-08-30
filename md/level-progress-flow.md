@@ -49,16 +49,19 @@ Final badge names can be changed before implementation, but the backend should s
 ## User Flow
 
 1. User signs in.
-2. Backend checks daily login XP eligibility.
+2. Backend checks daily check-in XP eligibility after login.
 3. User profile/dashboard receives current XP, current badge, current level, next level XP target, progress percentage, and unclaimed coupon rewards.
-4. User plays heist, wins heist, refers another user, deposits, or withdraws.
-5. Backend records the XP event.
-6. Backend recalculates the user level.
-7. If the user crossed one or more levels, backend creates coupon reward records for each earned level.
-8. User sees a progress bar update and a level-up/reward state.
-9. User opens redeem section.
-10. User copies or redeems the earned coupon code.
-11. Backend marks coupon reward as claimed/redeemed and writes an audit record.
+4. If the user has not checked in today, the dashboard shows a daily check-in prompt.
+5. User clicks the check-in prompt to claim today's XP.
+6. After claim, the prompt changes to a check-in-tomorrow state and does not show again until the next day.
+7. User plays heist, wins heist, refers another user, deposits, or withdraws.
+8. Backend records the XP event.
+9. Backend recalculates the user level.
+10. If the user crossed one or more levels, backend creates coupon reward records for each earned level.
+11. User sees a progress bar update and a level-up/reward state.
+12. User opens redeem section.
+13. User copies or redeems the earned coupon code.
+14. Backend marks coupon reward as claimed/redeemed and writes an audit record.
 
 ## Backend Build Checklist
 
@@ -76,7 +79,7 @@ Final badge names can be changed before implementation, but the backend should s
 - [x] Make XP awarding idempotent by using unique keys per source event.
 - [x] Connect heist play XP inside existing heist submit/play flow.
 - [x] Connect heist win XP inside existing heist winner/completion flow.
-- [x] Connect daily login XP inside auth login success flow.
+- [x] Connect daily check-in XP to an explicit user claim endpoint after login.
 - [x] Connect referral XP inside existing claimed referral reward flow.
 - [x] Connect deposit XP inside Flutterwave success and manual pay-in approval flows.
 - [x] Connect withdrawal XP inside transaction payout approved/completed flow.
@@ -118,7 +121,7 @@ Important indexes:
 Decision needed during build:
 
 - [x] Use level-specific reward codes in `user_level_rewards`, and redeem them into the existing CopUp Jr balance/ledger from `backend/services/promo.service.js`.
-- [ ] Apply the migration to the live/local database. Attempted locally, but MySQL at `127.0.0.1:3306` was not reachable.
+- [x] Apply the migration to the local database. Applied to `heist_pro`: 8 badges, 40 levels, and 7 XP rules.
 
 ## API Checklist
 
@@ -128,6 +131,8 @@ User APIs:
   - Returns total XP, badge, level, progress percentage, next level target, recent XP events, and unclaimed rewards.
 - [x] `GET /api/users/progress/levels`
   - Returns the user's progress plus all level definitions.
+- [x] `POST /api/users/progress/daily-check-in`
+  - Claims today's daily check-in XP only if the user has not already claimed it for the current database date.
 - [x] `GET /api/users/progress/rewards`
   - Returns all earned level coupon rewards.
 - [x] `POST /api/users/progress/rewards/:id/claim`
@@ -180,7 +185,7 @@ Add these user-facing pages/components so normal users can see progress, rewards
 | Profile progress summary | `/profile` | Update `client/src/pages/Profile/Profile.jsx` | Show full badge name, current level, total XP, joined heists, won heists, and lifetime earned rewards. |
 | Rewards/Redeem page | `/rewards` or `/redeem` | New `client/src/pages/Rewards/Rewards.jsx` | Show earned level coupons, manual promo code redeem form, claimed/redeemed status, and CopUp Jr balance. |
 | Level history page | `/levels` | New `client/src/pages/Levels/Levels.jsx` | Show all 40 levels, locked/unlocked states, badge images, XP targets, and coupon reward per level. |
-| XP activity page | `/xp-activity` | New `client/src/pages/LevelActivity/LevelActivity.jsx` | Show a ledger of daily login, heist play, heist win, referral, deposit, withdrawal, and admin adjustment XP events. |
+| XP activity page | `/xp-activity` | New `client/src/pages/LevelActivity/LevelActivity.jsx` | Show a ledger of daily check-in, heist play, heist win, referral, deposit, withdrawal, and admin adjustment XP events. |
 | Heist result level-up state | `/heist/:id/result` | Update `client/src/pages/Heist/HeistResult.jsx` | Show XP earned from the completed heist and any level-up coupon reward. |
 | Payment result XP state | `/payment-result` | Update `client/src/pages/PaymentResult/PaymentResult.jsx` | Show XP earned from completed deposit if the transaction qualifies. |
 | Account reward shortcut | `/account` | Update `client/src/pages/Account/Account.jsx` | Add shortcut to rewards/redeem and show unclaimed reward count. |
@@ -195,6 +200,8 @@ Reusable user components:
 - [x] `client/src/components/LevelRewardList/LevelRewardList.module.css`
 - [x] `client/src/components/XpEventList/XpEventList.jsx`
 - [x] `client/src/components/XpEventList/XpEventList.module.css`
+- [x] `client/src/components/DailyCheckInPrompt/DailyCheckInPrompt.jsx`
+- [x] `client/src/components/DailyCheckInPrompt/DailyCheckInPrompt.module.css`
 
 User route entries to add in `client/src/App.jsx`:
 
@@ -279,7 +286,7 @@ These values should be finalized before implementation:
 
 | Event | Suggested XP | Duplicate Rule |
 | --- | ---: | --- |
-| Daily login | 10 | Once per user per calendar day |
+| Daily check-in | 10 | Once per user per calendar day after the user clicks the check-in prompt |
 | Play heist | 15 | Once per user per heist submission |
 | Win heist | 100 | Once per user per won heist |
 | Referral signup | 50 | Once per referred user |

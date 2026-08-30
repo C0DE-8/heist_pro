@@ -4,7 +4,7 @@ import { formatDate, formatNumber } from "../../lib/levelBadges";
 import styles from "./XpEventList.module.css";
 
 const SOURCE_LABELS = {
-  daily_login: "Daily login",
+  daily_login: "Daily check-in",
   heist_play: "Heist played",
   heist_win: "Heist won",
   referral_signup: "Referral reward",

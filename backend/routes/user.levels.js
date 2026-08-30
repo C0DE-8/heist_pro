@@ -6,6 +6,7 @@ const {
   ensureLevelProgressTables,
   getUserProgress,
   getUserRewards,
+  claimDailyCheckIn,
   claimLevelReward,
   redeemLevelRewardCode,
   listLevels,
@@ -44,6 +45,27 @@ router.get("/levels", async (req, res) => {
   } catch (err) {
     console.error("user levels error:", err);
     return res.status(500).json({ message: "Error fetching levels" });
+  }
+});
+
+router.post("/daily-check-in", async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const result = await claimDailyCheckIn(conn, req.user.userId);
+    if (result.status >= 400) {
+      await conn.rollback();
+      return res.status(result.status).json(result.body);
+    }
+    await conn.commit();
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error("daily check-in error:", err);
+    return res.status(500).json({ message: "Error claiming daily check-in" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

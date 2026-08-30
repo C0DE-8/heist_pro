@@ -18,6 +18,11 @@ export async function getUserLevelRewards() {
   return Array.isArray(data?.rewards) ? data.rewards : [];
 }
 
+export async function claimDailyCheckIn() {
+  const { data } = await api.post("/users/progress/daily-check-in");
+  return data;
+}
+
 export async function claimUserLevelReward(rewardId) {
   const { data } = await api.post(`/users/progress/rewards/${rewardId}/claim`);
   return data;

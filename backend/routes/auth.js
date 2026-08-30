@@ -15,10 +15,6 @@ const {
   getDeviceKey,
   recordActivity,
 } = require("../services/godEyes.service");
-const {
-  ensureLevelProgressTables,
-  awardConfiguredXp,
-} = require("../services/levelProgress.service");
 
 const router = express.Router();
 
@@ -365,18 +361,10 @@ router.post("/login", async (req, res) => {
     );
 
     await ensureGodEyesSchema();
-    await ensureLevelProgressTables(pool);
     await pool.query(
       "UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?",
       [user.id]
     );
-    const loginDay = new Date().toISOString().slice(0, 10);
-    await awardConfiguredXp(pool, {
-      userId: user.id,
-      source: "daily_login",
-      sourceId: loginDay,
-      metadata: { path: "/login" },
-    });
     await recordActivity({
       userId: user.id,
       eventType: "login",
