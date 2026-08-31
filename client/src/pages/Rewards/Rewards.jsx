@@ -84,8 +84,8 @@ export default function Rewards() {
         <section className={styles.hero}>
           <div>
             <p className={styles.kicker}>Rewards</p>
-            <h1>Level coupons</h1>
-            <p>Claim earned level codes and redeem them into CopUp Jr for heist entries.</p>
+            <h1>Coupons</h1>
+            <p>Claim earned codes and redeem them into Gift CopUp Coin for heist entries.</p>
           </div>
           <button type="button" className={styles.refreshBtn} onClick={loadProgress} disabled={loading}>
             <RefreshCw size={16} />
@@ -105,7 +105,7 @@ export default function Rewards() {
             <Gift size={18} />
             <div>
               <h2>Redeem code</h2>
-              <p>Use a claimed level coupon code.</p>
+              <p>Use a claimed coupon code.</p>
             </div>
           </div>
           <form className={styles.redeemForm} onSubmit={redeemCode}>

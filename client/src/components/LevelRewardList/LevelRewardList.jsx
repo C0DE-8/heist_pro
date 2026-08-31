@@ -20,7 +20,7 @@ export default function LevelRewardList({ rewards = [], busyId = "", onClaim, on
                 <strong>{formatLevelName(reward)}</strong>
                 <span data-status={reward.status}>{reward.status}</span>
               </div>
-              <small>{formatNumber(reward.copup_jr_amount)} CopUp Jr coupon</small>
+              <small>{formatNumber(reward.copup_jr_amount)} Gift CopUp Coin coupon</small>
               <em>{formatDate(reward.earned_at)}</em>
               {claimed ? <code>{reward.code}</code> : null}
             </div>

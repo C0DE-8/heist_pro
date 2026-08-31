@@ -66,16 +66,12 @@ function HeistCardSkeleton({ muted = false, children } = {}) {
 
 function EmptyHeistFallback() {
   return (
-    <>
-      <HeistCardSkeleton muted>
-        <div className={styles.emptySkeletonMessage}>
-          <strong>No available heists yet.</strong>
-          <span>Check back soon or refresh to load new heists.</span>
-        </div>
-      </HeistCardSkeleton>
-      <HeistCardSkeleton muted />
-      <HeistCardSkeleton muted />
-    </>
+    <HeistCardSkeleton muted>
+      <div className={styles.emptySkeletonMessage}>
+        <strong>No available heists yet.</strong>
+        <span>Check back soon or refresh to load new heists.</span>
+      </div>
+    </HeistCardSkeleton>
   );
 }
 
@@ -211,10 +207,6 @@ export default function Heist() {
             <span>Available</span>
             <strong>{loading ? "..." : formatNum(available.length)}</strong>
           </div>
-          <div>
-            <span>Gift balance</span>
-            <strong>{promoBalance === null ? "..." : formatNum(promoBalance)}</strong>
-          </div>
         </section>
 
         {error ? (
@@ -237,7 +229,7 @@ export default function Heist() {
 
         <section className={styles.heistList}>
           {loading ? (
-            [0, 1, 2].map((item) => <HeistCardSkeleton key={item} />)
+            <HeistCardSkeleton />
           ) : available.length ? (
             available.map((heist) => (
               <HeistCard

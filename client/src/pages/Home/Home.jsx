@@ -12,7 +12,6 @@ import {
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import DailyCheckInPrompt from "../../components/DailyCheckInPrompt/DailyCheckInPrompt";
-import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { getStoredToken } from "../../lib/auth";
 import { getUserProfile } from "../../lib/users";
 import styles from "./Home.module.css";
@@ -212,13 +211,6 @@ export default function Home() {
         <DailyCheckInPrompt
           checkIn={profileData?.progress?.daily_check_in}
           onClaimed={loadProfile}
-        />
-
-        <LevelProgressBar
-          progress={profileData?.progress}
-          compact
-          onLevels={() => navigate("/levels")}
-          onRewards={() => navigate("/rewards")}
         />
 
         <section className={styles.cardList}>

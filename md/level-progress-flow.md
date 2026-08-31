@@ -295,13 +295,23 @@ These values should be finalized before implementation:
 
 Open product decisions:
 
-- [ ] Exact XP per event.
-- [ ] Exact XP needed for each of the 40 levels.
-- [ ] Coupon value per level.
-- [ ] Whether every level gives a coupon or only selected milestone levels.
-- [ ] Whether coupons are auto-created unique codes or selected from an admin-created pool.
-- [ ] Whether coupon rewards expire.
-- [ ] Whether withdrawal XP should reward all withdrawals or only completed/approved withdrawals.
+- [x] Exact XP per event.
+  - Daily check-in: 10 XP.
+  - Heist play/submission: 15 XP.
+  - Heist win: 100 XP.
+  - Referral reward claim: 50 XP.
+  - Deposit approval/success: 1 XP.
+  - Withdrawal approval: 1 XP.
+- [x] Exact XP needed for each of the 40 levels.
+  - Level 1 starts at 0 XP.
+  - Level 2 starts at 100 XP.
+  - Every next level increases by 100 XP through level 40 at 3900 XP.
+- [x] Coupon value per level.
+  - Level coupon value is `level_order * 5` CopUp Jr.
+- [x] Every level gives a coupon.
+- [x] Coupons are auto-created unique level reward codes.
+- [x] Coupon rewards do not expire by default. `expires_at` exists for future admin/product use.
+- [x] Withdrawal XP rewards approved withdrawals only.
 
 ## Build Order
 
@@ -319,15 +329,28 @@ Open product decisions:
 
 ## Verification Checklist Before Push
 
-- [ ] Existing auth login still works.
-- [ ] Existing heist join/play/submit flow still works.
-- [ ] Existing heist promo code redeem flow still works.
-- [ ] Existing deposit callback flow still works.
-- [ ] Existing withdrawal flow still works.
-- [ ] User progress API returns correct progress after each XP event.
-- [ ] Duplicate XP events do not double-credit users.
-- [ ] Level-up creates coupon rewards correctly.
-- [ ] User cannot claim another user's reward.
-- [ ] Admin can view and adjust progress.
+- [x] Existing auth login still works.
+- [x] Existing heist join/play/submit flow still works.
+- [x] Existing heist promo code redeem flow still works.
+- [x] Manual deposit approval flow still works.
+- [ ] Flutterwave external callback still needs a real provider transaction for final live verification.
+- [x] Existing withdrawal approval flow still works.
+- [x] User progress API returns correct progress after each XP event.
+- [x] Duplicate XP events do not double-credit users.
+- [x] Daily check-in prompt is eligible before claim and hidden after claim.
+- [x] Level-up creates coupon rewards correctly.
+- [x] User cannot claim another user's reward.
+- [x] User cannot claim the same level coupon twice.
+- [x] Admin can view and adjust progress.
 - [ ] Frontend progress bar is accurate and responsive.
 - [x] Production build passes.
+
+Latest local API verification used test user `10`, admin `11`, and heist `11`.
+
+Verified XP result:
+
+- Total XP after daily check-in, heist play, heist win, deposit approval, and withdrawal approval: 127 XP.
+- Current level after verification: level 2.
+- Reward count after verification: 1.
+- Daily check-in date: 2026-08-30.
+- Next check-in date: 2026-08-31.
