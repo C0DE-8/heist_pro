@@ -21,6 +21,7 @@ import {
   FaEye,
   FaShieldAlt,
   FaMedal,
+  FaReceipt,
 } from "react-icons/fa";
 
 export default function AdminNavbar({ admin: adminProp }) {
@@ -42,6 +43,7 @@ export default function AdminNavbar({ admin: adminProp }) {
       { to: "/admin/levels", label: "Levels", icon: <FaMedal /> },
       { to: "/admin/heists", label: "Heists", icon: <FaFlask /> },
       { to: "/admin/transactions", label: "Transactions", icon: <FaWallet /> },
+      { to: "/admin/receipts", label: "Receipts", icon: <FaReceipt /> },
       { to: "/admin/coins", label: "Coins", icon: <FaCoins /> },
       { to: "/admin/profile", label: "Profile", icon: <FaUserCog /> },
     ],

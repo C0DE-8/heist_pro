@@ -23,6 +23,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications/AdminNotificati
 import AdminGodEyes from "./pages/admin/AdminGodEyes/AdminGodEyes";
 import AdminClans from "./pages/admin/AdminClans/AdminClans";
 import AdminLevels from "./pages/admin/AdminLevels/AdminLevels";
+import AdminReceipts from "./pages/admin/AdminReceipts/AdminReceipts";
 
 
 // Protected Routes
@@ -208,6 +209,10 @@ export default function App() {
 
         <Route element={<AdminRoute />}>
           <Route path="/admin/transactions" element={<AdminTransactions />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin/receipts" element={<AdminReceipts />} />
         </Route>
 
         <Route element={<AdminRoute />}>
