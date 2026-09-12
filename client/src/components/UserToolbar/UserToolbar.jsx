@@ -27,7 +27,9 @@ import { imgUrl } from "../../lib/api";
 import { clearAuthSession, getStoredToken } from "../../lib/auth";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
 import { getUserProfile } from "../../lib/users";
+import { getCopupJrBalance } from "../../lib/heists";
 import { getSoundEnabled, setSoundEnabled } from "../../lib/sound";
+import { isWalletHidden, setWalletHidden, WALLET_HIDE_KEY, WALLET_VISIBILITY_EVENT } from "../../lib/walletVisibility";
 import {
   canUseWebPush,
   enableWebPushNotifications,
@@ -42,14 +44,11 @@ export default function UserToolbar() {
 
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [profileData, setProfileData] = useState(null);
+  const [copupJrBalance, setCopupJrBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [soundOn, setSoundOn] = useState(() => getSoundEnabled());
   const [hideCoins, setHideCoins] = useState(
-    () => localStorage.getItem("copup_toolbar_hide_coins") === "1"
-  );
-  const [hideTasks, setHideTasks] = useState(
-    () => localStorage.getItem("copup_toolbar_hide_tasks") === "1"
+    () => isWalletHidden()
   );
   const [webPushStatus, setWebPushStatus] = useState(() => getWebPushStatus());
   const [enablingAlerts, setEnablingAlerts] = useState(false);
@@ -57,7 +56,6 @@ export default function UserToolbar() {
 
   const displayName = profile?.full_name || profile?.username || "User";
   const copPoints = Number(profile?.cop_point || 0);
-  const joinedHeists = Number(profileData?.stats?.heists?.joined_heists || 0);
 
   // ✅ IMPORTANT: convert "uploads/xxx.jpg" -> "http://host/uploads/xxx.jpg"
   const profileImageSrc = useMemo(() => {
@@ -73,7 +71,7 @@ export default function UserToolbar() {
   const logout = useCallback(() => {
     clearAuthSession();
     setProfile(null);
-    setProfileData(null);
+    setCopupJrBalance(0);
     setOpen(false);
 
     // ✅ update token state instantly
@@ -89,19 +87,7 @@ export default function UserToolbar() {
   };
 
   const toggleCoins = () => {
-    setHideCoins((prev) => {
-      const next = !prev;
-      localStorage.setItem("copup_toolbar_hide_coins", next ? "1" : "0");
-      return next;
-    });
-  };
-
-  const toggleTasks = () => {
-    setHideTasks((prev) => {
-      const next = !prev;
-      localStorage.setItem("copup_toolbar_hide_tasks", next ? "1" : "0");
-      return next;
-    });
+    setWalletHidden(!isWalletHidden());
   };
 
   const enableBrowserAlerts = async () => {
@@ -145,15 +131,15 @@ export default function UserToolbar() {
     const t = getStoredToken();
     if (!t) {
       setProfile(null);
-      setProfileData(null);
+      setCopupJrBalance(0);
       return;
     }
 
     setLoading(true);
     try {
-      const data = await getUserProfile();
-      setProfileData(data);
+      const [data, jrData] = await Promise.all([getUserProfile(), getCopupJrBalance()]);
       setProfile(data?.user || null);
+      setCopupJrBalance(Number(jrData?.copup_jr_balance || 0));
     } catch (err) {
       const code = err?.response?.status;
       if (code === 401 || code === 403) logout();
@@ -167,6 +153,17 @@ export default function UserToolbar() {
     if (!token) return;
     fetchProfile();
   }, [token, fetchProfile]);
+
+  useEffect(() => {
+    const syncVisibility = () => setHideCoins(isWalletHidden());
+    const onStorage = (event) => event.key === WALLET_HIDE_KEY && syncVisibility();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    };
+  }, []);
 
   // ✅ 3) listen for balance updates (buy/bid/heist) and refetch immediately
   useEffect(() => {
@@ -219,12 +216,12 @@ export default function UserToolbar() {
             <button
               type="button"
               className={styles.taskBadge}
-              onClick={toggleTasks}
-              aria-label={hideTasks ? "Show joined heists" : "Hide joined heists"}
-              title={hideTasks ? "Show heists" : "Hide heists"}
+              onClick={toggleCoins}
+              aria-label={hideCoins ? "Show CopUp Jr balance" : "Hide CopUp Jr balance"}
+              title={hideCoins ? "Show CopUp Jr" : "Hide CopUp Jr"}
             >
               <Target size={14} />
-              {hideTasks ? "••" : joinedHeists.toLocaleString()}
+              {hideCoins ? "••••" : copupJrBalance.toLocaleString()}
             </button>
           </div>
 

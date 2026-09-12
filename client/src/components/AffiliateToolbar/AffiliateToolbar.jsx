@@ -20,6 +20,7 @@ import { clearAuthSession, getStoredToken } from "../../lib/auth";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
 import { getSoundEnabled, setSoundEnabled } from "../../lib/sound";
 import { getUserProfile } from "../../lib/users";
+import { isWalletHidden, setWalletHidden, WALLET_HIDE_KEY, WALLET_VISIBILITY_EVENT } from "../../lib/walletVisibility";
 import {
   canUseWebPush,
   enableWebPushNotifications,
@@ -34,7 +35,7 @@ export default function AffiliateToolbar() {
   const [loading, setLoading] = useState(false);
   const [soundOn, setSoundOn] = useState(() => getSoundEnabled());
   const [hideCoins, setHideCoins] = useState(
-    () => localStorage.getItem("copup_toolbar_hide_coins") === "1"
+    () => isWalletHidden()
   );
   const [webPushStatus, setWebPushStatus] = useState(() => getWebPushStatus());
   const [enablingAlerts, setEnablingAlerts] = useState(false);
@@ -114,6 +115,17 @@ export default function AffiliateToolbar() {
   }, [token, fetchProfile]);
 
   useEffect(() => {
+    const syncVisibility = () => setHideCoins(isWalletHidden());
+    const onStorage = (event) => event.key === WALLET_HIDE_KEY && syncVisibility();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
     const onBalance = () => {
       const cachedCopPoint = localStorage.getItem("copup_cop_point");
       if (cachedCopPoint !== null) {
@@ -153,11 +165,7 @@ export default function AffiliateToolbar() {
               type="button"
               className={styles.coinBadge}
               onClick={() => {
-                setHideCoins((prev) => {
-                  const next = !prev;
-                  localStorage.setItem("copup_toolbar_hide_coins", next ? "1" : "0");
-                  return next;
-                });
+                setWalletHidden(!isWalletHidden());
               }}
             >
               <Coins size={14} />

@@ -14,9 +14,8 @@ import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import { getPaymentInfo } from "../../lib/transactions";
 import { getAffiliateTileDashboard, getUserProfile } from "../../lib/users";
+import { isWalletHidden, setWalletHidden, WALLET_HIDE_KEY, WALLET_VISIBILITY_EVENT } from "../../lib/walletVisibility";
 import styles from "../Home/Home.module.css";
-
-const WALLET_HIDE_KEY = "copup_affiliate_hide_wallet_balance";
 
 function formatNum(value) {
   const n = Number(value);
@@ -54,7 +53,7 @@ export default function AffiliateDashboard() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
   const [hideWallet, setHideWallet] = useState(
-    () => localStorage.getItem(WALLET_HIDE_KEY) === "1"
+    () => isWalletHidden()
   );
 
   const user = profileData?.user || null;
@@ -90,6 +89,17 @@ export default function AffiliateDashboard() {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    const syncVisibility = () => setHideWallet(isWalletHidden());
+    const onStorage = (event) => event.key === WALLET_HIDE_KEY && syncVisibility();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    };
+  }, []);
 
   const cards = useMemo(
     () => [
@@ -148,11 +158,7 @@ export default function AffiliateDashboard() {
               type="button"
               className={styles.eyeBtn}
               onClick={() => {
-                setHideWallet((prev) => {
-                  const next = !prev;
-                  localStorage.setItem(WALLET_HIDE_KEY, next ? "1" : "0");
-                  return next;
-                });
+                setWalletHidden(!isWalletHidden());
               }}
               title={hideWallet ? "Show balance" : "Hide balance"}
             >

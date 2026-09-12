@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { emitBalanceUpdated } from "./copupEvents";
 
 export async function getAvailableHeists() {
   const { data } = await api.get("/heists/available");
@@ -18,6 +19,7 @@ export async function getHeist(id) {
 export async function joinHeist(id, referralCode) {
   const payload = referralCode ? { referral_code: referralCode } : {};
   const { data } = await api.post(`/heists/${id}/join`, payload);
+  emitBalanceUpdated();
   return data;
 }
 
@@ -28,6 +30,7 @@ export async function getCopupJrBalance() {
 
 export async function redeemPromoCode(code) {
   const { data } = await api.post("/heists/promo-codes/redeem", { code });
+  emitBalanceUpdated();
   return data;
 }
 

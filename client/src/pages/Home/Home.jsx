@@ -14,13 +14,12 @@ import Footer from "../../components/Footer/Footer";
 import DailyCheckInPrompt from "../../components/DailyCheckInPrompt/DailyCheckInPrompt";
 import { getStoredToken } from "../../lib/auth";
 import { getUserProfile } from "../../lib/users";
+import { isWalletHidden, setWalletHidden, WALLET_HIDE_KEY, WALLET_VISIBILITY_EVENT } from "../../lib/walletVisibility";
 import styles from "./Home.module.css";
 
 import m1Img from "../../assets/m1.png";
 import m2Img from "../../assets/m2.png";
 import m4Img from "../../assets/m4.png";
-
-const WALLET_HIDE_KEY = "copup_hide_wallet_balance";
 
 function formatNum(value) {
   const n = Number(value);
@@ -42,7 +41,7 @@ export default function Home() {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [hideWallet, setHideWallet] = useState(
-    () => localStorage.getItem(WALLET_HIDE_KEY) === "1"
+    () => isWalletHidden()
   );
   const [copied, setCopied] = useState("");
 
@@ -74,6 +73,17 @@ export default function Home() {
     loadProfile();
   }, [loadProfile]);
 
+  useEffect(() => {
+    const syncVisibility = () => setHideWallet(isWalletHidden());
+    const onStorage = (event) => event.key === WALLET_HIDE_KEY && syncVisibility();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(WALLET_VISIBILITY_EVENT, syncVisibility);
+    };
+  }, []);
+
   const copyValue = async (label, value) => {
     if (!value) return;
 
@@ -87,11 +97,7 @@ export default function Home() {
   };
 
   const toggleWalletVisibility = () => {
-    setHideWallet((prev) => {
-      const next = !prev;
-      localStorage.setItem(WALLET_HIDE_KEY, next ? "1" : "0");
-      return next;
-    });
+    setWalletHidden(!isWalletHidden());
   };
 
   const cards = [

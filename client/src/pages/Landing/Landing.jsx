@@ -58,7 +58,7 @@ const stats = [
 const steps = [
   {
     icon: <FiCreditCard />,
-    title: "Load up for August",
+    title: "Load up for September",
     text: "Buy CopUpCoin from your account page and keep your balance ready for fresh heists and faster runs.",
   },
   {
@@ -102,7 +102,7 @@ export default function Landing() {
 
           <div className={styles.heroInner}>
             <div className={styles.heroCopy} data-reveal>
-              <p className={styles.kicker}>August Heist Drop</p>
+              <p className={styles.kicker}>September Heist Drop</p>
               <div className={styles.wordmark} aria-label="CopUpBid">
                 <span>CopUpB</span>
                 <span className={styles.wordmarkI}>
@@ -111,16 +111,16 @@ export default function Landing() {
                 </span>
                 <span>d</span>
               </div>
-              <h1>August Wins Start Here.</h1>
+              <h1>September Wins Start Here.</h1>
               <p>
-                This August, think fast, answer smart, and win CopUpCoin in bright True/False heists
+                This September, think fast, answer smart, and win CopUpCoin in bright True/False heists
                 where speed can still break the tightest race.
               </p>
 
-              <div className={styles.heroPills} aria-label="August campaign highlights">
+              <div className={styles.heroPills} aria-label="September campaign highlights">
                 <span>Fresh Month. Fresh Heists. Fresh Wins.</span>
                 <span>Let The Fastest Mind Win.</span>
-                <span>August Rewards Are Waiting.</span>
+                <span>September Rewards Are Waiting.</span>
               </div>
 
               <div className={styles.heroActions}>
@@ -139,7 +139,7 @@ export default function Landing() {
               <div className={styles.marqueeLane} aria-hidden="true">
                 <span>TRUE</span>
                 <span>FALSE</span>
-                <span>AUGUST DROP</span>
+                <span>SEPTEMBER DROP</span>
                 <span>HEIST</span>
                 <span>HEIST</span>
               </div>
@@ -150,7 +150,7 @@ export default function Landing() {
               >
                 <span>FAST</span>
                 <span>SMART</span>
-                <span>AUGUST MODE</span>
+                <span>SEPTEMBER MODE</span>
                 <span>READY</span>
                 <span>WIN</span>
               </div>
@@ -161,8 +161,8 @@ export default function Landing() {
                 <div className={styles.jokerFace}>
                   <FiSmile />
                 </div>
-                <strong>August Mode</strong>
-                <p>August momentum starts here. Fresh energy, real leaderboard pressure.</p>
+                <strong>September Mode</strong>
+                <p>September momentum starts here. Fresh energy, real leaderboard pressure.</p>
               </div>
 
               <div className={styles.floatingChips} aria-hidden="true">
@@ -191,7 +191,7 @@ export default function Landing() {
 
         <section className={styles.section}>
           <div className={styles.sectionHead} data-reveal>
-            <p className={styles.kicker}>August Momentum Starts Here</p>
+            <p className={styles.kicker}>September Momentum Starts Here</p>
             <h2>Move fast. Answer smart. Win CopUpCoin.</h2>
           </div>
 
@@ -251,7 +251,7 @@ export default function Landing() {
         <section className={styles.downloadSection} data-reveal>
           <div className={styles.downloadCard}>
             <div>
-              <p className={styles.kicker}>August Rewards Are Waiting</p>
+              <p className={styles.kicker}>September Rewards Are Waiting</p>
               <h2>Download CopupBid for Android.</h2>
               <p>
                 Install the latest Android build and keep heists, CopUpCoin rewards, and wallet
@@ -279,7 +279,7 @@ export default function Landing() {
 
         <section className={styles.cta} data-reveal>
           <div>
-            <p className={styles.kicker}>Your August Winning Streak Starts Now</p>
+            <p className={styles.kicker}>Your September Winning Streak Starts Now</p>
             <h2>Step into victory.</h2>
             <p>Create an account, fund your wallet, and start chasing the next CopUpCoin prize.</p>
           </div>
