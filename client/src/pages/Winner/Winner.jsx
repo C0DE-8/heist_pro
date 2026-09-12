@@ -298,7 +298,7 @@ export default function Winner() {
                     <div className={styles.metaItem}>
                       <div className={styles.metaLabel}>Prize</div>
                       <div className={styles.metaValue}>
-                        {formatNum(activeHeist.prize_cop_points)} CP
+                        {activeHeist.reward_type === "product" ? activeHeist.product?.name || "Product reward" : `${formatNum(activeHeist.prize_cop_points)} CP`}
                       </div>
                     </div>
                     <div className={styles.metaItem}>
@@ -325,12 +325,12 @@ export default function Winner() {
                   </div>
 
                   <div className={styles.prizeRow}>
-                    <div className={styles.prizeImgFallback}>CP</div>
+                    {activeHeist.reward_type === "product" && activeHeist.product?.primary_image ? <img className={styles.prizeImgFallback} src={imgUrl(activeHeist.product.primary_image)} alt={activeHeist.product.name} /> : <div className={styles.prizeImgFallback}>CP</div>}
                     <div className={styles.prizeText}>
                       <div className={styles.prizeTitle}>
-                        {formatNum(activeHeist.prize_cop_points)} CopUpCoin
+                        {activeHeist.reward_type === "product" ? activeHeist.product?.name || "Product reward" : `${formatNum(activeHeist.prize_cop_points)} CopUpCoin`}
                       </div>
-                      <div className={styles.prizeSub}>Credited to the winner</div>
+                      <div className={styles.prizeSub}>{activeHeist.reward_type === "product" ? "Physical product reward" : "Credited to the winner"}</div>
                     </div>
                   </div>
                 </div>

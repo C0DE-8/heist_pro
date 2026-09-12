@@ -253,7 +253,7 @@ async function maybeStartCountdown(db, heistId) {
 
 async function finalizeHeist(db, heistId) {
   const [[heist]] = await db.query(
-    `SELECT id, prize_cop_points, status, submissions_locked, winner_user_id, winner_demo_submission_id
+    `SELECT id, prize_cop_points, reward_type, product_id, status, submissions_locked, winner_user_id, winner_demo_submission_id
      FROM heist
      WHERE id = ?
      LIMIT 1 FOR UPDATE`,
@@ -328,10 +328,20 @@ async function finalizeHeist(db, heistId) {
       [winner.demo_submission_id, heistId]
     );
   } else {
-    await db.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
-      heist.prize_cop_points,
-      winner.user_id,
-    ]);
+    if (heist.reward_type === "product") {
+      if (!heist.product_id) throw new Error("Product Heist has no product assigned");
+      await db.query(
+        `INSERT INTO product_win_entitlements (heist_id, product_id, user_id, status)
+         VALUES (?, ?, ?, 'available')
+         ON DUPLICATE KEY UPDATE product_id = VALUES(product_id), user_id = VALUES(user_id)`,
+        [heistId, heist.product_id, winner.user_id]
+      );
+    } else {
+      await db.query("UPDATE users SET cop_point = cop_point + ? WHERE id = ?", [
+        heist.prize_cop_points,
+        winner.user_id,
+      ]);
+    }
     await ensureLevelProgressTables(db);
     await awardConfiguredXp(db, {
       userId: winner.user_id,
@@ -339,7 +349,9 @@ async function finalizeHeist(db, heistId) {
       sourceId: `heist:${heistId}`,
       metadata: {
         heist_id: heistId,
-        prize_cop_points: heist.prize_cop_points,
+        prize_cop_points: heist.reward_type === "cash" ? heist.prize_cop_points : 0,
+        reward_type: heist.reward_type,
+        product_id: heist.product_id,
         submission_id: winner.submission_id,
       },
     });
@@ -351,13 +363,18 @@ async function finalizeHeist(db, heistId) {
       [winner.user_id, heistId]
     );
 
+    let rewardText = `${Number(heist.prize_cop_points || 0).toLocaleString()} CopUpCoin`;
+    if (heist.reward_type === "product") {
+      const [[product]] = await db.query("SELECT name FROM products WHERE id = ?", [heist.product_id]);
+      rewardText = product?.name || "a product reward";
+    }
     sendPushToUser(
       winner.user_id,
       noticePayload({
         alertId: `heist:${heistId}:winner`,
         type: "winner",
         title: "You won a heist",
-        body: `You won ${Number(heist.prize_cop_points || 0).toLocaleString()} CopUpCoin.`,
+        body: `You won ${rewardText}.`,
         path: `/heist/${heistId}/result`,
       })
     ).catch((pushErr) => console.error("heist winner push error:", pushErr.message));
@@ -375,7 +392,7 @@ async function finalizeHeist(db, heistId) {
       total_time_seconds: winner.total_time_seconds,
       submitted_at: winner.submitted_at,
     },
-    awarded_points: Number(winner.is_demo) ? 0 : heist.prize_cop_points,
+    awarded_points: Number(winner.is_demo) || heist.reward_type === "product" ? 0 : heist.prize_cop_points,
   };
 }
 

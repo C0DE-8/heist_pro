@@ -30,12 +30,35 @@ const router = express.Router();
 
 const PUBLIC_HEIST_FIELDS = `
   id, name, description, min_users, max_users, ticket_price,
-  total_questions, questions_per_session, prize_cop_points, status,
+  total_questions, questions_per_session, prize_cop_points, reward_type, product_id, status,
   countdown_duration_minutes, countdown_started_at, countdown_ends_at,
   starts_at, ends_at
 `;
 
 const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
+
+async function enrichHeistsWithProducts(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const ids = [...new Set(list.filter((row) => row.reward_type === "product" && row.product_id).map((row) => Number(row.product_id)))];
+  if (!ids.length) return list;
+  const [products] = await pool.query(
+    `SELECT p.id, p.name, p.description,
+            pi.id image_id, pi.image_path, pi.is_primary, pi.sort_order
+     FROM products p LEFT JOIN product_images pi ON pi.product_id = p.id
+     WHERE p.id IN (?) ORDER BY pi.is_primary DESC, pi.sort_order, pi.id`,
+    [ids]
+  );
+  const map = new Map();
+  products.forEach((row) => {
+    if (!map.has(Number(row.id))) map.set(Number(row.id), { id: row.id, name: row.name, description: row.description, images: [] });
+    if (row.image_id) map.get(Number(row.id)).images.push({ id: row.image_id, image_path: row.image_path, is_primary: row.is_primary, sort_order: row.sort_order });
+  });
+  list.forEach((row) => {
+    const product = map.get(Number(row.product_id));
+    if (product) row.product = { ...product, primary_image: product.images[0]?.image_path || null };
+  });
+  return list;
+}
 
 router.use(async (req, res, next) => {
   try {
@@ -314,6 +337,7 @@ router.get("/available", optionalAuthenticateToken, async (req, res) => {
            WHERE h.status IN ('pending', 'hold', 'started')
            ORDER BY h.created_at DESC`
         );
+    await enrichHeistsWithProducts(rows);
     return res.json({ heists: rows });
   } catch (err) {
     console.error("available heists error:", err);
@@ -329,6 +353,8 @@ router.get("/completed", async (req, res) => {
          h.name,
          h.description,
          h.prize_cop_points,
+         h.reward_type,
+         h.product_id,
          h.winner_user_id,
          h.winner_demo_submission_id,
          COALESCE(u.username, demoWinner.display_name) AS winner_username,
@@ -343,6 +369,7 @@ router.get("/completed", async (req, res) => {
        WHERE h.status = 'completed'
        ORDER BY h.updated_at DESC`
     );
+    await enrichHeistsWithProducts(rows);
     return res.json({ heists: rows });
   } catch (err) {
     console.error("completed heists error:", err);
@@ -370,6 +397,7 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Heist not found" });
     }
 
+    await enrichHeistsWithProducts(rows);
     return res.json({ heist: rows[0] });
   } catch (err) {
     console.error("get heist by id error:", err);
@@ -576,6 +604,7 @@ router.get("/:id/play", authenticateToken, async (req, res) => {
       [heistId]
     );
     if (!heist) return res.status(404).json({ message: "Heist not found" });
+    await enrichHeistsWithProducts([heist]);
     const closedReason = heistClosedReason(heist);
     if (closedReason) return res.status(400).json({ message: closedReason });
     const { winner_user_id, ...publicHeist } = heist;
@@ -893,6 +922,10 @@ router.get("/:id/result", authenticateToken, async (req, res) => {
          h.winner_user_id,
          h.winner_demo_submission_id,
          h.prize_cop_points,
+         h.reward_type,
+         h.product_id,
+         h.reward_type,
+         h.product_id,
          COALESCE(u.username, demoWinner.display_name) AS winner_username,
          CASE WHEN h.winner_demo_submission_id IS NULL THEN 0 ELSE 1 END AS winner_is_demo
        FROM heist h
@@ -903,7 +936,8 @@ router.get("/:id/result", authenticateToken, async (req, res) => {
       [heistId]
     );
 
-    const response = { result };
+    await enrichHeistsWithProducts(heist ? [heist] : []);
+    const response = { result, heist };
     if (heist?.status === "completed" && (heist.winner_user_id || heist.winner_demo_submission_id)) {
       response.winner = {
         user_id: heist.winner_user_id,
@@ -911,7 +945,15 @@ router.get("/:id/result", authenticateToken, async (req, res) => {
         is_demo: Boolean(Number(heist.winner_is_demo)),
         username: heist.winner_username,
         prize_cop_points: heist.prize_cop_points,
+        reward_type: heist.reward_type,
+        product: heist.product || null,
+        entitlement_id: null,
       };
+      if (Number(heist.winner_user_id) === Number(userId) && heist.reward_type === "product") {
+        const [[entitlement]] = await pool.query("SELECT id, status FROM product_win_entitlements WHERE heist_id = ? AND user_id = ?", [heistId, userId]);
+        response.winner.entitlement_id = entitlement?.id || null;
+        response.winner.entitlement_status = entitlement?.status || null;
+      }
     }
     return res.json(response);
   } catch (err) {
@@ -1012,6 +1054,7 @@ router.get("/:id/ref/:code", async (req, res) => {
       [heistId, code]
     );
     if (!row) return res.status(404).json({ message: "Referral not found" });
+    await enrichHeistsWithProducts([row]);
     if (row.status === "completed" || row.status === "cancelled") {
       return res.status(400).json({ message: "Heist is not joinable" });
     }
@@ -1030,6 +1073,9 @@ router.get("/:id/ref/:code", async (req, res) => {
         total_participants: row.total_participants,
         ticket_price: row.ticket_price,
         prize_cop_points: row.prize_cop_points,
+        reward_type: row.reward_type,
+        product_id: row.product_id,
+        product: row.product || null,
         status: row.status,
         countdown_ends_at: row.countdown_ends_at,
         starts_at: row.starts_at,

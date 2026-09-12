@@ -60,6 +60,7 @@ import {
   updateAdminPromoCode,
 } from "../../../lib/adminHeists";
 import styles from "./AdminHeists.module.css";
+import { createAdminProduct, getAdminProducts } from "../../../lib/commerce";
 
 const EMPTY_HEIST = {
   name: "",
@@ -68,6 +69,8 @@ const EMPTY_HEIST = {
   max_users: "",
   ticket_price: "0",
   prize_cop_points: "0",
+  reward_type: "cash",
+  product_id: "",
   questions_per_session: "0",
   countdown_duration_minutes: "10",
   starts_at: "",
@@ -184,6 +187,8 @@ function heistToForm(heist) {
     max_users: heist?.max_users ? String(heist.max_users) : "",
     ticket_price: String(heist?.ticket_price ?? "0"),
     prize_cop_points: String(heist?.prize_cop_points ?? "0"),
+    reward_type: heist?.reward_type || "cash",
+    product_id: heist?.product_id ? String(heist.product_id) : "",
     questions_per_session: String(heist?.questions_per_session ?? "0"),
     countdown_duration_minutes: String(heist?.countdown_duration_minutes ?? "10"),
     starts_at: toDateTimeLocalValue(heist?.starts_at),
@@ -313,6 +318,9 @@ function AdminHeistsPage() {
   const [demoUsers, setDemoUsers] = useState([]);
   const [demoUserBank, setDemoUserBank] = useState([]);
   const [promoCodes, setPromoCodes] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [inlineProductOpen, setInlineProductOpen] = useState(false);
+  const [inlineProduct, setInlineProduct] = useState({ name: "", description: "", sku: "", images: [] });
   const [promoSummary, setPromoSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -544,6 +552,23 @@ function AdminHeistsPage() {
     }
   }, [toast]);
 
+  const loadProducts = useCallback(async () => {
+    try { const data = await getAdminProducts(); setProducts((data?.products || []).filter((product) => Number(product.is_active))); }
+    catch (err) { console.error("Load Product Bank error:", err); }
+  }, []);
+
+  const saveInlineProduct = async () => {
+    if (!inlineProduct.name.trim() || !inlineProduct.images.length) { toast.warn("Product name and at least one image are required"); return; }
+    setBusy(true);
+    try {
+      const body = new FormData(); body.append("name", inlineProduct.name); body.append("description", inlineProduct.description); body.append("sku", inlineProduct.sku); body.append("primary_index", "0"); inlineProduct.images.forEach((file) => body.append("images", file));
+      const data = await createAdminProduct(body); await loadProducts();
+      setCreateForm((prev) => ({ ...prev, product_id: String(data.product.id), reward_type: "product" }));
+      setInlineProduct({ name: "", description: "", sku: "", images: [] }); setInlineProductOpen(false); toast.success("Product saved and selected");
+    } catch (err) { toast.error(err?.response?.data?.message || "Unable to save product"); }
+    finally { setBusy(false); }
+  };
+
   const loadSelectedDetails = useCallback(async () => {
     if (!selectedId) {
       setDetailHeist(null);
@@ -585,7 +610,8 @@ function AdminHeistsPage() {
     loadAutoHeistSettings();
     loadDemoUserBank();
     loadPromoCodes();
-  }, [loadHeists, loadQuestionBank, loadContentBank, loadAutoHeistSettings, loadDemoUserBank, loadPromoCodes]);
+    loadProducts();
+  }, [loadHeists, loadQuestionBank, loadContentBank, loadAutoHeistSettings, loadDemoUserBank, loadPromoCodes, loadProducts]);
 
   useEffect(() => {
     if (activeDetailHeist?.status) setStatusValue(activeDetailHeist.status);
@@ -1956,7 +1982,7 @@ function AdminHeistsPage() {
                     <span className={styles.status}>{heist.status}</span>
                     <strong>{heist.name}</strong>
                     <small>
-                      {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
+                      {heist.reward_type === "product" ? `${heist.product_name || "Product"} prize` : `${formatNum(heist.prize_cop_points)} CP prize`} · {formatNum(heist.total_questions)} assigned questions
                     </small>
                     <span className={styles.cardStats}>
                       <em>{formatCapacity(heist)}</em>
@@ -2110,7 +2136,7 @@ function AdminHeistsPage() {
 
 	                  <div className={styles.metaGrid}>
 	                    <div><span>Status</span><strong>{activeDetailHeist.status}</strong></div>
-	                    <div><span>Prize</span><strong>{formatNum(activeDetailHeist.prize_cop_points)} CP</strong></div>
+	                    <div><span>Prize</span><strong>{activeDetailHeist.reward_type === "product" ? activeDetailHeist.product_name || "Product reward" : `${formatNum(activeDetailHeist.prize_cop_points)} CP`}</strong></div>
 	                    <div><span>Ticket</span><strong>{formatNum(activeDetailHeist.ticket_price)} CP</strong></div>
 	                    <div><span>Min users</span><strong>{formatNum(activeDetailHeist.min_users)}</strong></div>
 	                    <div><span>Max users</span><strong>{activeDetailHeist.max_users ? formatNum(activeDetailHeist.max_users) : "Unlimited"}</strong></div>
@@ -2468,7 +2494,7 @@ function AdminHeistsPage() {
                         <span className={styles.status}>{heist.status}</span>
                         <strong>{heist.name}</strong>
                         <small>
-                          {formatNum(heist.prize_cop_points)} CP prize · {formatNum(heist.total_questions)} assigned questions
+                          {heist.reward_type === "product" ? `${heist.product_name || "Product"} prize` : `${formatNum(heist.prize_cop_points)} CP prize`} · {formatNum(heist.total_questions)} assigned questions
                         </small>
                         <span className={styles.cardStats}>
                           <em>{formatCapacity(heist)}</em>
@@ -2577,13 +2603,36 @@ function AdminHeistsPage() {
 
             <div className={styles.twoCol}>
               <label className={styles.field}>
+                <span>Reward mode</span>
+                <select name="reward_type" value={createForm.reward_type} onChange={updateCreateForm}>
+                  <option value="cash">Cash · CopUpCoin</option><option value="product">Physical product</option>
+                </select>
+              </label>
+              {createForm.reward_type === "product" ? <label className={styles.field}>
+                <span>Product Bank reward</span>
+                <select name="product_id" value={createForm.product_id} onChange={updateCreateForm} required>
+                  <option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}{product.sku ? ` · ${product.sku}` : ""}</option>)}
+                </select>
+                <button type="button" className={styles.softBtn} onClick={() => setInlineProductOpen((open) => !open)}><FaPlus /> Add new product</button>
+              </label> : null}
+            </div>
+            {createForm.reward_type === "product" && inlineProductOpen ? <div className={styles.detailPanel}>
+              <strong>Save new Product Bank item</strong>
+              <div className={styles.twoCol}><label className={styles.field}><span>Product name</span><input value={inlineProduct.name} onChange={(e) => setInlineProduct({...inlineProduct,name:e.target.value})}/></label><label className={styles.field}><span>SKU (optional)</span><input value={inlineProduct.sku} onChange={(e) => setInlineProduct({...inlineProduct,sku:e.target.value})}/></label></div>
+              <label className={styles.field}><span>Description</span><textarea value={inlineProduct.description} onChange={(e) => setInlineProduct({...inlineProduct,description:e.target.value})}/></label>
+              <label className={styles.field}><span>Images (first image is primary)</span><input type="file" accept="image/*" multiple onChange={(e) => setInlineProduct({...inlineProduct,images:[...e.target.files]})}/></label>
+              <button type="button" className={styles.primaryBtn} disabled={busy} onClick={saveInlineProduct}>Save and select product</button>
+            </div> : null}
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
                 <span>Ticket CP</span>
                 <input type="number" name="ticket_price" min="0" value={createForm.ticket_price} onChange={updateCreateForm} />
               </label>
-              <label className={styles.field}>
+              {createForm.reward_type === "cash" ? <label className={styles.field}>
                 <span>Prize CP</span>
                 <input type="number" name="prize_cop_points" min="0" value={createForm.prize_cop_points} onChange={updateCreateForm} />
-              </label>
+              </label> : null}
             </div>
 
             <div className={styles.twoCol}>
@@ -2705,13 +2754,29 @@ function AdminHeistsPage() {
 
             <div className={styles.twoCol}>
               <label className={styles.field}>
+                <span>Reward mode</span>
+                <select name="reward_type" value={editForm.reward_type} onChange={updateEditForm}>
+                  <option value="cash">Cash · CopUpCoin</option><option value="product">Physical product</option>
+                </select>
+              </label>
+              {editForm.reward_type === "product" ? <label className={styles.field}>
+                <span>Product Bank reward</span>
+                <select name="product_id" value={editForm.product_id} onChange={updateEditForm} required>
+                  <option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}{product.sku ? ` · ${product.sku}` : ""}</option>)}
+                </select>
+                <NavLink to="/admin/heists/product-bank">Add a new product to Product Bank</NavLink>
+              </label> : null}
+            </div>
+
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
                 <span>Ticket CP</span>
                 <input type="number" name="ticket_price" min="0" value={editForm.ticket_price} onChange={updateEditForm} />
               </label>
-              <label className={styles.field}>
+              {editForm.reward_type === "cash" ? <label className={styles.field}>
                 <span>Prize CP</span>
                 <input type="number" name="prize_cop_points" min="0" value={editForm.prize_cop_points} onChange={updateEditForm} />
-              </label>
+              </label> : null}
             </div>
 
             <div className={styles.twoCol}>
@@ -2811,7 +2876,7 @@ function AdminHeistsPage() {
                 </div>
                 <div>
                   <span>Prize</span>
-                  <strong>{formatNum(activeDetailHeist.prize_cop_points)} CP</strong>
+                  <strong>{activeDetailHeist.reward_type === "product" ? activeDetailHeist.product_name || "Product reward" : `${formatNum(activeDetailHeist.prize_cop_points)} CP`}</strong>
                 </div>
                 <div>
                   <span>Submitted</span>

@@ -243,7 +243,9 @@ export default function Header() {
                                 <strong>{alert.title}</strong>
                                 <small>
                                   {isWinner
-                                    ? `${formatCoins(alert.prize_cop_points)} CopUpCoin won`
+                                    ? alert.reward_type === "product"
+                                      ? `${alert.product_name || "Product reward"} won`
+                                      : `${formatCoins(alert.prize_cop_points)} CopUpCoin won`
                                     : isTrade
                                       ? `${formatCoins(alert.cop_points)} CopUpCoin from ${alert.sender_name || "a user"}`
                                     : isPayin
@@ -295,7 +297,7 @@ export default function Header() {
             </div>
             <p>You won the heist</p>
             <h2>{winnerPopup.heist_name}</h2>
-            <strong>{formatCoins(winnerPopup.prize_cop_points)} CopUpCoin</strong>
+            <strong>{winnerPopup.reward_type === "product" ? winnerPopup.product_name || "Product reward" : `${formatCoins(winnerPopup.prize_cop_points)} CopUpCoin`}</strong>
             <button type="button" className={styles.winBtn} onClick={closeWinnerPopup}>
               Got it
             </button>

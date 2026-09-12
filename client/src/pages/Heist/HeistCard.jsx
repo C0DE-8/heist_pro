@@ -1,6 +1,7 @@
 import React from "react";
 import { FiEye, FiLock, FiPlay, FiPlus } from "react-icons/fi";
 import styles from "./HeistCard.module.css";
+import { imgUrl } from "../../lib/api";
 
 const DEFAULT_HEIST_IMAGE = "/assets/m2-foods.png";
 const JOIN_LOCK_BEFORE_END_MS = 2 * 60 * 1000;
@@ -66,7 +67,8 @@ function getHeistUiState(heist, isLocked) {
 }
 
 export default function HeistCard({ heist, onAction, isBusy }) {
-  const imageSrc = heist?.image || DEFAULT_HEIST_IMAGE;
+  const isProduct = heist?.reward_type === "product";
+  const imageSrc = isProduct && heist?.product?.primary_image ? imgUrl(heist.product.primary_image) : heist?.image || DEFAULT_HEIST_IMAGE;
   const title = heist?.name || "Heist";
   const totalParticipants = Number(heist?.total_participants || 0);
   const maxUsers = Number(heist?.max_users || 0);
@@ -109,7 +111,7 @@ export default function HeistCard({ heist, onAction, isBusy }) {
           <div className={styles.moneyStack}>
             <div className={styles.prize}>
               <span>Prize</span>
-              <strong>{formatNum(heist?.prize_cop_points)} CP</strong>
+              <strong>{isProduct ? heist?.product?.name || "Product reward" : `${formatNum(heist?.prize_cop_points)} CP`}</strong>
             </div>
             <div className={styles.entryFee}>
               <span>Entry fee</span>

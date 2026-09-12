@@ -26,6 +26,9 @@ const activityRoutes = require("./routes/activity");
 const clanRoutes = require("./routes/clans");
 const adminClanRoutes = require("./routes/admin.clans");
 const adminLevelRoutes = require("./routes/admin.levels");
+const adminProductRoutes = require("./routes/admin.products");
+const commerceRoutes = require("./routes/commerce");
+const adminOrderRoutes = require("./routes/admin.orders");
 const { startHeistCron } = require("./jobs/heistCron");
 
 dotenv.config({ quiet: true });
@@ -64,6 +67,7 @@ app.use("/api/flutterwave", flutterwaveRoutes);
 app.use("/api/heists", heistRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/clans", clanRoutes);
+app.use("/api/commerce", commerceRoutes);
 app.use("/api/admin/heists", adminHeistRoutes);
 app.use("/api/admin/profile", adminProfileRoutes);
 app.use("/api/admin/users", adminUsersRoutes);
@@ -75,6 +79,8 @@ app.use("/api/admin/notifications", adminNotificationRoutes);
 app.use("/api/admin/god-eyes", adminGodEyesRoutes);
 app.use("/api/admin/clans", adminClanRoutes);
 app.use("/api/admin/levels", adminLevelRoutes);
+app.use("/api/admin/products", adminProductRoutes);
+app.use("/api/admin/orders", adminOrderRoutes);
 
 
 app.get("/health", async (req, res) => {

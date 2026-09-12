@@ -316,6 +316,8 @@ router.get("/heist-alerts", authenticateToken, async (req, res) => {
          h.name,
          h.status,
          h.prize_cop_points,
+         h.reward_type,
+         p.name AS product_name,
          h.countdown_started_at,
          h.countdown_ends_at,
          h.updated_at,
@@ -326,6 +328,7 @@ router.get("/heist-alerts", authenticateToken, async (req, res) => {
          hp.status AS participant_status
        FROM heist_participants hp
        JOIN heist h ON h.id = hp.heist_id
+       LEFT JOIN products p ON p.id = h.product_id
        LEFT JOIN users u ON u.id = h.winner_user_id
        WHERE hp.user_id = ?
          AND h.status IN ('started', 'completed')
@@ -368,6 +371,8 @@ router.get("/heist-alerts", authenticateToken, async (req, res) => {
             title: "You won a heist",
             message: `You won ${row.name}.`,
             prize_cop_points: Number(row.prize_cop_points || 0),
+            reward_type: row.reward_type,
+            product_name: row.product_name,
             created_at: row.updated_at || row.countdown_ends_at || row.joined_at,
           });
         }

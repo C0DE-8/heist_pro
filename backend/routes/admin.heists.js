@@ -197,6 +197,8 @@ router.post("/", async (req, res) => {
       max_users,
       ticket_price,
       prize_cop_points,
+      reward_type,
+      product_id,
       questions_per_session,
       question_count,
       countdown_duration_minutes,
@@ -205,6 +207,9 @@ router.post("/", async (req, res) => {
     } = req.body || {};
 
     if (!name) return res.status(400).json({ message: "Name is required" });
+    const rewardType = reward_type === "product" ? "product" : "cash";
+    const productId = rewardType === "product" ? Number(product_id) : null;
+    if (rewardType === "product" && !productId) return res.status(400).json({ message: "Select a product reward" });
 
     const minUsersParsed = parseMinUsers(min_users);
     if (!minUsersParsed.ok) return res.status(400).json({ message: minUsersParsed.message });
@@ -219,19 +224,26 @@ router.post("/", async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
+    if (productId) {
+      const [[product]] = await conn.query("SELECT id FROM products WHERE id = ? AND is_active = 1", [productId]);
+      if (!product) { await conn.rollback(); return res.status(400).json({ message: "Selected product is unavailable" }); }
+    }
+
     const [result] = await conn.query(
       `INSERT INTO heist
         (name, description, min_users, max_users, ticket_price,
-         prize_cop_points, questions_per_session, countdown_duration_minutes,
+         prize_cop_points, reward_type, product_id, questions_per_session, countdown_duration_minutes,
          starts_at, ends_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         description || null,
         minUsersParsed.value,
         maxUsersParsed.value,
         Number(ticket_price || 0),
-        Number(prize_cop_points || 0),
+        rewardType === "cash" ? Number(prize_cop_points || 0) : 0,
+        rewardType,
+        productId,
         countToUse,
         Number(countdown_duration_minutes || 10),
         starts_at || null,
@@ -276,6 +288,10 @@ router.get("/", async (req, res) => {
          h.max_users,
          h.ticket_price,
          h.prize_cop_points,
+         h.reward_type,
+         h.product_id,
+         p.name AS product_name,
+         (SELECT image_path FROM product_images WHERE product_id = h.product_id ORDER BY is_primary DESC, sort_order, id LIMIT 1) AS product_primary_image,
          h.total_questions,
          h.questions_per_session,
          h.submissions_locked,
@@ -296,6 +312,7 @@ router.get("/", async (req, res) => {
          COUNT(DISTINCT CASE WHEN hp.status = 'joined' THEN hp.id END) AS joined_participants,
          COUNT(DISTINCT CASE WHEN hp.status = 'submitted' THEN hp.id END) AS submitted_participants
        FROM heist h
+       LEFT JOIN products p ON p.id = h.product_id
        LEFT JOIN users winner ON winner.id = h.winner_user_id
        LEFT JOIN heist_demo_submissions demoWinner ON demoWinner.id = h.winner_demo_submission_id
        LEFT JOIN heist_participants hp ON hp.heist_id = h.id
@@ -671,7 +688,7 @@ router.patch("/:id", async (req, res) => {
     if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
 
     const [[existingHeist]] = await pool.query(
-      "SELECT id, min_users, max_users FROM heist WHERE id = ? LIMIT 1",
+      "SELECT id, min_users, max_users, reward_type, product_id FROM heist WHERE id = ? LIMIT 1",
       [heistId]
     );
     if (!existingHeist) return res.status(404).json({ message: "Heist not found" });
@@ -680,6 +697,18 @@ router.patch("/:id", async (req, res) => {
     const params = [];
     let nextMinUsers = Number(existingHeist.min_users || 1);
     let nextMaxUsers = existingHeist.max_users === null ? null : Number(existingHeist.max_users || 0);
+    const nextRewardType = req.body?.reward_type === undefined ? existingHeist.reward_type : (req.body.reward_type === "product" ? "product" : "cash");
+    const nextProductId = nextRewardType === "product" ? Number(req.body?.product_id ?? existingHeist.product_id) : null;
+    if (nextRewardType === "product" && !nextProductId) return res.status(400).json({ message: "Select a product reward" });
+    if (req.body?.reward_type !== undefined || req.body?.product_id !== undefined) {
+      if (nextProductId) {
+        const [[product]] = await pool.query("SELECT id FROM products WHERE id = ? AND is_active = 1", [nextProductId]);
+        if (!product) return res.status(400).json({ message: "Selected product is unavailable" });
+      }
+      updates.push("reward_type = ?", "product_id = ?");
+      params.push(nextRewardType, nextProductId);
+      if (nextRewardType === "product") { updates.push("prize_cop_points = 0"); }
+    }
 
     if (req.body?.name !== undefined) {
       const name = String(req.body.name || "").trim();
@@ -723,7 +752,7 @@ router.patch("/:id", async (req, res) => {
       params.push(ticketPrice);
     }
 
-    if (req.body?.prize_cop_points !== undefined) {
+    if (req.body?.prize_cop_points !== undefined && nextRewardType === "cash") {
       const prizeCopPoints = Number(req.body.prize_cop_points);
       if (!Number.isInteger(prizeCopPoints) || prizeCopPoints < 0) {
         return res.status(400).json({ message: "prize_cop_points must be 0 or greater" });
@@ -780,6 +809,8 @@ router.patch("/:id", async (req, res) => {
          max_users,
          ticket_price,
          prize_cop_points,
+         reward_type,
+         product_id,
          total_questions,
          questions_per_session,
          countdown_duration_minutes,
@@ -1206,6 +1237,10 @@ router.get("/:id", async (req, res) => {
          h.max_users,
          h.ticket_price,
          h.prize_cop_points,
+         h.reward_type,
+         h.product_id,
+         product.name AS product_name,
+         (SELECT image_path FROM product_images WHERE product_id = h.product_id ORDER BY is_primary DESC, sort_order, id LIMIT 1) AS product_primary_image,
          h.total_questions,
          h.questions_per_session,
          h.submissions_locked,
@@ -1230,6 +1265,7 @@ router.get("/:id", async (req, res) => {
          COUNT(DISTINCT CASE WHEN hp.status = 'submitted' THEN hp.id END) AS submitted_participants
        FROM heist h
        LEFT JOIN users creator ON creator.id = h.created_by
+       LEFT JOIN products product ON product.id = h.product_id
        LEFT JOIN users winner ON winner.id = h.winner_user_id
        LEFT JOIN heist_demo_submissions demoWinner ON demoWinner.id = h.winner_demo_submission_id
        LEFT JOIN heist_participants hp ON hp.heist_id = h.id
@@ -1657,6 +1693,7 @@ router.patch("/:id/status", async (req, res) => {
     const allowed = new Set(["pending", "hold", "started", "completed", "cancelled"]);
     if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
     if (!allowed.has(status)) return res.status(400).json({ message: "Invalid status" });
+    if (status === "completed") return res.status(400).json({ message: "Use Finalize to complete a Heist and award its reward" });
 
     if (status === "started") {
       const [result] = await pool.query(

@@ -62,6 +62,10 @@ import MyClan from "./pages/MyClan/MyClan";
 import Rewards from "./pages/Rewards/Rewards";
 import Levels from "./pages/Levels/Levels";
 import LevelActivity from "./pages/LevelActivity/LevelActivity";
+import Cart from "./pages/Commerce/Cart";
+import Checkout from "./pages/Commerce/Checkout";
+import Orders from "./pages/Commerce/Orders";
+import AdminProducts from "./pages/admin/AdminProducts/AdminProducts";
 
 
 export default function App() {
@@ -92,6 +96,10 @@ export default function App() {
 
         <Route element={<UserRoute />}>
           <Route path="/account" element={<Account />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/orders" element={<Orders />} />
+          <Route path="/orders/:id" element={<Orders />} />
         </Route>
 
         <Route element={<UserRoute />}>
@@ -205,6 +213,7 @@ export default function App() {
           <Route path="/admin/heists/question-bank" element={<AdminHeists />} />
           <Route path="/admin/heists/promo-codes" element={<AdminHeists />} />
           <Route path="/admin/heists/archive" element={<AdminHeists />} />
+          <Route path="/admin/heists/product-bank" element={<AdminProducts />} />
         </Route>
 
         <Route element={<AdminRoute />}>

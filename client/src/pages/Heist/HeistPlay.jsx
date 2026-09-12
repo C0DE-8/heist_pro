@@ -968,7 +968,7 @@ export default function HeistPlay() {
 
           <div className={styles.hudStats}>
             <div className={`${styles.hudPill} ${styles.prizePill}`}>
-              Prize <strong>{formatNum(heist?.prize_cop_points)} CP</strong>
+              Prize <strong>{heist?.reward_type === "product" ? heist?.product?.name || "Product" : `${formatNum(heist?.prize_cop_points)} CP`}</strong>
             </div>
             <div className={`${styles.hudPill} ${styles.coinPill}`}>
               Ticket <strong>{formatNum(entryFee)} CP</strong>
@@ -1170,7 +1170,7 @@ export default function HeistPlay() {
                   <span className={styles.cardTag}>Submit</span>
                   <h4 className={styles.cardTitle}>{saving ? "Submitting..." : "Lock Result"}</h4>
                   <p className={styles.cardCopy}>Send your answers to calculate score and rank.</p>
-                  <span className={styles.cardPrice}>{formatNum(heist?.prize_cop_points)} CP prize</span>
+                  <span className={styles.cardPrice}>{heist?.reward_type === "product" ? heist?.product?.name || "Product prize" : `${formatNum(heist?.prize_cop_points)} CP prize`}</span>
                 </div>
               </button>
             </div>

@@ -5,6 +5,8 @@ import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import LevelProgressBar from "../../components/LevelProgressBar/LevelProgressBar";
 import { getHeistResult } from "../../lib/heists";
+import { addCartItem } from "../../lib/commerce";
+import ProductGallery from "../../components/ProductGallery/ProductGallery";
 import { getUserProgress } from "../../lib/levels";
 import styles from "./Heist.module.css";
 
@@ -27,6 +29,7 @@ export default function HeistResult() {
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const loadResult = useCallback(async () => {
     setLoading(true);
@@ -53,6 +56,14 @@ export default function HeistResult() {
 
   const result = data?.result;
   const winner = data?.winner;
+  const isProduct = winner?.reward_type === "product";
+  const addToCart = async () => {
+    if (!winner?.entitlement_id || adding) return;
+    setAdding(true); setError("");
+    try { await addCartItem(winner.entitlement_id); navigate("/cart"); }
+    catch (err) { setError(err?.response?.data?.message || "Unable to add product to cart."); }
+    finally { setAdding(false); }
+  };
 
   return (
     <div className={styles.page}>
@@ -122,10 +133,12 @@ export default function HeistResult() {
               {winner ? (
                 <div className={styles.winnerBox}>
                   <span>Winner</span>
-                  <strong>
-                    {winner.username || `User #${winner.user_id}`} won{" "}
-                    {formatNum(winner.prize_cop_points)} CP
-                  </strong>
+                  <strong>{winner.username || `User #${winner.user_id}`} won {isProduct ? winner.product?.name || "a product" : `${formatNum(winner.prize_cop_points)} CP`}</strong>
+                  {isProduct && winner.product ? <div>
+                    <ProductGallery product={winner.product} />
+                    {winner.entitlement_id && winner.entitlement_status !== "ordered" ? <button type="button" className={styles.primaryBtn} onClick={addToCart} disabled={adding || winner.entitlement_status === "in_cart"}>{winner.entitlement_status === "in_cart" ? "Already in cart" : adding ? "Adding..." : "Add product to cart"}</button> : null}
+                    {winner.entitlement_status === "ordered" ? <button type="button" className={styles.primaryBtn} onClick={() => navigate("/orders")}>View order</button> : null}
+                  </div> : null}
                 </div>
               ) : null}
             </>

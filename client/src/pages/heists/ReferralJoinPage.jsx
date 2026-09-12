@@ -248,7 +248,7 @@ export default function ReferralJoinPage() {
                 <div>
                   <FiAward />
                   <span>Prize</span>
-                  <strong>{formatNum(heist?.prize_cop_points)} CP</strong>
+                  <strong>{heist?.reward_type === "product" ? heist?.product?.name || "Product reward" : `${formatNum(heist?.prize_cop_points)} CP`}</strong>
                 </div>
                 <div>
                   <FiClock />
