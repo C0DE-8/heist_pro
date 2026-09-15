@@ -9,7 +9,10 @@ import { getStoredToken } from "../../lib/auth";
 import {
   getPayinRequests,
   getPaymentInfo,
+  getPayoutBeneficiaries,
   getPayoutRequests,
+  deletePayoutBeneficiary,
+  savePayoutBeneficiary,
   submitPayinRequest,
   submitPayoutRequest,
 } from "../../lib/transactions";
@@ -61,8 +64,6 @@ function statusClass(status) {
 }
 
 const HISTORY_LIMIT = 5;
-const PAYOUT_FEE_RATE = 0.1;
-
 export default function Account() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -99,6 +100,10 @@ export default function Account() {
     note: "",
   });
   const [banks, setBanks] = useState([]);
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [beneficiariesLoading, setBeneficiariesLoading] = useState(false);
+  const [savingBeneficiary, setSavingBeneficiary] = useState(false);
+  const [deletingBeneficiaryId, setDeletingBeneficiaryId] = useState(null);
   const [bankSearch, setBankSearch] = useState("");
   const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const [bankLoading, setBankLoading] = useState(false);
@@ -113,6 +118,8 @@ export default function Account() {
   const coinRate = paymentInfo?.coin_rate || null;
   const paymentAccount = paymentInfo?.payment_account || null;
   const rateCurrency = coinRate?.currency || "NGN";
+  const withdrawAccountNumber = withdrawForm.account_number;
+  const withdrawBankCode = withdrawForm.bank_code;
   const calculatedPayinAmount = useMemo(() => {
     const coins = Number(coinAmount);
     const unit = Number(coinRate?.unit);
@@ -122,15 +129,6 @@ export default function Account() {
     }
     return Number(((coins / unit) * price).toFixed(2));
   }, [coinAmount, coinRate]);
-  const estimatedWithdrawAmount = useMemo(() => {
-    const points = Number(withdrawForm.cop_points);
-    const unit = Number(coinRate?.unit);
-    const price = Number(coinRate?.price);
-    if (!Number.isFinite(points) || !Number.isFinite(unit) || !Number.isFinite(price) || unit <= 0) {
-      return 0;
-    }
-    return Number((((points / unit) * price) * (1 - PAYOUT_FEE_RATE)).toFixed(2));
-  }, [coinRate, withdrawForm.cop_points]);
   const filteredBanks = useMemo(() => {
     const query = bankSearch.trim().toLowerCase();
     if (!query) return banks;
@@ -202,6 +200,24 @@ export default function Account() {
     loadPayouts();
   }, [loadPayouts]);
 
+  const loadBeneficiaries = useCallback(async () => {
+    if (!token) return;
+    setBeneficiariesLoading(true);
+    try {
+      const data = await getPayoutBeneficiaries();
+      setBeneficiaries(Array.isArray(data?.beneficiaries) ? data.beneficiaries : []);
+    } catch (err) {
+      console.error("Payout beneficiaries error:", err);
+      toast.error(err?.response?.data?.message || "Unable to load beneficiaries.");
+    } finally {
+      setBeneficiariesLoading(false);
+    }
+  }, [toast, token]);
+
+  useEffect(() => {
+    loadBeneficiaries();
+  }, [loadBeneficiaries]);
+
   useEffect(() => {
     if (!token) return;
 
@@ -234,6 +250,54 @@ export default function Account() {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
+
+  useEffect(() => {
+    if (!withdrawBankCode || !/^\d{10}$/.test(withdrawAccountNumber)) return undefined;
+    if (
+      resolvedAccount?.account_number === withdrawAccountNumber &&
+      resolvedAccount?.bank_code === withdrawBankCode
+    ) {
+      return undefined;
+    }
+
+    let active = true;
+    const timeoutId = window.setTimeout(async () => {
+      setResolvingAccount(true);
+      setResolvedAccount(null);
+
+      try {
+        const data = await resolveFlutterwaveAccount({
+          account_bank: withdrawBankCode,
+          account_number: withdrawAccountNumber,
+        });
+        if (!active) return;
+        if (!data?.verified) {
+          setWithdrawForm((prev) => ({ ...prev, account_name: "" }));
+          toast.error(data?.message || "Unable to verify account.");
+          return;
+        }
+
+        setResolvedAccount(data);
+        setWithdrawForm((prev) => ({
+          ...prev,
+          account_name: data.account_name || "",
+          account_number: data.account_number || prev.account_number,
+        }));
+      } catch (err) {
+        if (!active) return;
+        console.error("Resolve account error:", err);
+        setWithdrawForm((prev) => ({ ...prev, account_name: "" }));
+        toast.error(err?.response?.data?.message || "Unable to verify account.");
+      } finally {
+        if (active) setResolvingAccount(false);
+      }
+    }, 400);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [resolvedAccount, toast, withdrawAccountNumber, withdrawBankCode]);
 
   const copyWallet = async () => {
     if (!user?.wallet_address) return;
@@ -384,7 +448,11 @@ export default function Account() {
       resolvedAccount.account_number !== withdrawForm.account_number ||
       resolvedAccount.bank_code !== withdrawForm.bank_code
     ) {
-      toast.error("Verify your account number before requesting withdrawal.");
+      toast.error(
+        resolvingAccount
+          ? "Please wait while the account name is checked."
+          : "The account number could not be verified. Check the details and try again."
+      );
       return;
     }
 
@@ -418,41 +486,55 @@ export default function Account() {
     }
   };
 
-  const verifyWithdrawAccount = async () => {
-    if (resolvingAccount || transactionLoading) return;
-    if (!withdrawForm.bank_code) {
-      toast.error("Select your bank from the list.");
-      return;
-    }
-    if (!/^\d{10}$/.test(withdrawForm.account_number)) {
-      toast.error("Account number must be 10 digits.");
-      return;
-    }
-
-    setResolvingAccount(true);
+  const selectBeneficiary = (beneficiary) => {
+    setWithdrawForm((prev) => ({
+      ...prev,
+      account_name: beneficiary.account_name,
+      account_number: beneficiary.account_number,
+      account_type: beneficiary.account_type || "bank_transfer",
+      bank_name: beneficiary.bank_name,
+      bank_code: beneficiary.bank_code,
+    }));
+    setBankSearch(beneficiary.bank_name);
+    setBankDropdownOpen(false);
+    setResolvedAccount({
+      verified: true,
+      account_name: beneficiary.account_name,
+      account_number: beneficiary.account_number,
+      bank_code: beneficiary.bank_code,
+    });
     setError("");
-    setResolvedAccount(null);
+  };
+
+  const saveBeneficiary = async () => {
+    if (!resolvedAccount || savingBeneficiary) return;
+    setSavingBeneficiary(true);
     try {
-      const data = await resolveFlutterwaveAccount({
-        account_bank: withdrawForm.bank_code,
-        account_number: withdrawForm.account_number,
-      });
-      if (!data?.verified) {
-        toast.error(data?.message || "Unable to verify account.");
-        return;
-      }
-      setResolvedAccount(data);
-      setWithdrawForm((prev) => ({
-        ...prev,
-        account_name: data.account_name || prev.account_name,
-        account_number: data.account_number || prev.account_number,
-      }));
-      toast.success("Account verified.");
+      await savePayoutBeneficiary(withdrawForm);
+      await loadBeneficiaries();
+      toast.success("Beneficiary saved.");
     } catch (err) {
-      console.error("Resolve account error:", err);
-      toast.error(err?.response?.data?.message || "Unable to verify account.");
+      console.error("Save beneficiary error:", err);
+      toast.error(err?.response?.data?.message || "Unable to save beneficiary.");
     } finally {
-      setResolvingAccount(false);
+      setSavingBeneficiary(false);
+    }
+  };
+
+  const removeBeneficiary = async (beneficiary) => {
+    if (deletingBeneficiaryId) return;
+    if (!window.confirm(`Remove ${beneficiary.account_name} from your beneficiaries?`)) return;
+
+    setDeletingBeneficiaryId(beneficiary.id);
+    try {
+      await deletePayoutBeneficiary(beneficiary.id);
+      setBeneficiaries((prev) => prev.filter((item) => item.id !== beneficiary.id));
+      toast.success("Beneficiary removed.");
+    } catch (err) {
+      console.error("Remove beneficiary error:", err);
+      toast.error(err?.response?.data?.message || "Unable to remove beneficiary.");
+    } finally {
+      setDeletingBeneficiaryId(null);
     }
   };
 
@@ -692,11 +774,39 @@ export default function Account() {
                   </p>
                 </div>
 
-                <div className={styles.rateBox}>
-                  <span>Withdrawal value after 10% fee</span>
-                  <strong>{formatMoney(estimatedWithdrawAmount, rateCurrency)}</strong>
-                  <small>Available balance: {formatNum(copPoints)} CP</small>
-                </div>
+                {beneficiariesLoading ? (
+                  <div className={styles.beneficiaryStatus}>Loading beneficiaries...</div>
+                ) : beneficiaries.length ? (
+                  <div className={styles.beneficiarySection}>
+                    <span className={styles.beneficiaryHeading}>Saved beneficiaries</span>
+                    <div className={styles.beneficiaryList}>
+                      {beneficiaries.map((beneficiary) => (
+                        <div className={styles.beneficiaryCard} key={beneficiary.id}>
+                          <button
+                            type="button"
+                            className={styles.beneficiaryPick}
+                            onClick={() => selectBeneficiary(beneficiary)}
+                            disabled={transactionLoading || Boolean(deletingBeneficiaryId)}
+                          >
+                            <strong>{beneficiary.account_name}</strong>
+                            <span>
+                              {beneficiary.bank_name} · {beneficiary.account_number}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.beneficiaryRemove}
+                            onClick={() => removeBeneficiary(beneficiary)}
+                            disabled={deletingBeneficiaryId === beneficiary.id}
+                            aria-label={`Remove ${beneficiary.account_name}`}
+                          >
+                            {deletingBeneficiaryId === beneficiary.id ? "Removing..." : "Remove"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 <label className={styles.amountField}>
                   <span>CopUpCoin amount</span>
@@ -710,32 +820,6 @@ export default function Account() {
                       setWithdrawForm((prev) => ({ ...prev, cop_points: event.target.value }))
                     }
                     placeholder="Enter CP amount"
-                    disabled={transactionLoading}
-                  />
-                </label>
-
-                <label className={styles.amountField}>
-                  <span>Account name</span>
-                  <input
-                    value={withdrawForm.account_name}
-                    readOnly
-                    placeholder="Verify account to fill name"
-                    disabled={transactionLoading || resolvingAccount}
-                  />
-                </label>
-
-                <label className={styles.amountField}>
-                  <span>Account number</span>
-                  <input
-                    value={withdrawForm.account_number}
-                    onChange={(event) => {
-                      const accountNumber = event.target.value.replace(/\D/g, "").slice(0, 10);
-                      setWithdrawForm((prev) => ({ ...prev, account_number: accountNumber }));
-                      setResolvedAccount(null);
-                    }}
-                    placeholder="Account number"
-                    inputMode="numeric"
-                    maxLength={10}
                     disabled={transactionLoading}
                   />
                 </label>
@@ -760,7 +844,12 @@ export default function Account() {
                       onChange={(event) => {
                         setBankSearch(event.target.value);
                         setBankDropdownOpen(true);
-                        setWithdrawForm((prev) => ({ ...prev, bank_name: "", bank_code: "" }));
+                        setWithdrawForm((prev) => ({
+                          ...prev,
+                          bank_name: "",
+                          bank_code: "",
+                          account_name: "",
+                        }));
                         setResolvedAccount(null);
                       }}
                       onFocus={() => setBankDropdownOpen(true)}
@@ -780,7 +869,12 @@ export default function Account() {
                         onClick={() => {
                           setBankSearch("");
                           setBankDropdownOpen(true);
-                          setWithdrawForm((prev) => ({ ...prev, bank_name: "", bank_code: "" }));
+                          setWithdrawForm((prev) => ({
+                            ...prev,
+                            bank_name: "",
+                            bank_code: "",
+                            account_name: "",
+                          }));
                           setResolvedAccount(null);
                         }}
                         aria-label="Clear selected bank"
@@ -807,6 +901,7 @@ export default function Account() {
                                 ...prev,
                                 bank_name: bank.name,
                                 bank_code: bank.code,
+                                account_name: "",
                               }));
                               setBankSearch(bank.name);
                               setBankDropdownOpen(false);
@@ -824,32 +919,48 @@ export default function Account() {
                       )}
                     </div>
                   ) : null}
-                  <small>Select a bank from the list. Typed text is not submitted.</small>
                 </div>
 
-                <div className={styles.resolveBox}>
-                  {resolvedAccount ? (
-                    <div>
-                      <span>Verified account name</span>
-                      <strong>{resolvedAccount.account_name}</strong>
-                    </div>
-                  ) : (
-                    <span>Verify account name before submitting.</span>
-                  )}
+                <label className={styles.amountField}>
+                  <span>Account number</span>
+                  <input
+                    value={withdrawForm.account_number}
+                    onChange={(event) => {
+                      const accountNumber = event.target.value.replace(/\D/g, "").slice(0, 10);
+                      setWithdrawForm((prev) => ({
+                        ...prev,
+                        account_number: accountNumber,
+                        account_name: "",
+                      }));
+                      setResolvedAccount(null);
+                    }}
+                    placeholder="Account number"
+                    inputMode="numeric"
+                    maxLength={10}
+                    disabled={transactionLoading}
+                  />
+                </label>
+
+                <label className={styles.amountField}>
+                  <span>Account name</span>
+                  <input
+                    value={withdrawForm.account_name}
+                    readOnly
+                    placeholder={resolvingAccount ? "Checking account..." : "Filled automatically"}
+                    disabled={transactionLoading}
+                  />
+                </label>
+
+                {resolvedAccount ? (
                   <button
                     type="button"
-                    className={styles.verifyBtn}
-                    onClick={verifyWithdrawAccount}
-                    disabled={
-                      transactionLoading ||
-                      resolvingAccount ||
-                      !withdrawForm.bank_code ||
-                      !/^\d{10}$/.test(withdrawForm.account_number)
-                    }
+                    className={styles.saveBeneficiaryBtn}
+                    onClick={saveBeneficiary}
+                    disabled={savingBeneficiary || transactionLoading}
                   >
-                    {resolvingAccount ? "Verifying..." : "Verify account"}
+                    {savingBeneficiary ? "Saving beneficiary..." : "Save as beneficiary"}
                   </button>
-                </div>
+                ) : null}
 
                 <label className={styles.amountField}>
                   <span>Note optional</span>

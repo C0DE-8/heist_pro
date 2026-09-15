@@ -243,6 +243,81 @@ router.get("/payins", async (req, res) => {
   }
 });
 
+// api/transactions/payout-beneficiaries
+router.get("/payout-beneficiaries", async (req, res) => {
+  try {
+    const [beneficiaries] = await pool.query(
+      `SELECT id, account_name, account_number, account_type, bank_name, bank_code, created_at
+       FROM payout_beneficiaries
+       WHERE user_id = ?
+       ORDER BY updated_at DESC, id DESC`,
+      [req.user.userId]
+    );
+    return res.json({ beneficiaries });
+  } catch (err) {
+    console.error("payout beneficiaries error:", err);
+    return res.status(500).json({ message: "Error fetching beneficiaries" });
+  }
+});
+
+router.post("/payout-beneficiaries", async (req, res) => {
+  const userId = req.user.userId;
+  const accountName = String(req.body?.account_name || "").trim();
+  const accountNumber = String(req.body?.account_number || "").trim();
+  const accountType = String(req.body?.account_type || "bank_transfer").trim();
+  const bankName = String(req.body?.bank_name || "").trim();
+  const bankCode = String(req.body?.bank_code || "").trim();
+
+  if (!accountName || !bankName || !bankCode || !/^\d{10}$/.test(accountNumber)) {
+    return res.status(400).json({ message: "A verified bank account is required" });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO payout_beneficiaries
+        (user_id, account_name, account_number, account_type, bank_name, bank_code)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         account_name = VALUES(account_name),
+         account_type = VALUES(account_type),
+         bank_name = VALUES(bank_name),
+         updated_at = CURRENT_TIMESTAMP`,
+      [userId, accountName, accountNumber, accountType, bankName, bankCode]
+    );
+    const [[beneficiary]] = await pool.query(
+      `SELECT id, account_name, account_number, account_type, bank_name, bank_code, created_at
+       FROM payout_beneficiaries
+       WHERE user_id = ? AND bank_code = ? AND account_number = ?
+       LIMIT 1`,
+      [userId, bankCode, accountNumber]
+    );
+    return res.status(result.affectedRows === 1 ? 201 : 200).json({
+      message: "Beneficiary saved",
+      beneficiary,
+    });
+  } catch (err) {
+    console.error("save payout beneficiary error:", err);
+    return res.status(500).json({ message: "Error saving beneficiary" });
+  }
+});
+
+router.delete("/payout-beneficiaries/:id", async (req, res) => {
+  const beneficiaryId = toPositiveInteger(Number(req.params.id));
+  if (!beneficiaryId) return res.status(400).json({ message: "Invalid beneficiary" });
+
+  try {
+    const [result] = await pool.query(
+      "DELETE FROM payout_beneficiaries WHERE id = ? AND user_id = ?",
+      [beneficiaryId, req.user.userId]
+    );
+    if (!result.affectedRows) return res.status(404).json({ message: "Beneficiary not found" });
+    return res.json({ message: "Beneficiary removed" });
+  } catch (err) {
+    console.error("delete payout beneficiary error:", err);
+    return res.status(500).json({ message: "Error removing beneficiary" });
+  }
+});
+
 // api/transactions/payouts
 router.post("/payouts", async (req, res) => {
   const userId = req.user.userId;

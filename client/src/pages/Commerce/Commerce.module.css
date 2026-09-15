@@ -1,9 +1,11 @@
 .page {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: radial-gradient(circle at 18% 10%, rgba(57,217,138,.16), transparent 28%), radial-gradient(circle at 86% 18%, rgba(59,130,246,.12), transparent 30%), linear-gradient(180deg,#07090d 0%,#0d1117 45%,#11161f 100%);
   color: #fff;
 }
-.main { width: min(100%, 960px); margin: 0 auto; padding: 112px 14px 40px; display: grid; gap: 16px; }
+.main { width: min(100%, 960px); flex: 1 0 auto; margin: 0 auto; padding: 112px 14px 40px; display: grid; align-content: start; gap: 16px; }
 .heading, .panel, .item, .orderLink, .empty, .error {
   border: 1px solid rgba(255,255,255,.12);
   background: linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.045)),rgba(28,29,33,.68);

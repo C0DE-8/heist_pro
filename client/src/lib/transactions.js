@@ -31,3 +31,18 @@ export async function getPayoutRequests({ page = 1, limit = 5 } = {}) {
   });
   return data;
 }
+
+export async function getPayoutBeneficiaries() {
+  const { data } = await api.get("/transactions/payout-beneficiaries");
+  return data;
+}
+
+export async function savePayoutBeneficiary(payload) {
+  const { data } = await api.post("/transactions/payout-beneficiaries", payload);
+  return data;
+}
+
+export async function deletePayoutBeneficiary(id) {
+  const { data } = await api.delete(`/transactions/payout-beneficiaries/${id}`);
+  return data;
+}
