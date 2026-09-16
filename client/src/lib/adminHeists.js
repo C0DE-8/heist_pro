@@ -142,6 +142,11 @@ export async function createAdminHeistDemoUser(heistId, payload) {
   return data;
 }
 
+export async function autoAddAdminHeistDemoUsers(heistId, payload) {
+  const { data } = await api.post(`/admin/heists/${heistId}/demo-users/auto`, payload);
+  return data;
+}
+
 export async function deleteAdminHeistDemoUser(heistId, demoId) {
   const { data } = await api.delete(`/admin/heists/${heistId}/demo-users/${demoId}`);
   return data;

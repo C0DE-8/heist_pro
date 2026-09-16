@@ -1,0 +1,96 @@
+.content {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 4px 2px;
+}
+
+.icon,
+.dangerIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(34, 211, 238, 0.12);
+  color: #67e8f9;
+}
+
+.dangerIcon {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.content p {
+  margin: 3px 0 14px;
+  color: rgba(233, 233, 255, 0.72);
+  line-height: 1.6;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field span {
+  color: rgba(233, 233, 255, 0.7);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.field input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 13px;
+  padding: 0 13px;
+  background: rgba(255, 255, 255, 0.065);
+  color: #fff;
+  font: inherit;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: rgba(103, 232, 249, 0.58);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+}
+
+.cancelBtn,
+.confirmBtn,
+.dangerBtn {
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 17px;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.cancelBtn {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.confirmBtn {
+  background: linear-gradient(135deg, #22d3ee, #3b82f6);
+  color: #061018;
+}
+
+.dangerBtn {
+  background: linear-gradient(135deg, #fb7185, #ef4444);
+  color: #fff;
+}
+
+.confirmBtn:disabled,
+.dangerBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 560px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+}

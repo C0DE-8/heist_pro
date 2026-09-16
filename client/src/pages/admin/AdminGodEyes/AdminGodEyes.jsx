@@ -12,6 +12,7 @@ import {
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
 import AdminPageHeader from "../../../components/admin/AdminPageHeader";
+import AdminDialog from "../../../components/admin/AdminDialog";
 import { useToast } from "../../../components/Toast/ToastContext";
 import {
   getGodEyesUser,
@@ -19,6 +20,7 @@ import {
   setGodEyesUserBlocked,
 } from "../../../lib/adminGodEyes";
 import styles from "./AdminGodEyes.module.css";
+import { useAdminDialog } from "../../../hooks/useAdminDialog";
 
 function formatDate(value) {
   if (!value) return "N/A";
@@ -37,6 +39,7 @@ function userLabel(user) {
 
 export default function AdminGodEyes() {
   const toast = useToast();
+  const adminDialog = useAdminDialog();
   const [users, setUsers] = useState([]);
   const [totals, setTotals] = useState(null);
   const [pagination, setPagination] = useState(null);
@@ -113,7 +116,18 @@ export default function AdminGodEyes() {
   const toggleBlock = async () => {
     if (!selected?.id || savingBlock) return;
     const nextBlocked = !selected.is_blocked;
-    const reason = nextBlocked ? window.prompt("Reason for blocking this user?", "") || "" : "";
+    const reason = nextBlocked
+      ? await adminDialog.prompt({
+          title: "Block user?",
+          message: `${userLabel(selected)} will immediately lose access to the platform.`,
+          label: "Reason for blocking",
+          placeholder: "Describe the reason",
+          required: false,
+          confirmLabel: "Block user",
+          tone: "danger",
+        })
+      : "";
+    if (nextBlocked && reason === null) return;
     setSavingBlock(true);
     try {
       await setGodEyesUserBlocked(selected.id, nextBlocked, reason);
@@ -360,6 +374,7 @@ export default function AdminGodEyes() {
             )}
           </div>
         </section>
+        <AdminDialog {...adminDialog.dialogProps} />
       </main>
     </div>
   );

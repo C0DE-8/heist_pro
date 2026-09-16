@@ -227,10 +227,12 @@ async function maybeStartCountdown(db, heistId) {
   if (!heist || heist.status !== "pending") return false;
 
   const [[countRow]] = await db.query(
-    `SELECT COUNT(*) AS total
-     FROM heist_participants
-     WHERE heist_id = ? AND status IN ('joined', 'submitted')`,
-    [heistId]
+    `SELECT
+       (SELECT COUNT(*) FROM heist_participants
+        WHERE heist_id = ? AND status IN ('joined', 'submitted'))
+       +
+       (SELECT COUNT(*) FROM heist_demo_submissions WHERE heist_id = ?) AS total`,
+    [heistId, heistId]
   );
 
   if (Number(countRow.total) < Number(heist.min_users)) return false;

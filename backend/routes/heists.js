@@ -118,10 +118,14 @@ router.post("/promo-codes/redeem", authenticateToken, async (req, res) => {
 });
 
 function participantCountField(alias = "h") {
-  return `(SELECT COUNT(*)
-           FROM heist_participants hp_count
-           WHERE hp_count.heist_id = ${alias}.id
-             AND hp_count.status IN ('joined', 'submitted')) AS total_participants`;
+  return `((SELECT COUNT(*)
+            FROM heist_participants hp_count
+            WHERE hp_count.heist_id = ${alias}.id
+              AND hp_count.status IN ('joined', 'submitted'))
+           +
+           (SELECT COUNT(*)
+            FROM heist_demo_submissions hds_count
+            WHERE hds_count.heist_id = ${alias}.id)) AS total_participants`;
 }
 
 function isHeistFull(heist, participantCount) {
@@ -450,10 +454,12 @@ router.post("/:id/join", authenticateToken, async (req, res) => {
     }
 
     const [[participantCount]] = await conn.query(
-      `SELECT COUNT(*) AS total
-       FROM heist_participants
-       WHERE heist_id = ? AND status IN ('joined', 'submitted')`,
-      [heistId]
+      `SELECT
+         (SELECT COUNT(*) FROM heist_participants
+          WHERE heist_id = ? AND status IN ('joined', 'submitted'))
+         +
+         (SELECT COUNT(*) FROM heist_demo_submissions WHERE heist_id = ?) AS total`,
+      [heistId, heistId]
     );
     if (isHeistFull(heist, participantCount?.total)) {
       await conn.rollback();

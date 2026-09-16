@@ -8,6 +8,7 @@ const {
   ensureHeistWinnerDemoColumn,
   normalizeAnswer,
   finalizeHeist,
+  maybeStartCountdown,
 } = require("../services/heist.service");
 const {
   ensureAutoHeistTables,
@@ -306,7 +307,7 @@ router.get("/", async (req, res) => {
          COALESCE(winner.username, demoWinner.display_name) AS winner_username,
          COALESCE(winner.full_name, demoWinner.display_name) AS winner_full_name,
          CASE WHEN h.winner_demo_submission_id IS NULL THEN 0 ELSE 1 END AS winner_is_demo,
-         COUNT(DISTINCT hp.id) AS total_participants,
+         (COUNT(DISTINCT hp.id) + COUNT(DISTINCT hds.id)) AS total_participants,
          COUNT(DISTINCT hs.id) AS total_submissions,
          COUNT(DISTINCT hds.id) AS total_demo_submissions,
          COUNT(DISTINCT CASE WHEN hp.status = 'joined' THEN hp.id END) AS joined_participants,
@@ -1258,7 +1259,7 @@ router.get("/:id", async (req, res) => {
          COALESCE(winner.username, demoWinner.display_name) AS winner_username,
          COALESCE(winner.full_name, demoWinner.display_name) AS winner_full_name,
          CASE WHEN h.winner_demo_submission_id IS NULL THEN 0 ELSE 1 END AS winner_is_demo,
-         COUNT(DISTINCT hp.id) AS total_participants,
+         (COUNT(DISTINCT hp.id) + COUNT(DISTINCT hds.id)) AS total_participants,
          COUNT(DISTINCT hs.id) AS total_submissions,
          COUNT(DISTINCT hds.id) AS total_demo_submissions,
          COUNT(DISTINCT CASE WHEN hp.status = 'joined' THEN hp.id END) AS joined_participants,
@@ -1430,7 +1431,11 @@ router.post("/:id/demo-users", async (req, res) => {
     if (submittedAt === false) return res.status(400).json({ message: "submitted_at must be a valid date" });
 
     const [[heist]] = await pool.query(
-      `SELECT h.id, h.total_questions, COUNT(hq.id) AS assigned_questions
+      `SELECT h.id, h.status, h.max_users, h.total_questions, COUNT(hq.id) AS assigned_questions,
+              (SELECT COUNT(*) FROM heist_participants hp
+               WHERE hp.heist_id = h.id AND hp.status IN ('joined', 'submitted')) AS real_seats,
+              (SELECT COUNT(*) FROM heist_demo_submissions hds
+               WHERE hds.heist_id = h.id) AS demo_seats
        FROM heist h
        LEFT JOIN heist_questions hq ON hq.heist_id = h.id AND hq.is_active = 1
        WHERE h.id = ?
@@ -1439,6 +1444,14 @@ router.post("/:id/demo-users", async (req, res) => {
       [heistId]
     );
     if (!heist) return res.status(404).json({ message: "Heist not found" });
+    if (["completed", "cancelled"].includes(String(heist.status))) {
+      return res.status(400).json({ message: "Demo users cannot be added to a closed heist" });
+    }
+
+    const occupiedSeats = Number(heist.real_seats || 0) + Number(heist.demo_seats || 0);
+    if (Number(heist.max_users || 0) > 0 && occupiedSeats >= Number(heist.max_users)) {
+      return res.status(400).json({ message: "Heist is full" });
+    }
 
     const questionLimit = Number(heist.assigned_questions || heist.total_questions || 0);
     if (questionLimit <= 0) {
@@ -1487,10 +1500,153 @@ router.post("/:id/demo-users", async (req, res) => {
       [result.insertId]
     );
 
+    await maybeStartCountdown(pool, heistId);
+
     return res.status(201).json({ message: "Demo user added", demo_user: demoUser });
   } catch (err) {
     console.error("admin demo user add error:", err);
     return res.status(500).json({ message: "Error adding demo user" });
+  }
+});
+
+// Automatically fill heist seats with reusable demo users.
+router.post("/:id/demo-users/auto", async (req, res) => {
+  const heistId = Number(req.params.id);
+  const count = Number(req.body?.count);
+  const answerRate = Number(req.body?.answer_rate);
+  const timeSeconds = Number(req.body?.time_seconds);
+
+  if (!heistId) return res.status(400).json({ message: "Invalid heist id" });
+  if (!Number.isInteger(count) || count < 1 || count > 100) {
+    return res.status(400).json({ message: "Demo user count must be between 1 and 100" });
+  }
+  if (!Number.isFinite(answerRate) || answerRate < 0 || answerRate > 100) {
+    return res.status(400).json({ message: "Answer rate must be between 0 and 100" });
+  }
+  if (!Number.isInteger(timeSeconds) || timeSeconds < 1) {
+    return res.status(400).json({ message: "Minimum demo-user time must be at least 1 second" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [[heist]] = await conn.query(
+      `SELECT h.id, h.status, h.max_users, h.total_questions,
+              COUNT(DISTINCT hq.id) AS assigned_questions,
+              (SELECT COUNT(*) FROM heist_participants hp
+               WHERE hp.heist_id = h.id AND hp.status IN ('joined', 'submitted')) AS real_seats,
+              (SELECT COUNT(*) FROM heist_demo_submissions hds
+               WHERE hds.heist_id = h.id) AS demo_seats
+       FROM heist h
+       LEFT JOIN heist_questions hq ON hq.heist_id = h.id AND hq.is_active = 1
+       WHERE h.id = ?
+       GROUP BY h.id
+       LIMIT 1 FOR UPDATE`,
+      [heistId]
+    );
+    if (!heist) {
+      await conn.rollback();
+      return res.status(404).json({ message: "Heist not found" });
+    }
+    if (["completed", "cancelled"].includes(String(heist.status))) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Demo users cannot be added to a closed heist" });
+    }
+
+    const questionLimit = Number(heist.assigned_questions || heist.total_questions || 0);
+    if (questionLimit <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ message: "Assign questions before adding demo users" });
+    }
+
+    const occupiedSeats = Number(heist.real_seats || 0) + Number(heist.demo_seats || 0);
+    const maxUsers = Number(heist.max_users || 0);
+    if (maxUsers > 0 && occupiedSeats + count > maxUsers) {
+      await conn.rollback();
+      return res.status(400).json({
+        message: `Only ${Math.max(0, maxUsers - occupiedSeats)} seat(s) are available`,
+      });
+    }
+
+    const [availableDemoUsers] = await conn.query(
+      `SELECT du.id, du.display_name
+       FROM heist_demo_users du
+       WHERE du.is_active = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM heist_demo_submissions hds
+           WHERE hds.heist_id = ? AND hds.demo_user_id = du.id
+         )
+       ORDER BY RAND()
+       LIMIT ?`,
+      [heistId, count]
+    );
+    if (availableDemoUsers.length < count) {
+      await conn.rollback();
+      return res.status(400).json({
+        message: `Only ${availableDemoUsers.length} unused active demo user(s) are available`,
+      });
+    }
+
+    const correctCount = Math.min(questionLimit, Math.round((questionLimit * answerRate) / 100));
+    const wrongCount = questionLimit - correctCount;
+    const scorePercent = calculateDemoScore({
+      correctCount,
+      wrongCount,
+      unansweredCount: 0,
+      fallbackTotal: questionLimit,
+    });
+    const now = Date.now();
+    const timeSpread = Math.max(count - 1, 15, Math.ceil(timeSeconds * 0.5));
+    const randomizedTimeOffsets = Array.from({ length: timeSpread + 1 }, (_, index) => index);
+    for (let index = randomizedTimeOffsets.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [randomizedTimeOffsets[index], randomizedTimeOffsets[swapIndex]] = [
+        randomizedTimeOffsets[swapIndex],
+        randomizedTimeOffsets[index],
+      ];
+    }
+    const rows = availableDemoUsers.map((demoUser, index) => [
+      heistId,
+      demoUser.id,
+      demoUser.display_name,
+      correctCount,
+      wrongCount,
+      0,
+      scorePercent,
+      timeSeconds + randomizedTimeOffsets[index],
+      new Date(now + index * 1000),
+      req.user.userId,
+    ]);
+
+    await conn.query(
+      `INSERT INTO heist_demo_submissions
+        (heist_id, demo_user_id, display_name, correct_count, wrong_count, unanswered_count,
+         score_percent, total_time_seconds, submitted_at, created_by)
+       VALUES ?`,
+      [rows]
+    );
+    const countdownStarted = await maybeStartCountdown(conn, heistId);
+    await conn.commit();
+
+    return res.status(201).json({
+      message: `${count} demo user(s) added`,
+      added_count: count,
+      occupied_seats: occupiedSeats + count,
+      max_users: maxUsers || null,
+      answer_rate: scorePercent,
+      minimum_time_seconds: timeSeconds,
+      maximum_time_seconds: timeSeconds + timeSpread,
+      countdown_started: countdownStarted,
+      demo_users: availableDemoUsers,
+    });
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.error("admin auto demo users error:", err);
+    return res.status(500).json({ message: "Error automatically adding demo users" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

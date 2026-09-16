@@ -21,15 +21,16 @@ import {
   FaUsers,
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
+import AdminDialog from "../../../components/admin/AdminDialog";
 import AdminPageHeader from "../../../components/admin/AdminPageHeader";
 import Modal from "../../../components/ui/Modal";
 import { ToastProvider, useToast } from "../../../components/ui/Toaster";
 import {
   addAdminQuestionBankQuestions,
   assignAdminHeistQuestions,
+  autoAddAdminHeistDemoUsers,
   createAdminAffiliateTask,
   createAdminDemoUser,
-  createAdminHeistDemoUser,
   createAdminHeistContent,
   createAdminHeist,
   createAdminPromoCode,
@@ -61,6 +62,7 @@ import {
 } from "../../../lib/adminHeists";
 import styles from "./AdminHeists.module.css";
 import { createAdminProduct, getAdminProducts } from "../../../lib/commerce";
+import { useAdminDialog } from "../../../hooks/useAdminDialog";
 
 const EMPTY_HEIST = {
   name: "",
@@ -113,14 +115,10 @@ const EMPTY_PROMO_CODE = {
   is_active: true,
 };
 
-const EMPTY_DEMO_USER = {
-  demo_user_id: "",
-  display_name: "",
-  correct_count: "0",
-  wrong_count: "0",
-  unanswered_count: "0",
-  total_time_seconds: "60",
-  submitted_at: "",
+const EMPTY_AUTO_DEMO = {
+  count: "1",
+  answer_rate: "70",
+  time_seconds: "60",
 };
 
 const HEISTS_PER_PAGE = 6;
@@ -300,6 +298,7 @@ function SchedulePicker({ label, value, onDateChange, onTimeChange }) {
 
 function AdminHeistsPage() {
   const toast = useToast();
+  const adminDialog = useAdminDialog();
   const location = useLocation();
   const actionDragRef = useRef(null);
   const actionIdleTimerRef = useRef(null);
@@ -344,7 +343,7 @@ function AdminHeistsPage() {
   const [contentForm, setContentForm] = useState(EMPTY_CONTENT);
   const [autoHeistForm, setAutoHeistForm] = useState(EMPTY_AUTO_HEIST);
   const [promoForm, setPromoForm] = useState(EMPTY_PROMO_CODE);
-  const [demoUserForm, setDemoUserForm] = useState(EMPTY_DEMO_USER);
+  const [autoDemoForm, setAutoDemoForm] = useState(EMPTY_AUTO_DEMO);
   const [demoBankName, setDemoBankName] = useState("");
   const [bulkQuestionText, setBulkQuestionText] = useState("");
   const [statusValue, setStatusValue] = useState("pending");
@@ -391,13 +390,6 @@ function AdminHeistsPage() {
     [activeDetailHeist?.total_questions, questions.length]
   );
 
-  const demoAnswerTotal = useMemo(
-    () =>
-      Number(demoUserForm.correct_count || 0) +
-      Number(demoUserForm.wrong_count || 0) +
-      Number(demoUserForm.unanswered_count || 0),
-    [demoUserForm.correct_count, demoUserForm.wrong_count, demoUserForm.unanswered_count]
-  );
 
   const totals = useMemo(
     () => ({
@@ -750,21 +742,6 @@ function AdminHeistsPage() {
     }));
   };
 
-  const updateDemoUserForm = (event) => {
-    const { name, value } = event.target;
-    setDemoUserForm((prev) => {
-      if (name === "demo_user_id") {
-        const selectedDemoUser = demoUserBank.find((user) => Number(user.id) === Number(value));
-        return {
-          ...prev,
-          demo_user_id: value,
-          display_name: selectedDemoUser?.display_name || "",
-        };
-      }
-      return { ...prev, [name]: value };
-    });
-  };
-
   const applyContentTemplate = (mode, contentId) => {
     const item = contentBank.find((entry) => Number(entry.id) === Number(contentId));
     if (!item) return;
@@ -995,7 +972,12 @@ function AdminHeistsPage() {
 
   const deleteQuestion = async (question) => {
     if (!selectedId || !question?.id || busy) return;
-    const ok = window.confirm("Delete this question from the heist?");
+    const ok = await adminDialog.confirm({
+      title: "Delete question?",
+      message: "This question will be removed from the heist.",
+      confirmLabel: "Delete question",
+      tone: "danger",
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -1011,39 +993,30 @@ function AdminHeistsPage() {
     }
   };
 
-  const createDemoUser = async (event) => {
+  const autoAddDemoUsers = async (event) => {
     event.preventDefault();
     if (!selectedId || busy) return;
-    if (!demoUserForm.demo_user_id) {
-      toast.warn("Select a demo user first.");
-      return;
-    }
     if (demoQuestionLimit <= 0) {
       toast.warn("Assign questions to this heist before adding demo players.");
-      return;
-    }
-    if (demoAnswerTotal > demoQuestionLimit) {
-      toast.warn(`Demo answers cannot be more than ${demoQuestionLimit} question(s).`);
       return;
     }
 
     setBusy(true);
     try {
-      await createAdminHeistDemoUser(selectedId, {
-        demo_user_id: Number(demoUserForm.demo_user_id),
-        display_name: demoUserForm.display_name.trim(),
-        correct_count: Number(demoUserForm.correct_count || 0),
-        wrong_count: Number(demoUserForm.wrong_count || 0),
-        unanswered_count: Number(demoUserForm.unanswered_count || 0),
-        total_time_seconds: Number(demoUserForm.total_time_seconds || 0),
-        submitted_at: demoUserForm.submitted_at || null,
+      const data = await autoAddAdminHeistDemoUsers(selectedId, {
+        count: Number(autoDemoForm.count),
+        answer_rate: Number(autoDemoForm.answer_rate),
+        time_seconds: Number(autoDemoForm.time_seconds),
       });
-      toast.success("Demo player added");
-      setDemoUserForm(EMPTY_DEMO_USER);
-      await loadSelectedDetails();
+      toast.success(
+        `${formatNum(data?.added_count || autoDemoForm.count)} demo users added · ${formatNum(
+          data?.occupied_seats
+        )}${data?.max_users ? `/${formatNum(data.max_users)}` : ""} seats filled`
+      );
+      await Promise.all([loadSelectedDetails(), loadHeists()]);
     } catch (err) {
-      console.error("Create demo player error:", err);
-      toast.error(err?.response?.data?.message || "Unable to add demo player.");
+      console.error("Auto add demo players error:", err);
+      toast.error(err?.response?.data?.message || "Unable to automatically add demo users.");
     } finally {
       setBusy(false);
     }
@@ -1055,17 +1028,10 @@ function AdminHeistsPage() {
 
     setBusy(true);
     try {
-      const data = await createAdminDemoUser({ display_name: displayName });
+      await createAdminDemoUser({ display_name: displayName });
       toast.success("Demo user saved");
       setDemoBankName("");
       await loadDemoUserBank();
-      if (data?.demo_user?.id) {
-        setDemoUserForm((prev) => ({
-          ...prev,
-          demo_user_id: String(data.demo_user.id),
-          display_name: data.demo_user.display_name,
-        }));
-      }
     } catch (err) {
       console.error("Create demo bank user error:", err);
       toast.error(err?.response?.data?.message || "Unable to save demo user.");
@@ -1092,7 +1058,12 @@ function AdminHeistsPage() {
 
   const renameDemoBankUser = async (demoUser) => {
     if (!demoUser?.id || busy) return;
-    const nextName = window.prompt("Update demo user name", demoUser.display_name);
+    const nextName = await adminDialog.prompt({
+      title: "Rename demo user",
+      label: "Display name",
+      initialValue: demoUser.display_name,
+      confirmLabel: "Save name",
+    });
     if (nextName === null) return;
     const displayName = nextName.trim();
     if (!displayName || displayName === demoUser.display_name) return;
@@ -1113,7 +1084,12 @@ function AdminHeistsPage() {
 
   const deleteDemoUser = async (demoUser) => {
     if (!selectedId || !demoUser?.id || busy) return;
-    const ok = window.confirm("Delete this demo leaderboard player?");
+    const ok = await adminDialog.confirm({
+      title: "Remove demo player?",
+      message: `${demoUser.display_name} will be removed from this heist leaderboard and its occupied seat will be released.`,
+      confirmLabel: "Remove player",
+      tone: "danger",
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -1131,7 +1107,12 @@ function AdminHeistsPage() {
 
   const deleteBankQuestion = async (question) => {
     if (!question?.id || busy) return;
-    const ok = window.confirm("Delete this unused bank question?");
+    const ok = await adminDialog.confirm({
+      title: "Delete bank question?",
+      message: "This unused question will be permanently removed from the question bank.",
+      confirmLabel: "Delete question",
+      tone: "danger",
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -1176,7 +1157,12 @@ function AdminHeistsPage() {
 
   const deleteContent = async (item) => {
     if (!item?.id || busy) return;
-    const ok = window.confirm("Delete this heist name and description from the bank?");
+    const ok = await adminDialog.confirm({
+      title: "Delete heist content?",
+      message: `${item.name} and its saved description will be permanently removed from the bank.`,
+      confirmLabel: "Delete content",
+      tone: "danger",
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -1344,19 +1330,42 @@ function AdminHeistsPage() {
 
   const editPromoCode = async (promoCode) => {
     if (!promoCode?.id || busy) return;
-    const code = window.prompt("Promo code", promoCode.code);
+    const code = await adminDialog.prompt({
+      title: "Edit promo code",
+      label: "Promo code",
+      initialValue: promoCode.code,
+      confirmLabel: "Continue",
+    });
     if (code === null) return;
-    const amount = window.prompt("CopUp Jr amount", String(promoCode.copup_jr_amount || 1));
+    const amount = await adminDialog.prompt({
+      title: "Edit promo reward",
+      label: "CopUp Jr amount",
+      inputType: "number",
+      min: "1",
+      initialValue: String(promoCode.copup_jr_amount || 1),
+      confirmLabel: "Continue",
+    });
     if (amount === null) return;
-    const maxRedemptions = window.prompt(
-      "Max redemptions, blank for unlimited",
-      promoCode.max_redemptions === null ? "" : String(promoCode.max_redemptions || "")
-    );
+    const maxRedemptions = await adminDialog.prompt({
+      title: "Redemption limit",
+      label: "Maximum redemptions",
+      message: "Leave this blank for unlimited redemptions.",
+      inputType: "number",
+      min: "1",
+      required: false,
+      initialValue: promoCode.max_redemptions === null ? "" : String(promoCode.max_redemptions || ""),
+      confirmLabel: "Continue",
+    });
     if (maxRedemptions === null) return;
-    const expiresAt = window.prompt(
-      "Expires at as YYYY-MM-DD HH:mm, blank for no expiry",
-      promoCode.expires_at ? String(promoCode.expires_at).slice(0, 16).replace("T", " ") : ""
-    );
+    const expiresAt = await adminDialog.prompt({
+      title: "Promo expiry",
+      label: "Expiry date and time",
+      message: "Leave this blank if the promo code should not expire.",
+      inputType: "datetime-local",
+      required: false,
+      initialValue: promoCode.expires_at ? String(promoCode.expires_at).slice(0, 16) : "",
+      confirmLabel: "Save promo",
+    });
     if (expiresAt === null) return;
 
     setBusy(true);
@@ -1395,7 +1404,12 @@ function AdminHeistsPage() {
 
   const expirePromoCode = async (promoCode) => {
     if (!promoCode?.id || busy) return;
-    const ok = window.confirm("Expire this promo code now?");
+    const ok = await adminDialog.confirm({
+      title: "Expire promo code?",
+      message: `${promoCode.code} will stop working immediately.`,
+      confirmLabel: "Expire now",
+      tone: "danger",
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -1413,7 +1427,12 @@ function AdminHeistsPage() {
 
   const deletePromoCode = async (promoCode) => {
     if (!promoCode?.id || busy) return;
-    const ok = window.confirm("Delete this promo code?");
+    const ok = await adminDialog.confirm({
+      title: "Delete promo code?",
+      message: `${promoCode.code} will be permanently removed.`,
+      confirmLabel: "Delete promo",
+      tone: "danger",
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -1472,7 +1491,12 @@ function AdminHeistsPage() {
 
   const deleteTask = async (task) => {
     if (!selectedId || !task?.id || busy) return;
-    const ok = window.confirm("Delete this affiliate task?");
+    const ok = await adminDialog.confirm({
+      title: "Delete affiliate task?",
+      message: "This task will be removed from the selected heist.",
+      confirmLabel: "Delete task",
+      tone: "danger",
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -1540,26 +1564,64 @@ function AdminHeistsPage() {
 
       {!collapsedSections.marketing ? (
         <>
-          <form className={styles.demoUserForm} onSubmit={createDemoUser}>
+          <form className={styles.demoUserForm} onSubmit={autoAddDemoUsers}>
             <label className={styles.field}>
-              <span>Demo user</span>
-              <select
-                name="demo_user_id"
-                value={demoUserForm.demo_user_id}
-                onChange={updateDemoUserForm}
-              >
-                <option value="">Select demo user</option>
-                {demoUserBank
-                  .filter((demoUser) => Number(demoUser.is_active))
-                  .map((demoUser) => (
-                    <option value={demoUser.id} key={demoUser.id}>
-                      {demoUser.display_name}
-                    </option>
-                  ))}
-              </select>
+              <span>Number of demo users</span>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={autoDemoForm.count}
+                onChange={(event) =>
+                  setAutoDemoForm((prev) => ({ ...prev, count: event.target.value }))
+                }
+                required
+              />
             </label>
             <label className={styles.field}>
-              <span>Add to list</span>
+              <span>Correct answer rate (%)</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={autoDemoForm.answer_rate}
+                onChange={(event) =>
+                  setAutoDemoForm((prev) => ({ ...prev, answer_rate: event.target.value }))
+                }
+                required
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Minimum time per user (seconds)</span>
+              <input
+                type="number"
+                min="1"
+                value={autoDemoForm.time_seconds}
+                onChange={(event) =>
+                  setAutoDemoForm((prev) => ({ ...prev, time_seconds: event.target.value }))
+                }
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              className={styles.primaryBtn}
+              disabled={busy || !selectedId || demoQuestionLimit <= 0}
+            >
+              <FaUsers />
+              <span>{busy ? "Adding..." : "Auto add users"}</span>
+            </button>
+          </form>
+          <p className={styles.softNote}>
+            The system randomly selects unused active demo users, gives each one a different time
+            at or above the minimum, generates their results, fills seats, and starts the countdown
+            when the minimum seat target is reached.
+          </p>
+
+          <form className={styles.demoBankForm} onSubmit={(event) => event.preventDefault()}>
+            <label className={styles.field}>
+              <span>Add reusable demo name</span>
               <input
                 value={demoBankName}
                 onChange={(event) => setDemoBankName(event.target.value)}
@@ -1570,36 +1632,7 @@ function AdminHeistsPage() {
               <FaPlus />
               <span>Save user</span>
             </button>
-            <label className={styles.field}>
-              <span>Correct</span>
-              <input type="number" name="correct_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.correct_count} onChange={updateDemoUserForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Wrong</span>
-              <input type="number" name="wrong_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.wrong_count} onChange={updateDemoUserForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Unanswered</span>
-              <input type="number" name="unanswered_count" min="0" max={demoQuestionLimit || undefined} value={demoUserForm.unanswered_count} onChange={updateDemoUserForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Time seconds</span>
-              <input type="number" name="total_time_seconds" min="0" value={demoUserForm.total_time_seconds} onChange={updateDemoUserForm} />
-            </label>
-            <label className={styles.field}>
-              <span>Submitted at</span>
-              <input type="datetime-local" name="submitted_at" value={demoUserForm.submitted_at} onChange={updateDemoUserForm} />
-            </label>
-            <button type="submit" className={styles.primaryBtn} disabled={busy || !selectedId || !demoUserForm.demo_user_id || demoQuestionLimit <= 0 || demoAnswerTotal > demoQuestionLimit}>
-              <FaPlus />
-              <span>Add to heist</span>
-            </button>
           </form>
-          <p className={styles.softNote}>
-            {demoQuestionLimit > 0
-              ? `${formatNum(demoAnswerTotal)} of ${formatNum(demoQuestionLimit)} question slots used for this demo player.`
-              : "Assign questions before adding demo players."}
-          </p>
 
           <div className={styles.rows}>
             {demoUserBank.length ? (
@@ -3088,6 +3121,7 @@ function AdminHeistsPage() {
             </label>
           </form>
         </Modal>
+        <AdminDialog {...adminDialog.dialogProps} />
       </main>
     </div>
   );

@@ -47,7 +47,13 @@ export default function Modal({
 
   return (
     <div className={styles.overlay} onMouseDown={handleOverlay}>
-      <div className={`${styles.modal} ${sizeClass}`} onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className={`${styles.modal} ${sizeClass}`}
+        onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || "Dialog"}
+      >
         <div className={styles.head}>
           <div className={styles.headLeft}>
             <div className={styles.title}>{title}</div>

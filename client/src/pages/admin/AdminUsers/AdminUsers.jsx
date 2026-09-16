@@ -12,6 +12,7 @@ import {
 } from "react-icons/fa";
 import AdminNavbar from "../../../components/admin/Navbar";
 import AdminPageHeader from "../../../components/admin/AdminPageHeader";
+import AdminDialog from "../../../components/admin/AdminDialog";
 import { useToast } from "../../../components/Toast/ToastContext";
 import {
   deleteAdminUser,
@@ -20,6 +21,7 @@ import {
   updateAdminUser,
 } from "../../../lib/adminUsers";
 import styles from "./AdminUsers.module.css";
+import { useAdminDialog } from "../../../hooks/useAdminDialog";
 
 const EMPTY_FORM = {
   email: "",
@@ -60,6 +62,7 @@ function buildForm(user) {
 
 export default function AdminUsers() {
   const toast = useToast();
+  const adminDialog = useAdminDialog();
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -161,7 +164,12 @@ export default function AdminUsers() {
   const removeUser = async () => {
     if (!selectedUser?.id || deleting) return;
     const label = selectedUser.username || selectedUser.email || `user ${selectedUser.id}`;
-    const confirmed = window.confirm(`Delete ${label}? This cannot be undone.`);
+    const confirmed = await adminDialog.confirm({
+      title: "Delete user account?",
+      message: `${label} and their related account data will be permanently deleted. This cannot be undone.`,
+      confirmLabel: "Delete user",
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     setDeleting(true);
@@ -423,6 +431,7 @@ export default function AdminUsers() {
             )}
           </form>
         </section>
+        <AdminDialog {...adminDialog.dialogProps} />
       </main>
     </div>
   );
