@@ -503,7 +503,7 @@ function AdminTransactionsPage() {
                   <strong>{formatNum(item.cop_points)} CP</strong>
                 </div>
                 <h3>{item.username || item.email || `User #${item.user_id}`}</h3>
-                <p>{formatMoney(item.amount_ngn)} payout after 10% fee</p>
+                <p>{formatMoney(item.amount_ngn)} payout</p>
                 <dl className={styles.metaList}>
                   <div>
                     <dt>Account</dt>

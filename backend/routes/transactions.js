@@ -5,7 +5,6 @@ const { upload } = require("../middleware/upload");
 const { notifyAdmins } = require("../services/telegram");
 
 const router = express.Router();
-const PAYOUT_FEE_RATE = 0.1;
 
 function toPositiveNumber(value) {
   const n = Number(value);
@@ -36,9 +35,8 @@ function amountFromPayinCoins(copPoints, rate) {
 }
 
 function amountFromCoins(copPoints, rate) {
-  const grossAmount = (Number(copPoints) / Number(rate.unit)) * Number(rate.price);
-  const netAmount = grossAmount * (1 - PAYOUT_FEE_RATE);
-  return Number.isFinite(netAmount) && netAmount > 0 ? Number(netAmount.toFixed(2)) : 0;
+  const amount = (Number(copPoints) / Number(rate.unit)) * Number(rate.price);
+  return Number.isFinite(amount) && amount > 0 ? Number(amount.toFixed(2)) : 0;
 }
 
 function getPagination(query) {
@@ -396,7 +394,7 @@ router.post("/payouts", async (req, res) => {
         `<b>Request ID:</b> <code>${result.insertId}</code>\n` +
         `<b>User:</b> ${displayUser(notifyUser, userId)}\n` +
         `<b>Requested:</b> ${Number(copPoints).toLocaleString()} CP\n` +
-        `<b>Estimated Payout:</b> ${formatAmount(amountNgn, rate.currency || "NGN")}\n` +
+        `<b>Payout:</b> ${formatAmount(amountNgn, rate.currency || "NGN")}\n` +
         `<b>Account:</b> ${escapeHtml(accountName)} / <code>${escapeHtml(accountNumber)}</code>\n` +
         `<b>Bank:</b> ${escapeHtml(bankName || accountType)}\n` +
         `<b>Status:</b> pending`,
@@ -410,7 +408,9 @@ router.post("/payouts", async (req, res) => {
           ],
         },
       }
-    ).catch((err) => console.error("telegram payout notify error:", err.message));
+    )
+      .then(() => notifyAdmins(`<code>${escapeHtml(accountNumber)}</code>`))
+      .catch((err) => console.error("telegram payout notify error:", err.message));
 
     return res.status(201).json({
       message: "Payout request submitted",

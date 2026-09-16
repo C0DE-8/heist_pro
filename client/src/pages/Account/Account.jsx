@@ -1007,7 +1007,7 @@ export default function Account() {
               <div className={styles.transactionRow} key={item.id}>
                 <div>
                   <strong>{formatNum(item.cop_points)} CP</strong>
-                  <span>{formatMoney(item.amount_ngn)} after fee · {formatDate(item.created_at)}</span>
+                  <span>{formatMoney(item.amount_ngn)} payout · {formatDate(item.created_at)}</span>
                   <span className={styles.payoutAccountLine}>
                     <b>Bank:</b> {item.bank_name || "Not set"} · <b>Name:</b>{" "}
                     {item.account_name || "Not set"} · <b>No:</b>{" "}
