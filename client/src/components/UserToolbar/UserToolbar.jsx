@@ -26,6 +26,7 @@ import { imgUrl } from "../../lib/api";
 import { clearAuthSession, getStoredToken } from "../../lib/auth";
 import { COPUP_EVENTS } from "../../lib/copupEvents";
 import { getUserProfile } from "../../lib/users";
+import { getMyClan } from "../../lib/clans";
 import { getCopupJrBalance } from "../../lib/heists";
 import { getSoundEnabled, setSoundEnabled } from "../../lib/sound";
 import { isWalletHidden, setWalletHidden, WALLET_HIDE_KEY, WALLET_VISIBILITY_EVENT } from "../../lib/walletVisibility";
@@ -44,6 +45,7 @@ export default function UserToolbar() {
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState(null);
   const [copupJrBalance, setCopupJrBalance] = useState(0);
+  const [hasClan, setHasClan] = useState(false);
   const [loading, setLoading] = useState(false);
   const [soundOn, setSoundOn] = useState(() => getSoundEnabled());
   const [hideCoins, setHideCoins] = useState(
@@ -71,6 +73,7 @@ export default function UserToolbar() {
     clearAuthSession();
     setProfile(null);
     setCopupJrBalance(0);
+    setHasClan(false);
     setOpen(false);
 
     // ✅ update token state instantly
@@ -136,9 +139,14 @@ export default function UserToolbar() {
 
     setLoading(true);
     try {
-      const [data, jrData] = await Promise.all([getUserProfile(), getCopupJrBalance()]);
+      const [data, jrData, clanData] = await Promise.all([
+        getUserProfile(),
+        getCopupJrBalance(),
+        getMyClan().catch(() => null),
+      ]);
       setProfile(data?.user || null);
       setCopupJrBalance(Number(jrData?.copup_jr_balance || 0));
+      setHasClan(Boolean(clanData?.clan?.id || clanData?.my_membership?.clan_id));
     } catch (err) {
       const code = err?.response?.status;
       if (code === 401 || code === 403) logout();
@@ -227,7 +235,10 @@ export default function UserToolbar() {
           <button
             type="button"
             className={styles.avatar}
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              setOpen(true);
+              fetchProfile();
+            }}
             aria-label="Open profile menu"
           >
             {profileImageSrc ? (
@@ -308,17 +319,21 @@ export default function UserToolbar() {
             <ShieldAlert size={16} /> Heist
           </button>
 
-          <button className={styles.item} onClick={() => go("/clans")}>
-            <Shield size={16} /> Clans
-          </button>
+          {hasClan ? (
+            <>
+              <button className={styles.item} onClick={() => go("/my-clan")}>
+                <Users size={16} /> My Clan
+              </button>
 
-          <button className={styles.item} onClick={() => go("/my-clan")}>
-            <Users size={16} /> My Clan
-          </button>
-
-          <button className={styles.item} onClick={() => go("/clan-quests")}>
-            <Trophy size={16} /> Clan quests
-          </button>
+              <button className={styles.item} onClick={() => go("/clan-quests")}>
+                <Trophy size={16} /> Clan quests
+              </button>
+            </>
+          ) : (
+            <button className={styles.item} onClick={() => go("/clans")}>
+              <Shield size={16} /> Clans
+            </button>
+          )}
 
           <button className={styles.item} onClick={() => go("/trade")}>
             <TrendingUp size={16} /> Trade

@@ -155,6 +155,11 @@
   gap: 8px;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .quickLink svg {
@@ -196,6 +201,8 @@
 }
 
 .card {
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.11);
   width: 100%;
   border-radius: 24px;
@@ -215,6 +222,27 @@
   box-shadow:
     0 14px 32px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  isolation: isolate;
+  transition:
+    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 240ms ease,
+    box-shadow 240ms ease,
+    background 240ms ease;
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -45% -20%;
+  background: linear-gradient(
+    115deg,
+    transparent 38%,
+    rgba(186, 255, 199, 0.13) 49%,
+    transparent 60%
+  );
+  transform: translateX(-70%) rotate(4deg);
+  transition: transform 520ms ease;
 }
 
 .cardImageWrap {
@@ -234,6 +262,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .cardText {
@@ -253,6 +282,57 @@
   font-size: 13px;
   color: rgba(255, 255, 255, 0.58);
   line-height: 1.5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quickLink:hover {
+    transform: translateY(-3px);
+    border-color: rgba(186, 255, 199, 0.28);
+    background:
+      linear-gradient(180deg, rgba(186, 255, 199, 0.13), rgba(255, 255, 255, 0.045)),
+      rgba(23, 25, 31, 0.78);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.24);
+  }
+
+  .card:hover {
+    transform: translateY(-5px) scale(1.012);
+    border-color: rgba(186, 255, 199, 0.3);
+    background:
+      linear-gradient(180deg, rgba(186, 255, 199, 0.13), rgba(255, 255, 255, 0.05)),
+      rgba(26, 27, 31, 0.8);
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.34),
+      0 0 0 1px rgba(186, 255, 199, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .card:hover::after {
+    transform: translateX(70%) rotate(4deg);
+  }
+
+  .card:hover .cardImage {
+    transform: scale(1.07);
+  }
+}
+
+.quickLink:focus-visible,
+.card:focus-visible {
+  outline: 2px solid #baffc7;
+  outline-offset: 3px;
+}
+
+.quickLink:active,
+.card:active {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quickLink,
+  .card,
+  .card::after,
+  .cardImage {
+    transition: none;
+  }
 }
 
 @media (max-width: 480px) {
